@@ -1,0 +1,384 @@
+/* ============================================================================
+   To-Do Boards — styles.css
+   Identity comes from structure (frame, scratch-out, paper tone), never costume.
+   See UIUX.md: §2 tokens, §3 geometry, §4 note, §6 touch floor, §7 menu,
+   §8 motion, §9 toast, §10 list, §12 a11y.
+   ========================================================================== */
+
+/* --- §2 Design tokens — light ("paper") theme, default ------------------- */
+:root {
+  --paper:           #F7F5F0;
+  --ink:             #1A1815;
+  --ink-rgb:         26, 24, 21;   /* --ink as channels, for the scratch text */
+  --ink-shadow:      #8A857C;
+  --letterbox:       #3A3733;
+  --surface-raised:  #FFFFFF;
+  --hairline:        rgb(0 0 0 / 0.12);
+  --danger:          #8C1D18;
+  --accent-restore:  #1B5E20;
+  --focus-ring:      #0B57D0;
+  --elevation:       0 2px 8px rgb(0 0 0 / 0.25);
+}
+
+/* --- §2.2 Dark theme ----------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:          #211F1C;
+    --ink:            #EDEAE4;
+    --ink-rgb:        237, 234, 228;
+    --ink-shadow:     #9B968D;
+    --letterbox:      #121110;
+    --surface-raised: #2E2B27;
+    --hairline:       rgb(255 255 255 / 0.14);
+    --danger:         #F2B8B5;
+    --accent-restore: #A5D6A7;
+  }
+}
+
+/* --- Global -------------------------------------------------------------- */
+* { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; width: 100%; }
+
+body {
+  background: var(--letterbox);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "kern" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;               /* the board never pans/zooms (UIUX §5) */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Text inside editable regions is selectable; nothing else is. */
+[contenteditable] { -webkit-user-select: text; user-select: text; }
+
+/* ============================================================================
+   §3 Board view — layout geometry
+   ========================================================================== */
+#board-view {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--letterbox);       /* the desk, outside the page */
+}
+
+/* The single logical page (900 × 1000 units). Positioned + scaled in JS via
+   --offx / --offy / --rs. transform-origin top-left keeps stored x,y truthful. */
+#board {
+  position: absolute;
+  left: 0; top: 0;
+  width: 900px;
+  height: 1000px;
+  transform-origin: 0 0;
+  transform: translate(var(--offx, 0px), var(--offy, 0px)) scale(var(--rs, 1));
+  background: var(--paper);
+  touch-action: none;
+}
+
+/* ---- §3 / §6.1 Anchors (furniture; render beneath notes) ---------------- */
+.anchor {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  padding: 2px 0 4px;
+  min-height: 44px;                   /* long-pressable even when empty (§6.1) */
+  color: var(--ink);
+  caret-color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  outline: none;
+  line-height: 1.3;
+}
+/* Shadow placeholder only when empty and unfocused; vanishes on focus with
+   no select-and-delete; returns on empty blur (UIUX §3). */
+.anchor:not(.filled):not(:focus)::before {
+  content: attr(data-placeholder);
+  color: var(--ink-shadow);
+}
+/* Lighter than a note frame: a 1.5px baseline rule when focused or filled. */
+.anchor.filled,
+.anchor:focus { border-bottom: 1.5px solid var(--ink); }
+.anchor:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+#anchor-title {
+  left: 250px; top: 24px; width: 400px;
+  text-align: center;
+  font-size: 24px; font-weight: 700; line-height: 1.2;
+}
+#anchor-components {
+  left: 24px; top: 24px; width: 216px;
+  font-size: 15px; font-weight: 600;
+}
+#anchor-requirements {
+  left: 660px; top: 24px; width: 216px;
+  font-size: 15px; font-weight: 600;
+}
+
+/* ---- §3 / §6.5 Parking Lot --------------------------------------------- */
+#lot {
+  position: absolute;
+  z-index: 1;
+  left: 24px; top: 856px;
+  width: 852px; height: 128px;
+}
+#lot-rule {                            /* the single drawn 1px ink rule */
+  position: absolute; left: 0; right: 0; top: 0;
+  height: 1px; background: var(--ink);
+}
+#lot-header {
+  position: absolute; left: 0; top: 8px;
+  font-size: 15px; font-weight: 600; color: var(--ink);
+}
+#lot-items {
+  position: absolute; left: 0; right: 0; top: 34px; bottom: 0;
+  overflow: hidden;
+}
+/* Unframed text lines — the one place text is never framed (§4.4 / §6.5). */
+.lot-item {
+  position: relative;
+  min-height: 44px;                    /* full-width hit row (§6) */
+  display: flex;
+  align-items: center;
+}
+.lot-text {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  font-size: 16px; line-height: 1.45;
+  color: var(--ink);
+  caret-color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  outline: none;
+  padding: 2px 0;
+}
+.lot-text:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ============================================================================
+   §4 The note component
+   ========================================================================== */
+.note {
+  position: absolute;
+  transform-origin: top left;          /* stored x,y stays truthful (§4.1) */
+  z-index: 2;                          /* above anchors; DOM order = z-order */
+  touch-action: none;
+}
+/* Decoupled hit area — expands the touch zone to the 44px floor (§6). --hit
+   is set per-note in JS so hit·scale·renderScale ≥ 44px physical. */
+.note::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--hit, 0px));
+}
+.note-text {
+  position: relative;
+  z-index: 1;
+  display: block;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 405px;                    /* ≈52ch measure (§2.3) */
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 2px;                  /* near-square: reads as drawn, not card */
+  background: var(--paper);
+  color: var(--ink);
+  caret-color: var(--ink);
+  font-size: 17px; line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  outline: none;
+}
+/* Frame draws itself on the first character; no empty frames ever (§6.2). */
+.note-text:empty {
+  border-color: transparent;
+  background: transparent;
+}
+/* Creating/editing: focus ring + caret (focus never color-alone, §4.2). */
+.note-text:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* Pressed (drag/pinch engaged): border thickens to 3px, padding compensates
+   so nothing reflows — the "picked up" confirmation (§4.2). */
+.note.pressed .note-text {
+  border-color: var(--ink);
+  border-width: 3px;
+  padding: 9px 11px;
+}
+
+/* ---- §4.3 The scratch-out (complete) ----------------------------------- */
+.note-scratch,
+.lot-scratch {
+  position: absolute;
+  inset: 0;
+  z-index: 2;                          /* above the opaque text so it truly destroys it */
+  border-radius: 2px;
+  pointer-events: none;
+  opacity: 0;                          /* active: invisible */
+  background:
+    repeating-linear-gradient(  8deg, var(--ink) 0 5px, transparent 5px 8px),
+    repeating-linear-gradient(-14deg, var(--ink) 0 4px, transparent 4px 7px),
+    repeating-linear-gradient( 79deg, var(--ink) 0 3px, transparent 3px 5px);
+}
+.note.complete .note-scratch,
+.lot-item.complete .lot-scratch { opacity: 0.97; }   /* ≥90% coverage, texture not color */
+
+/* Belt-and-suspenders: underlying text is also destroyed to 40% ink so no
+   screenshot/zoom recovers it (§4.3). */
+.note.complete .note-text,
+.lot-item.complete .lot-text { color: rgb(var(--ink-rgb) / 0.4); }
+
+/* ============================================================================
+   §7 Long-press menu (elevation = "temporary, above the page")
+   ========================================================================== */
+#menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 184px;
+  padding: 6px 0;
+  background: var(--surface-raised);
+  border-radius: 8px;
+  box-shadow: var(--elevation);
+  opacity: 0;
+}
+#menu.show { opacity: 1; }
+#menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;                    /* §6 */
+  padding: 0 16px;
+  background: none;
+  border: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+#menu button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+#menu .glyph { flex: 0 0 20px; text-align: center; font-size: 16px; }
+#menu .danger { color: var(--danger); }
+#menu .sep { height: 1px; margin: 6px 0; background: var(--hairline); }
+
+/* ============================================================================
+   §9 Undo toast
+   ========================================================================== */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--toast-bottom, 12px);
+  transform: translateX(-50%) translateY(8px);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: calc(100vw - 24px);
+  padding: 8px 8px 8px 16px;
+  background: var(--surface-raised);
+  color: var(--ink);
+  border-radius: 8px;
+  box-shadow: var(--elevation);
+  opacity: 0;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast .msg { font-size: 15px; }
+#toast button {                        /* Undo action: distinguished by underline, not color alone */
+  min-width: 48px; min-height: 48px;
+  padding: 0 12px;
+  background: none; border: none;
+  color: var(--accent-restore);
+  font: inherit; font-size: 16px; font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+#toast button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* ============================================================================
+   §10 Board list view (the only other screen)
+   ========================================================================== */
+#list-view {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: var(--paper);
+  overflow-y: auto;
+  touch-action: pan-y;                 /* the list scrolls; the board does not */
+  -webkit-overflow-scrolling: touch;
+}
+#list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+}
+#list-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
+/* The app's single primary control (Von Restorff): looks like a control. */
+#new-board {
+  min-height: 44px;
+  padding: 0 18px;
+  background: var(--ink);
+  color: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+  font: inherit;
+  font-size: 16px; font-weight: 600;
+  cursor: pointer;
+}
+#new-board:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+#list-rows { padding-bottom: 24px; }
+.board-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 20px;
+  background: var(--surface-raised);
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.board-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.board-row .row-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;             /* truncation always indicated (§10) */
+}
+.board-row .row-title.untitled { color: var(--ink-shadow); }
+.board-row .row-date {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--ink-shadow);
+}
+
+[hidden] { display: none !important; }
+
+/* ============================================================================
+   §8 Motion — the complete justified set; everything else is instant.
+   ========================================================================== */
+#menu            { transition: opacity 120ms ease; }
+.note-scratch,
+.lot-scratch     { transition: opacity 150ms ease; }
+#toast           { transition: opacity 150ms ease, transform 150ms ease; }
+.note.leaving,
+.lot-item.leaving,
+.board-row.leaving { transition: opacity 120ms ease; opacity: 0; }
+
+/* Mandatory global kill-switch (UIUX §8). */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
