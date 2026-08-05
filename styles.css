@@ -69,13 +69,14 @@ body {
   background: var(--letterbox);       /* the desk, outside the page */
 }
 
-/* The single logical page (900 × 1000 units). Positioned + scaled in JS via
+/* The single logical page. Width is a fixed 900-unit reference; height grows to
+   fill the viewport (--logical-h, set in JS). Positioned + scaled in JS via
    --offx / --offy / --rs. transform-origin top-left keeps stored x,y truthful. */
 #board {
   position: absolute;
   left: 0; top: 0;
   width: 900px;
-  height: 1000px;
+  height: var(--logical-h, 1000px);
   transform-origin: 0 0;
   transform: translate(var(--offx, 0px), var(--offy, 0px)) scale(var(--rs, 1));
   background: var(--paper);
@@ -125,7 +126,7 @@ body {
 #lot {
   position: absolute;
   z-index: 1;
-  left: 24px; top: 856px;
+  left: 24px; bottom: 16px;            /* pinned to the true bottom of the grown page */
   width: 852px; height: 128px;
 }
 #lot-rule {                            /* the single drawn 1px ink rule */

@@ -145,3 +145,25 @@ impermanent value choice, not costume: the system stays a single near-monochrome
 scale generated from two poles (UIUX §1 "identity from structure"). `--ink-rgb` stays
 channel-synced to `--ink` for the scratch-out text. Icons (B1) regenerated in the new
 poles to keep the installed-app identity in sync.
+
+### B17. Layout — "grow the canvas" fill replaces the letterbox
+B11/B12 framed the page as a fixed 900×1000 sheet shown with a *contain* fit
+(`Math.min`), which left `--letterbox` bands on any device whose aspect isn't 0.9 —
+on a tall phone, thick dark bands top and bottom. **Decision:** the sheet now fills the
+screen edge-to-edge on every device. `LOGICAL_W` stays a fixed 900-unit width reference;
+`LOGICAL_H` is recomputed each layout as `LOGICAL_W · vh/vw`, so `vw/LOGICAL_W === vh/LOGICAL_H`
+and a single **uniform** `renderScale = vw/LOGICAL_W` fills both axes with `offX = offY = 0`.
+**Why this fill, not the others:** uniform scale is preserved, so note frames stay square
+(B1 identity motif) and the decoupled 44 px hit math (B7, `renderScale`-based) stays
+exact — a *cover*/crop fit would cut off edge furniture and an axis-decoupled *stretch*
+would distort both. The extra height is honest canvas; furniture pinned to the top (title,
+Components, Required) is unchanged and the Parking Lot re-pins to the true bottom
+(`#lot { bottom: 16px }`, same 16 px gap it had at the old 1000-unit bottom). `--letterbox`
+survives only as the pre-paint background and is no longer visible in normal use.
+
+**Tradeoff (kept faithful to "positions permanent," PRD §1):** when the page *shrinks*
+(e.g. portrait→landscape) a note committed lower on the taller page keeps its truthful
+`y` rather than being reflowed — existing notes are **not** re-clamped on resize (that
+would silently move committed work). Notes are still clamped into the current page at
+creation/drag/pinch, so new placement always lands on-page, and off-page notes reappear
+when the device returns to a taller orientation. This favors the primary portrait / Z Fold use.
