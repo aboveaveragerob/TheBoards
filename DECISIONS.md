@@ -100,7 +100,7 @@ install shows. **Decision:** create and open one blank board (four anchors). The
 desk always shows a working page (UIUX §1); the list is never the landing view.
 
 ### B11. Manifest `orientation` + colors
-`orientation: "any"`, `theme_color`/`background_color` = `--paper` (`#F7F5F0`).
+`orientation: "any"`, `theme_color`/`background_color` = `--paper` (`#EEEBEF`).
 **Why:** the Z Fold's inner and cover displays must both be first-class (PRD §3)
 and survive fold/unfold, so orientation is not locked; paper is the surface the
 user should perceive as the app, including the launch splash. `theme-color` is
@@ -126,7 +126,22 @@ Editing places the caret at the touch point via `caretRangeFromPoint` /
 `caretPositionFromPoint`, falling back to end-of-text. Serves “edit at tap point”
 (UIUX §5) directly.
 
-### B15. Focus-ring color in dark theme
-UIUX §2.2's dark table doesn't override `--focus-ring`, so `#0B57D0` is kept in
-both themes as specified. It remains a 2 px ring at 2 px offset (non-color-alone),
-so the indicator is robust regardless of hue contrast.
+### B15. Focus-ring color follows the palette
+With the "Aubergine on Mist" palette (B16), `--focus-ring` is retuned into the
+family — muted indigo `#4A4E82` (light) and `#A0A2D8` (dark, a new override the
+old blue didn't need). It stays a 2 px ring at 2 px offset (non-color-alone), so
+robustness comes from geometry, not hue; the retune only keeps the indicator in
+the same low-chroma world as the poles (light ring 6.6:1 on paper, dark 7.4:1).
+
+### B16. Palette — "Aubergine on Mist"
+The token set is retuned from a warm paper/ink to a muted-plum pairing: poles
+`--paper #EEEBEF` / `--ink #221C24` (light) and `#1A161C` / `#E6E1E8` (dark), with
+every derived token (`--ink-shadow`, `--letterbox`, `--surface-raised`, `--hairline`)
+and accent (`--danger`, `--accent-restore`, `--focus-ring`) regenerated from those
+poles. **Why:** the choice follows the two-axis brief — *sharply contrasted* (ink/paper
+14.1:1 light, 13.9:1 dark: past AAA, short of the harsh 21:1) but *not brightly sharp*
+(pole chroma ≤ 0.018 OKLCH, off the vivid axis). This is a re-interrogation of an
+impermanent value choice, not costume: the system stays a single near-monochrome value
+scale generated from two poles (UIUX §1 "identity from structure"). `--ink-rgb` stays
+channel-synced to `--ink` for the scratch-out text. Icons (B1) regenerated in the new
+poles to keep the installed-app identity in sync.
