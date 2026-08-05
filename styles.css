@@ -7,31 +7,32 @@
 
 /* --- §2 Design tokens — light ("paper") theme, default ------------------- */
 :root {
-  --paper:           #F7F5F0;
-  --ink:             #1A1815;
-  --ink-rgb:         26, 24, 21;   /* --ink as channels, for the scratch text */
-  --ink-shadow:      #8A857C;
-  --letterbox:       #3A3733;
-  --surface-raised:  #FFFFFF;
+  --paper:           #EEEBEF;
+  --ink:             #221C24;
+  --ink-rgb:         34, 28, 36;   /* --ink as channels, for the scratch text */
+  --ink-shadow:      #837B88;
+  --letterbox:       #34303B;
+  --surface-raised:  #FBFAFC;
   --hairline:        rgb(0 0 0 / 0.12);
-  --danger:          #8C1D18;
-  --accent-restore:  #1B5E20;
-  --focus-ring:      #0B57D0;
+  --danger:          #8A3550;
+  --accent-restore:  #4A5A44;
+  --focus-ring:      #4A4E82;
   --elevation:       0 2px 8px rgb(0 0 0 / 0.25);
 }
 
 /* --- §2.2 Dark theme ----------------------------------------------------- */
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper:          #211F1C;
-    --ink:            #EDEAE4;
-    --ink-rgb:        237, 234, 228;
-    --ink-shadow:     #9B968D;
-    --letterbox:      #121110;
-    --surface-raised: #2E2B27;
+    --paper:          #1A161C;
+    --ink:            #E6E1E8;
+    --ink-rgb:        230, 225, 232;
+    --ink-shadow:     #948E99;
+    --letterbox:      #100D12;
+    --surface-raised: #29232F;
     --hairline:       rgb(255 255 255 / 0.14);
-    --danger:         #F2B8B5;
-    --accent-restore: #A5D6A7;
+    --danger:         #E0A3B4;
+    --accent-restore: #AEC7A6;
+    --focus-ring:     #A0A2D8;
   }
 }
 
