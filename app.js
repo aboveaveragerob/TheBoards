@@ -19,7 +19,8 @@
 'use strict';
 
 /* --- 1. Constants & copy ------------------------------------------------- */
-const LOGICAL_W = 900, LOGICAL_H = 1000;
+const LOGICAL_W = 900;
+let   LOGICAL_H = 1000;              // responsive: recomputed each layout to fill the viewport
 const MAX_NOTE_W = 405;              // 45% of board width (PRD §6.2)
 const MIN_SCALE = 0.5, MAX_SCALE = 2.0;
 const MOVE_THRESHOLD = 10;           // px before a drag begins / long-press cancels
@@ -161,20 +162,24 @@ function persist() {
 /* --- 4. Layout / scale-to-fit -------------------------------------------- */
 function applyLayout() {
   const vw = window.innerWidth, vh = window.innerHeight;
-  renderScale = Math.min(vw / LOGICAL_W, vh / LOGICAL_H);
-  offX = (vw - LOGICAL_W * renderScale) / 2;
-  offY = (vh - LOGICAL_H * renderScale) / 2;
+  // Grow the canvas: width always fills the viewport, and the sheet's height
+  // tracks the device aspect so a single uniform scale fills both axes — no
+  // letterbox bands, no crop, no distortion (notes stay square, hit math intact).
+  LOGICAL_H = LOGICAL_W * vh / vw;   // vw/LOGICAL_W === vh/LOGICAL_H
+  renderScale = vw / LOGICAL_W;
+  offX = 0;
+  offY = 0;
+  el.board.style.setProperty('--logical-h', LOGICAL_H + 'px');
   el.board.style.setProperty('--rs', renderScale);
-  el.board.style.setProperty('--offx', offX + 'px');
-  el.board.style.setProperty('--offy', offY + 'px');
+  el.board.style.setProperty('--offx', '0px');
+  el.board.style.setProperty('--offy', '0px');
   // Recompute decoupled hit areas for every note (physical size changed).
   noteEls.forEach((node, id) => {
     const note = current && current.notes.find(n => n.id === id);
     if (note) setHitInset(node, note);
   });
-  // Toast sits 12px below the page's bottom edge, over letterbox where any exists.
-  const bottomGap = Math.max(12, offY + 12);
-  document.documentElement.style.setProperty('--toast-bottom', bottomGap + 'px');
+  // No letterbox now: the toast sits 12px above the screen's bottom edge.
+  document.documentElement.style.setProperty('--toast-bottom', '12px');
 }
 
 /* --- 5. Coordinate + caret helpers --------------------------------------- */
