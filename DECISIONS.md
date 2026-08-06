@@ -167,3 +167,49 @@ survives only as the pre-paint background and is no longer visible in normal use
 would silently move committed work). Notes are still clamped into the current page at
 creation/drag/pinch, so new placement always lands on-page, and off-page notes reappear
 when the device returns to a taller orientation. This favors the primary portrait / Z Fold use.
+
+### B18. The 400 ms action window is acknowledged, not idle
+Every click interaction now commits **400 ms** after release rather than on the same
+frame (`ACTION_DELAY`, `app.js › delayAction`). The literal instruction — put 400 ms
+between click and action — is followed exactly; what the specs leave silent is what
+happens *during* it, and four choices resolve that:
+
+**a. The window is filled, not empty.** 400 ms of nothing is indistinguishable from a
+dropped tap, and a user who has to wonder whether their tap landed has been made to
+think about the interface (UIUX §1). So the tapped thing responds immediately and the
+action lands as the response releases. The delay is a beat, not lag. This is the whole
+justification for the feature having a visual dimension at all: without it the change
+satisfies the instruction and fails the law.
+
+**b. Content thickens; controls fill.** The acknowledgment is the system's existing
+press language, not a new one. Notes reuse `.pressed` verbatim (§4.2) — the same 3 px
+weight the note already shows when picked up for a drag, padding-compensated so nothing
+reflows; anchors and lot lines take the same weight in their own idiom. Notes are
+deliberately **never** filled: a filled note is the completion scratch-out (§4.3), and an
+acknowledgment that reads as "completed" would be a lie for 400 ms. Furniture and
+controls have no such collision, so they fill with their own ink and drain their label to
+`--paper` — every fill pairs a token with `--paper`, so light and dark invert correctly by
+construction rather than by a second rule.
+
+**c. Empty canvas gets a ghost.** A tap on bare paper has no element to acknowledge, so
+the frame it is about to produce is drawn first at `--ink-shadow` weight (`.tap-ghost`),
+sized to the 44 px hit floor, and replaced by the real note when the window closes. The
+B1 motif before it has content — the promise of the frame, then the frame.
+
+**d. Taps inside an open window are dropped, not queued.** One action is in flight at a
+time. Queueing would make an impatient double-tap create two notes or delete twice, which
+is worse than the delay it is reacting to. First tap wins.
+
+**Measured from release, not press,** because a click is complete at release. Combined
+with B5 (a slow press up to 500 ms still commits as a tap) the worst case is ~900 ms from
+touch to action; the common case is ~400 ms.
+
+**Not delayed, because they are not clicks:** long-press menu *opening*, drag drop, pinch
+end, and the `focusin` edit path for keyboard/AT users. Keyboard activation of a menu item
+*is* delayed — it routes through the same `click` listener, correctly.
+
+**Impermanence:** 400 ms is a felt value, given not derived. It should be re-interrogated
+on the device rather than defended — the structure above holds at any duration, and only
+the number would move. The acknowledgment is instant (no transition), so the mandatory
+`prefers-reduced-motion` kill-switch (§8) has nothing to remove and the delay survives it
+intact — correctly, since reduced-motion is about vestibular safety, not about timing.

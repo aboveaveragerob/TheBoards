@@ -29,6 +29,7 @@ const HIT_FLOOR = 44;                // px physical (PRD §5.3, UIUX §6)
 const SAVE_DEBOUNCE = 300;
 const UNDO_MS = 5000;
 const LEAVE_MS = 120;
+const ACTION_DELAY = 400;            // click → action; the window is acknowledged, not idle
 
 const COPY = {
   complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'Boards',
@@ -369,7 +370,7 @@ function onPointerUp(e) {
   clearTimeout(g.longPressTimer);
 
   if (g.mode === 'drag') { endDrag(); }
-  else if (g.mode === 'pending' && !g.longPressed && !g.moved) { handleTap(g.target, e); }
+  else if (g.mode === 'pending' && !g.longPressed && !g.moved) { handleTap(g.target, e.clientX, e.clientY); }
   g = null;
 }
 
@@ -378,22 +379,68 @@ function isEditing(node) {
   return !!(node.closest && node.closest('[contenteditable]'));
 }
 
-function handleTap(target, e) {
+/* Every click commits ACTION_DELAY after the release, never on the same frame.
+   The window is not dead time — dead time is indistinguishable from a dropped
+   tap, and this interface must never be thought about (UIUX §1). The tapped
+   thing acknowledges immediately in the language the system already speaks:
+   captured content thickens its ink (the same "I have this" a note shows on
+   drag, `.pressed`), furniture and controls fill with their own ink. The
+   acknowledgment releases as the action lands.
+
+   One action is in flight at a time, and a tap inside an open window is
+   dropped rather than queued: an impatient double-tap must not create two
+   notes or delete twice. First tap wins. */
+let pendingAction = null;
+
+function delayAction(ackNode, fn) {
+  if (pendingAction) return;
+  if (ackNode) ackNode.classList.add('tapped');
+  pendingAction = setTimeout(() => {
+    pendingAction = null;
+    if (ackNode) ackNode.classList.remove('tapped');
+    fn();
+  }, ACTION_DELAY);
+}
+
+/* Empty canvas has no element to acknowledge, so the frame the tap is about to
+   produce is drawn first, at its lightest weight — the note motif before it has
+   any content. The real note replaces it when the window closes. */
+function makeTapGhost(clientX, clientY) {
+  const pt = toLogical(clientX, clientY);
+  const ghost = document.createElement('div');
+  ghost.className = 'tap-ghost';
+  ghost.setAttribute('aria-hidden', 'true');
+  ghost.style.left = clamp(pt.x, 0, LOGICAL_W - 4) + 'px';
+  ghost.style.top = clamp(pt.y, 0, LOGICAL_H - 4) + 'px';
+  el.board.appendChild(ghost);
+  return ghost;
+}
+
+function handleTap(target, x, y) {
+  if (pendingAction) return;                         // a window is already open
   switch (target.type) {
-    case 'canvas': createNote(e.clientX, e.clientY); break;
-    case 'lot':    createLotItem(); break;
+    case 'canvas': {
+      const ghost = makeTapGhost(x, y);
+      delayAction(ghost, () => { ghost.remove(); createNote(x, y); });
+      break;
+    }
+    case 'lot': delayAction(el.lot, createLotItem); break;
     case 'note': {
-      surfaceNote(target.node);
       const note = current.notes.find(n => n.id === target.node.dataset.id);
-      if (note.state === 'active') editNoteText(target.node, e.clientX, e.clientY);
+      delayAction(target.node, () => {
+        surfaceNote(target.node);
+        if (note.state === 'active') editNoteText(target.node, x, y);
+      });
       break;
     }
     case 'lot-item': {
       const item = current.parkingLot.find(i => i.id === target.node.dataset.id);
-      if (item.state === 'active') editText(target.node.querySelector('.lot-text'), e.clientX, e.clientY);
+      delayAction(target.node, () => {
+        if (item.state === 'active') editText(target.node.querySelector('.lot-text'), x, y);
+      });
       break;
     }
-    case 'anchor': editText(target.node, e.clientX, e.clientY); break;
+    case 'anchor': delayAction(target.node, () => editText(target.node, x, y)); break;
   }
 }
 
@@ -650,7 +697,12 @@ function showUndo(undoFn) {
   el.toast.textContent = '';
   const msg = document.createElement('span'); msg.className = 'msg'; msg.textContent = COPY.deleted;
   const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = COPY.undo;
-  btn.addEventListener('click', () => { clearTimeout(undoTimer); hideToast(); undoFn(); });
+  // Clear the finalize timer on the click itself, not at the end of the action
+  // window, so a late Undo (≈4.6s+) can't be finalized out from under it.
+  btn.addEventListener('click', () => {
+    clearTimeout(undoTimer);
+    delayAction(btn, () => { hideToast(); undoFn(); });
+  });
   el.toast.appendChild(msg); el.toast.appendChild(btn);
   el.toast.hidden = false;
   requestAnimationFrame(() => el.toast.classList.add('show'));
@@ -713,7 +765,9 @@ function buildMenu(items, clientX, clientY) {
     const g1 = document.createElement('span'); g1.className = 'glyph'; g1.setAttribute('aria-hidden', 'true'); g1.textContent = it.glyph;
     const lb = document.createElement('span'); lb.textContent = it.label;
     b.appendChild(g1); b.appendChild(lb);
-    b.addEventListener('click', () => { closeMenu(); it.action(); });
+    // The menu holds open with the chosen item filled for the window, then
+    // closes and acts. One site covers every menu action, board rows included.
+    b.addEventListener('click', () => delayAction(b, () => { closeMenu(); it.action(); }));
     el.menu.appendChild(b); buttons.push(b);
   }
   el.menu.hidden = false;
@@ -799,7 +853,7 @@ function attachRowGestures(row, board) {
   row.addEventListener('pointermove', (e) => {
     if (Math.hypot(e.clientX - sx, e.clientY - sy) >= MOVE_THRESHOLD) { moved = true; clearTimeout(t); }
   });
-  row.addEventListener('pointerup', () => { clearTimeout(t); if (!longed && !moved) openBoardById(board.id); });
+  row.addEventListener('pointerup', () => { clearTimeout(t); if (!longed && !moved) delayAction(row, () => openBoardById(board.id)); });
   row.addEventListener('pointercancel', () => clearTimeout(t));
 }
 function openBoardRowMenu(row, board, x, y) {
@@ -863,7 +917,7 @@ window.addEventListener('popstate', () => {
   else { showBoardFromList(); }
 });
 
-el.newBoard.addEventListener('click', newBoard);
+el.newBoard.addEventListener('click', () => delayAction(el.newBoard, newBoard));
 
 /* --- 12. Boot + service worker ------------------------------------------- */
 window.addEventListener('resize', applyLayout);
