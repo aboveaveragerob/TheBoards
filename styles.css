@@ -205,9 +205,11 @@ body {
 /* Creating/editing: focus ring + caret (focus never color-alone, §4.2). */
 .note-text:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-/* Pressed (drag/pinch engaged): border thickens to 3px, padding compensates
-   so nothing reflows — the "picked up" confirmation (§4.2). */
-.note.pressed .note-text {
+/* Pressed (drag/pinch engaged) and tapped (the action window is open): border
+   thickens to 3px, padding compensates so nothing reflows — the "picked up" /
+   "I have this" confirmation (§4.2). One state, two moments. */
+.note.pressed .note-text,
+.note.tapped .note-text {
   border-color: var(--ink);
   border-width: 3px;
   padding: 9px 11px;
@@ -245,6 +247,7 @@ body {
   padding: 6px 0;
   background: var(--surface-raised);
   border-radius: 8px;
+  overflow: hidden;                    /* a tapped item's fill clips to the radius */
   box-shadow: var(--elevation);
   opacity: 0;
 }
@@ -365,6 +368,49 @@ body {
   flex: 0 0 auto;
   font-size: 13px;
   color: var(--ink-shadow);
+}
+
+/* ============================================================================
+   Tap acknowledgment — the 400ms window between click and action
+   The delay only earns its place if the interface fills it. Captured content
+   (notes, anchors, lot lines) thickens its ink, reusing the §4.2 "pressed"
+   weight — a note may never fill, because a filled note is the scratch-out.
+   Furniture and controls fill with their own ink and drain their label to
+   paper. Every fill pairs a token with --paper, so both themes invert
+   correctly by construction. Instant, like everything outside the §8 set.
+   ========================================================================== */
+
+/* Content: weight. (.note is handled with .pressed at §4.2 above.) */
+.anchor.tapped {
+  border-bottom: 3px solid var(--ink);
+  padding-bottom: 2.5px;               /* holds the filled anchor's 5.5px total */
+}
+.lot-item.tapped .lot-text {
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 0;                   /* 2px border + 0 = the original 2px; no reflow */
+}
+#lot.tapped #lot-rule { height: 3px; } /* absolutely positioned: thickens in place */
+
+/* Controls: fill. */
+#menu button.tapped         { background: var(--ink); color: var(--paper); }
+#menu button.danger.tapped  { background: var(--danger); color: var(--paper); }
+#toast button.tapped        { background: var(--accent-restore); color: var(--paper); }
+.board-row.tapped           { background: var(--ink); color: var(--paper); }
+.board-row.tapped .row-title.untitled,
+.board-row.tapped .row-date { color: var(--paper); }
+/* Already ink-filled, so it acknowledges by draining instead of filling. */
+#new-board.tapped           { background: var(--paper); color: var(--ink); }
+
+/* Empty canvas has nothing to acknowledge, so the frame the tap will produce is
+   drawn first at its lightest weight — the note motif before it has content,
+   sized to the 44px hit floor. Replaced by the real note when the window closes. */
+.tap-ghost {
+  position: absolute;
+  z-index: 2;
+  width: 44px; height: 44px;
+  border: 2px solid var(--ink-shadow);
+  border-radius: 2px;
+  pointer-events: none;
 }
 
 [hidden] { display: none !important; }
