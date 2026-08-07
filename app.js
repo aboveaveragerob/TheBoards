@@ -19,13 +19,17 @@
 'use strict';
 
 /* --- 1. Constants & copy ------------------------------------------------- */
-const LOGICAL_W = 900;
+let   LOGICAL_W = 900;               // mobile: fixed 900; desktop: derived per layout (B20)
 let   LOGICAL_H = 1000;              // responsive: recomputed each layout to fill the viewport
 const MAX_NOTE_W = 405;              // 45% of board width (PRD §6.2)
 const MIN_SCALE = 0.5, MAX_SCALE = 2.0;
 const MOVE_THRESHOLD = 10;           // px before a drag begins / long-press cancels
 const LONGPRESS_MS = 500;
-const HIT_FLOOR = 44;                // px physical (PRD §5.3, UIUX §6)
+const HIT_FLOOR = 44;                // px physical (PRD §5.3, UIUX §6) — mobile
+const HIT_FLOOR_DESKTOP = 24;        // WCAG 2.5.8 AA; a 44px collar swallows dismiss clicks (issue #12)
+const PANE_W = 300;                  // CSS px; unscaled width of the desktop board rail
+const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
+const SWAP_MS = 150;                 // board-swap crossfade; sequenced by timeout (§8-safe)
 const SAVE_DEBOUNCE = 300;
 const UNDO_MS = 5000;
 const LEAVE_MS = 120;
@@ -46,6 +50,30 @@ const CE = (() => {
   try { d.contentEditable = 'plaintext-only'; } catch (e) { /* older engines throw */ }
   return d.contentEditable === 'plaintext-only' ? 'plaintext-only' : 'true';
 })();
+
+/* --- 1.5 Desktop mode (B19) ----------------------------------------------
+   A session is desktop iff the primary pointer is fine and can hover AND the
+   window is wide enough for the rail. Capability — not width, not UA — is what
+   excludes tablets: iPadOS reports coarse/none even with a trackpad. One flag +
+   one class are the single source of truth; CSS gates on html.desktop only. */
+const DESKTOP_MQ = window.matchMedia(
+  '(min-width: 1024px) and (hover: hover) and (pointer: fine)');
+let isDesktop = DESKTOP_MQ.matches;
+document.documentElement.classList.toggle('desktop', isDesktop);
+
+function applyMode() {
+  isDesktop = DESKTOP_MQ.matches;
+  document.documentElement.classList.toggle('desktop', isDesktop);
+  // Teardown: nothing half-finished survives the flip.
+  clearSelection();
+  closeMenu();
+  if (g) { clearTimeout(g.longPressTimer); g = null; }
+  pointers.clear();
+  if (isDesktop && listOpen) history.back();   // pops the list state → board (B9 intact)
+  applyLayout();
+  if (isDesktop) renderPane();
+}
+DESKTOP_MQ.addEventListener('change', applyMode);
 
 const uuid = () =>
   (crypto.randomUUID ? crypto.randomUUID()
@@ -123,6 +151,10 @@ const el = {
   newBoard: document.getElementById('new-board'),
   menu: document.getElementById('menu'),
   toast: document.getElementById('toast'),
+  pane: document.getElementById('pane'),
+  paneNew: document.getElementById('pane-new'),
+  paneCards: document.getElementById('pane-cards'),
+  paneMore: document.getElementById('pane-more'),
 };
 const anchorEls = {
   title: document.getElementById('anchor-title'),
@@ -163,22 +195,38 @@ function persist() {
 /* --- 4. Layout / scale-to-fit -------------------------------------------- */
 function applyLayout() {
   const vw = window.innerWidth, vh = window.innerHeight;
-  // Grow the canvas: width always fills the viewport, and the sheet's height
-  // tracks the device aspect so a single uniform scale fills both axes — no
-  // letterbox bands, no crop, no distortion (notes stay square, hit math intact).
-  LOGICAL_H = LOGICAL_W * vh / vw;   // vw/LOGICAL_W === vh/LOGICAL_H
-  renderScale = vw / LOGICAL_W;
-  offX = 0;
-  offY = 0;
+  if (isDesktop) {
+    // Desktop (B20): the rail takes PANE_W unscaled; the sheet fills the rest.
+    // Min-anchored scale — neither logical dimension ever drops below the
+    // 900×1000 reference, so mobile-placed notes always fit and the top
+    // furniture (~880 units) never collides, at any window shape.
+    renderScale = Math.min(vh / 1000, (vw - PANE_W) / 900);
+    LOGICAL_H = vh / renderScale;
+    LOGICAL_W = (vw - PANE_W) / renderScale;
+    offX = PANE_W;
+    offY = 0;
+  } else {
+    // Mobile (B17): width fills the viewport; height tracks the device aspect
+    // so a single uniform scale fills both axes — no letterbox, no distortion.
+    LOGICAL_W = 900;
+    LOGICAL_H = LOGICAL_W * vh / vw; // vw/LOGICAL_W === vh/LOGICAL_H
+    renderScale = vw / LOGICAL_W;
+    offX = 0;
+    offY = 0;
+  }
+  el.board.style.setProperty('--logical-w', LOGICAL_W + 'px');
   el.board.style.setProperty('--logical-h', LOGICAL_H + 'px');
   el.board.style.setProperty('--rs', renderScale);
-  el.board.style.setProperty('--offx', '0px');
-  el.board.style.setProperty('--offy', '0px');
-  // Recompute decoupled hit areas for every note (physical size changed).
+  el.board.style.setProperty('--offx', offX + 'px');
+  el.board.style.setProperty('--offy', offY + 'px');
+  // Re-derive each note's on-sheet x (proportional across widths) and its
+  // decoupled hit area (physical size changed).
   noteEls.forEach((node, id) => {
     const note = current && current.notes.find(n => n.id === id);
-    if (note) setHitInset(node, note);
+    if (note) { node.style.left = renderX(note) + 'px'; setHitInset(node, note); }
   });
+  if (selected) updateSelectionUI();
+  if (isDesktop && el.paneCards) updatePaneOverflow();
   // No letterbox now: the toast sits 12px above the screen's bottom edge.
   document.documentElement.style.setProperty('--toast-bottom', '12px');
 }
@@ -189,11 +237,24 @@ const toLogical = (clientX, clientY) => ({
   y: (clientY - offY) / renderScale,
 });
 
+/* Cross-device x (issue #15): note.rw records the LOGICAL_W its x was last
+   written against; rendering scales x proportionally to the current width.
+   The stored x is never mutated by a viewport change — only by the same
+   gestures that already own writes, which rebase to the current frame at grab
+   (visually silent: renderX equals the on-screen position at that instant). */
+const renderX = (note) => note.x * (LOGICAL_W / (note.rw || 900));
+
+function rebaseNote(note) {
+  note.x = renderX(note);
+  note.rw = LOGICAL_W;
+}
+
 function setHitInset(node, note) {
   const w = node.offsetWidth, h = node.offsetHeight;   // logical (transform-independent)
   const k = note.scale * renderScale;
   const physW = w * k, physH = h * k;
-  const inset = Math.max(0, (HIT_FLOOR - physW) / 2, (HIT_FLOOR - physH) / 2) / (k || 1);
+  const floor = isDesktop ? HIT_FLOOR_DESKTOP : HIT_FLOOR;
+  const inset = Math.max(0, (floor - physW) / 2, (floor - physH) / 2) / (k || 1);
   node.style.setProperty('--hit', inset + 'px');
 }
 
@@ -217,6 +278,7 @@ function caretToEnd(node) {
 
 /* --- 6. Rendering -------------------------------------------------------- */
 function renderBoard() {
+  clearSelection();                  // note DOM is about to be rebuilt
   // Anchors.
   for (const key of ['title', 'components', 'requirements']) {
     const node = anchorEls[key];
@@ -237,7 +299,7 @@ function makeNoteEl(note) {
   node.className = 'note' + (note.state === 'complete' ? ' complete' : '');
   node.dataset.id = note.id;
   node.setAttribute('tabindex', '0');
-  node.style.left = note.x + 'px';
+  node.style.left = renderX(note) + 'px';
   node.style.top = note.y + 'px';
   node.style.transform = 'scale(' + note.scale + ')';
 
@@ -297,6 +359,11 @@ const pointers = new Map();          // pointerId -> {x,y,startX,startY}
 let g = null;                        // active gesture context
 
 function classifyTarget(target) {
+  // Selection chrome first: action buttons (notes and lot rows share .sel-btn),
+  // then the resize frame — both must win over the elements beneath them.
+  const selBtn = target.closest('.sel-btn');
+  if (selBtn) return { type: 'sel-btn', node: selBtn };
+  if (target.closest('#selection')) return { type: 'sel-frame', node: selEl };
   const note = target.closest('.note');
   if (note) return { type: 'note', node: note };
   const lotItem = target.closest('.lot-item');
@@ -327,14 +394,19 @@ function onPointerDown(e) {
     mode: 'pending', longPressed: false, moved: false,
     note: target.type === 'note' ? current.notes.find(n => n.id === target.node.dataset.id) : null,
   };
+  if (isDesktop && target.type === 'sel-frame' && selected && selected.kind === 'note') {
+    startResize(e);
+  }
   try { el.board.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
 
-  g.longPressTimer = setTimeout(() => {
-    if (!g || g.mode !== 'pending' || g.moved) return;
-    g.longPressed = true;
-    if (navigator.vibrate) navigator.vibrate(10);
-    openMenuFor(target, g.startX, g.startY);
-  }, LONGPRESS_MS);
+  if (!isDesktop) {                  // desktop removes click-and-hold entirely (issue #4)
+    g.longPressTimer = setTimeout(() => {
+      if (!g || g.mode !== 'pending' || g.moved) return;
+      g.longPressed = true;
+      if (navigator.vibrate) navigator.vibrate(10);
+      openMenuFor(target, g.startX, g.startY);
+    }, LONGPRESS_MS);
+  }
 }
 
 el.board.addEventListener('pointermove', onPointerMove);
@@ -344,6 +416,7 @@ function onPointerMove(e) {
   p.x = e.clientX; p.y = e.clientY;
 
   if (g && g.mode === 'pinch') { updatePinch(); return; }
+  if (g && g.mode === 'resize') { if (g.pointerId === e.pointerId) updateResize(e); return; }
   if (!g || g.pointerId !== e.pointerId) return;
 
   const dx = e.clientX - g.startX, dy = e.clientY - g.startY;
@@ -370,6 +443,7 @@ function onPointerUp(e) {
   clearTimeout(g.longPressTimer);
 
   if (g.mode === 'drag') { endDrag(); }
+  else if (g.mode === 'resize') { endResize(); }
   else if (g.mode === 'pending' && !g.longPressed && !g.moved) { handleTap(g.target, e.clientX, e.clientY); }
   g = null;
 }
@@ -416,27 +490,102 @@ function makeTapGhost(clientX, clientY) {
   return ghost;
 }
 
+/* No blanket pendingAction guard here (issue #13): delayAction carries its own
+   drop-guard, so B18(d) holds exactly where an action fires — while inert taps
+   (select, deselect) stay live even during an open window. */
 function handleTap(target, x, y) {
-  if (pendingAction) return;                         // a window is already open
   switch (target.type) {
+    case 'sel-btn': {
+      // Complete/Restore/Delete — real actions, so B18's window applies.
+      const lotRow = target.node.closest('.lot-item');
+      const isDel = target.node.classList.contains('sel-delete');
+      delayAction(target.node, () => {
+        if (lotRow) {
+          const item = current.parkingLot.find(i => i.id === lotRow.dataset.id);
+          if (!item) return;
+          if (isDel) { clearSelection(); deleteLot(lotRow); }
+          else {
+            if (item.state === 'complete') restoreLot(lotRow); else completeLot(lotRow);
+            updateSelectionUI();
+          }
+        } else if (selected && selected.kind === 'note') {
+          const node = noteEls.get(selected.id);
+          const note = current.notes.find(n => n.id === selected.id);
+          if (!node || !note) return;
+          if (isDel) { clearSelection(); deleteNote(node); }
+          else {
+            if (note.state === 'complete') restoreNote(node); else completeNote(node);
+            updateSelectionUI();
+          }
+        }
+      });
+      break;
+    }
+    case 'sel-frame': break;           // a motionless click on the ring does nothing
     case 'canvas': {
+      // Creation surfaces deselect first (issue #12): with a selection active a
+      // click only dismisses; capture stays primary when nothing is selected.
+      if (isDesktop && selected) { clearSelection(); break; }
+      if (pendingAction) break;        // don't draw a ghost a dropped tap would orphan
       const ghost = makeTapGhost(x, y);
       delayAction(ghost, () => { ghost.remove(); createNote(x, y); });
       break;
     }
-    case 'lot': delayAction(el.lot, createLotItem); break;
+    case 'lot': {
+      if (isDesktop && selected) { clearSelection(); break; }   // creation surface too
+      delayAction(el.lot, createLotItem);
+      break;
+    }
     case 'note': {
-      const note = current.notes.find(n => n.id === target.node.dataset.id);
-      delayAction(target.node, () => {
-        surfaceNote(target.node);
-        if (note.state === 'active') editNoteText(target.node, x, y);
+      const node = target.node;
+      const note = current.notes.find(n => n.id === node.dataset.id);
+      if (!note) break;
+      if (isDesktop) {
+        // Click selects (instant, inert); a second click within the pairing
+        // window edits with the caret at the end (issue #4). Completed notes
+        // never edit — same guard as the mobile tap path.
+        const key = 'note:' + note.id, now = Date.now();
+        if (selected && selected.kind === 'note' && selected.id === note.id &&
+            lastTap.key === key && now - lastTap.t < DBLCLICK_MS) {
+          lastTap = { key: null, t: 0 };
+          if (note.state === 'active') {
+            clearSelection();
+            surfaceNote(node);
+            editText(node.querySelector('.note-text'));   // no coords → caret at end
+          }
+        } else {
+          selectNote(note.id);
+          lastTap = { key, t: now };
+        }
+        break;
+      }
+      delayAction(node, () => {
+        surfaceNote(node);
+        if (note.state === 'active') editNoteText(node, x, y);
       });
       break;
     }
     case 'lot-item': {
-      const item = current.parkingLot.find(i => i.id === target.node.dataset.id);
-      delayAction(target.node, () => {
-        if (item.state === 'active') editText(target.node.querySelector('.lot-text'), x, y);
+      const node = target.node;
+      const item = current.parkingLot.find(i => i.id === node.dataset.id);
+      if (!item) break;
+      if (isDesktop) {
+        const key = 'lot:' + item.id, now = Date.now();
+        if (selected && selected.kind === 'lot' && selected.id === item.id &&
+            lastTap.key === key && now - lastTap.t < DBLCLICK_MS) {
+          lastTap = { key: null, t: 0 };
+          if (item.state === 'active') {
+            clearSelection();
+            editText(node.querySelector('.lot-text'));    // no coords → caret at end
+          }
+        } else {
+          selectLot(item.id);
+          lastTap = { key, t: now };
+        }
+        break;
+      }
+      delayAction(node, () => {
+        if (item.state === 'active') editText(node.querySelector('.lot-text'), x, y);
       });
       break;
     }
@@ -465,7 +614,8 @@ function editNoteText(noteNode, clientX, clientY) {
 function createNote(clientX, clientY) {
   const pt = toLogical(clientX, clientY);
   const note = { id: uuid(), text: '', x: clamp(pt.x, 0, LOGICAL_W - 4),
-                 y: clamp(pt.y, 0, LOGICAL_H - 4), scale: 1.0, state: 'active' };
+                 y: clamp(pt.y, 0, LOGICAL_H - 4), rw: LOGICAL_W,
+                 scale: 1.0, state: 'active' };
   current.notes.push(note);                          // top of z-order
   const node = makeNoteEl(note);
   el.board.appendChild(node);
@@ -503,10 +653,48 @@ document.addEventListener('focusin', (e) => {
     enableEditing(t);
   } else if (t.classList.contains('note')) {
     const note = current && current.notes.find(n => n.id === t.dataset.id);
-    if (note && note.state === 'active') editText(t.querySelector('.note-text'));
+    if (!note) return;
+    if (isDesktop) { selectNote(note.id); return; }    // Tab selects; Enter edits (issue #13)
+    if (note.state === 'active') editText(t.querySelector('.note-text'));
   } else if (t.classList.contains('lot-item')) {
     const item = current && current.parkingLot.find(i => i.id === t.dataset.id);
-    if (item && item.state === 'active') editText(t.querySelector('.lot-text'));
+    if (!item) return;
+    if (isDesktop) { selectLot(item.id); return; }
+    if (item.state === 'active') editText(t.querySelector('.lot-text'));
+  }
+});
+
+/* Desktop keyboard (additive, issue #4 "mnk"): inert while the menu is open —
+   menuKeyHandler owns Escape/Tab/arrows there, and Delete must not destroy the
+   selection underneath an open menu (issue #10). */
+document.addEventListener('keydown', (e) => {
+  if (!isDesktop || menuOpen) return;
+  const editing = isEditing(document.activeElement);
+  if (e.key === 'Escape') {
+    if (editing) { document.activeElement.blur(); }    // commit-on-blur path runs
+    else if (selected) clearSelection();
+  } else if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !editing) {
+    e.preventDefault();
+    const s = selected;
+    clearSelection();
+    if (s.kind === 'note') { const n = noteEls.get(s.id); if (n) deleteNote(n); }
+    else { const n = lotEls.get(s.id); if (n) deleteLot(n); }
+  } else if (e.key === 'Enter' && selected && !editing) {
+    e.preventDefault();
+    const s = selected;
+    if (s.kind === 'note') {
+      const rec = current.notes.find(n => n.id === s.id);
+      const n = noteEls.get(s.id);
+      if (rec && n && rec.state === 'active') {
+        clearSelection(); surfaceNote(n); editText(n.querySelector('.note-text'));
+      }
+    } else {
+      const rec = current.parkingLot.find(i => i.id === s.id);
+      const n = lotEls.get(s.id);
+      if (rec && n && rec.state === 'active') {
+        clearSelection(); editText(n.querySelector('.lot-text'));
+      }
+    }
   }
 });
 
@@ -522,6 +710,7 @@ el.board.addEventListener('input', (e) => {
   } else if (t.classList.contains('anchor')) {
     current[t.dataset.anchor] = t.textContent;
     t.classList.toggle('filled', !!t.textContent.length);
+    if (isDesktop && t.dataset.anchor === 'title') updateActiveCardTitle();
     scheduleSave();
   }
 });
@@ -534,6 +723,7 @@ function commitNote(node) {
   saveNow();
 }
 function removeNoteSilently(note, node) {
+  if (selected && selected.kind === 'note' && selected.id === note.id) clearSelection();
   const i = current.notes.indexOf(note);
   if (i >= 0) current.notes.splice(i, 1);
   node.remove(); noteEls.delete(note.id);
@@ -553,6 +743,7 @@ function commitLot(node) {
 function commitAnchor(node) {
   current[node.dataset.anchor] = node.textContent;
   node.classList.toggle('filled', !!node.textContent.length);
+  if (isDesktop && node.dataset.anchor === 'title') renderPane(); // reconcile the date line
   saveNow();
 }
 
@@ -562,6 +753,8 @@ function startDrag() {
   g.target.node.classList.add('pressed');
   surfaceNote(g.target.node);
   const note = g.note;
+  rebaseNote(note);                  // grab math runs in current-frame units (issue #15)
+  if (isDesktop) { selectNote(note.id); setSelectionHidden(true); }
   const startLogical = toLogical(g.startX, g.startY);
   g.grabDX = startLogical.x - note.x;
   g.grabDY = startLogical.y - note.y;
@@ -578,6 +771,7 @@ function updateDrag(e) {
 function endDrag() {
   g.target.node.classList.remove('pressed');
   saveNow();
+  if (isDesktop) updateSelectionUI();  // reposition + unhide at the drop point
 }
 
 /* Pinch (PRD §6.3 / UIUX §5): transform scale only, clamp 0.5–2.0,
@@ -588,24 +782,31 @@ function startPinch() {
   if (g.mode === 'drag') g.target.node.classList.remove('pressed');
   const pts = [...pointers.values()];
   g.mode = 'pinch';
+  rebaseNote(g.note);                // grab math runs in current-frame units (issue #15)
   g.startDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1;
   g.startScale = g.note.scale;
   g.target.node.classList.add('pressed');
 }
+/* Shared tail of pinch and the desktop frame-drag resize: apply the clamped
+   scale, re-clamp the footprint into the page, refresh the hit area. The note
+   was rebased at grab, so note.x is current-frame and needs no renderX here. */
+function applyNoteScale(note, node, scale) {
+  note.scale = scale;
+  node.style.transform = 'scale(' + scale + ')';
+  const footW = node.offsetWidth * scale, footH = node.offsetHeight * scale;
+  note.x = clamp(note.x, 0, Math.max(0, LOGICAL_W - footW));
+  note.y = clamp(note.y, 0, Math.max(0, LOGICAL_H - footH));
+  node.style.left = note.x + 'px';
+  node.style.top = note.y + 'px';
+  setHitInset(node, note);
+}
+
 function updatePinch() {
   const pts = [...pointers.values()];
   if (pts.length < 2) return;
   const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-  const scale = clamp(g.startScale * (dist / g.startDist), MIN_SCALE, MAX_SCALE);
-  g.note.scale = scale;
-  const node = g.target.node;
-  node.style.transform = 'scale(' + scale + ')';
-  const footW = node.offsetWidth * scale, footH = node.offsetHeight * scale;
-  g.note.x = clamp(g.note.x, 0, Math.max(0, LOGICAL_W - footW));
-  g.note.y = clamp(g.note.y, 0, Math.max(0, LOGICAL_H - footH));
-  node.style.left = g.note.x + 'px';
-  node.style.top = g.note.y + 'px';
-  setHitInset(node, g.note);
+  applyNoteScale(g.note, g.target.node,
+    clamp(g.startScale * (dist / g.startDist), MIN_SCALE, MAX_SCALE));
 }
 function endPinch() {
   if (g) { g.target.node.classList.remove('pressed'); saveNow(); }
@@ -625,6 +826,159 @@ function surfaceNote(node) {
 }
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+/* --- 8.5 Desktop selection (issues #12/#13, #4 select-then-act) -----------
+   One selected thing at a time — a note or a Parking Lot line. Selection is
+   inert, reversible state: it commits nothing, so it is instant and opens no
+   acknowledged window (B18 governs actions). It never calls surfaceNote — that
+   would write, and the overlay renders above every note regardless.
+   Notes wear a #selection overlay (frame + handles + the two action buttons),
+   a sibling of the notes in board space: it inherits renderScale but never
+   note.scale, so the chrome stays constant-weight at any note size. Buttons
+   are routed through the recognizer — setPointerCapture retargets click, so
+   native listeners inside #board are unreliable by construction. */
+let selected = null;                 // { kind: 'note'|'lot', id }
+let lastTap = { key: null, t: 0 };   // double-click pairing across taps
+let selEl = null, selActions = null, selPrimary = null, selDelete = null;
+
+function ensureSelectionEl() {
+  if (selEl) return;
+  selEl = document.createElement('div');
+  selEl.id = 'selection';
+  // The outline is visual only; hit-testing lives in four edge bands + the
+  // corner handles, so the note's interior stays clickable for the second
+  // click of a double-click (a parent's hit area can't be carved out).
+  const ring = document.createElement('div');
+  ring.className = 'sel-ring';
+  selEl.appendChild(ring);
+  for (const side of ['n', 's', 'w', 'e']) {
+    const b = document.createElement('div');
+    b.className = 'sel-edge ' + side;
+    selEl.appendChild(b);
+  }
+  for (const corner of ['tl', 'tr', 'bl', 'br']) {
+    const h = document.createElement('div');
+    h.className = 'sel-handle ' + corner;
+    h.setAttribute('aria-hidden', 'true');
+    selEl.appendChild(h);
+  }
+  selActions = document.createElement('div');
+  selActions.className = 'sel-actions';
+  selPrimary = document.createElement('button');
+  selPrimary.type = 'button'; selPrimary.className = 'sel-btn sel-complete';
+  selDelete = document.createElement('button');
+  selDelete.type = 'button'; selDelete.className = 'sel-btn sel-delete';
+  selDelete.textContent = COPY.delete;
+  selActions.appendChild(selPrimary); selActions.appendChild(selDelete);
+  selEl.appendChild(selActions);
+}
+
+function selectNote(id) {
+  if (selected && selected.kind === 'note' && selected.id === id) { updateSelectionUI(); return; }
+  clearSelection();
+  const node = noteEls.get(id);
+  if (!node) return;
+  selected = { kind: 'note', id };
+  node.classList.add('selected');
+  ensureSelectionEl();
+  el.board.appendChild(selEl);
+  updateSelectionUI();
+}
+
+function selectLot(id) {
+  if (selected && selected.kind === 'lot' && selected.id === id) return;
+  clearSelection();
+  const node = lotEls.get(id);
+  if (!node) return;
+  selected = { kind: 'lot', id };
+  node.classList.add('selected');
+  // Lot rows keep their buttons inline at the right edge (#lot-items clips
+  // below-the-row placement on the last visible row) — issue #11.
+  const act = document.createElement('span');
+  act.className = 'lot-actions';
+  const p = document.createElement('button');
+  p.type = 'button'; p.className = 'sel-btn sel-complete';
+  const d = document.createElement('button');
+  d.type = 'button'; d.className = 'sel-btn sel-delete';
+  d.textContent = COPY.delete;
+  act.appendChild(p); act.appendChild(d);
+  node.appendChild(act);
+  updateSelectionUI();
+}
+
+function clearSelection() {
+  if (!selected) return;
+  if (selected.kind === 'note') {
+    const node = noteEls.get(selected.id);
+    if (node) node.classList.remove('selected');
+    if (selEl) selEl.remove();
+  } else {
+    const node = lotEls.get(selected.id);
+    if (node) {
+      node.classList.remove('selected');
+      const act = node.querySelector('.lot-actions');
+      if (act) act.remove();
+    }
+  }
+  selected = null;
+}
+
+function setSelectionHidden(hidden) {  // drag/resize in flight: chrome steps aside
+  if (selEl) selEl.classList.toggle('hidden', hidden);
+}
+
+function updateSelectionUI() {
+  if (!selected || !current) return;
+  if (selected.kind === 'note') {
+    const note = current.notes.find(n => n.id === selected.id);
+    const node = noteEls.get(selected.id);
+    if (!note || !node || !selEl) return;
+    const w = node.offsetWidth * note.scale, h = node.offsetHeight * note.scale;
+    selEl.style.left = renderX(note) + 'px';
+    selEl.style.top = note.y + 'px';
+    selEl.style.width = w + 'px';
+    selEl.style.height = h + 'px';
+    selPrimary.textContent = note.state === 'complete' ? COPY.restore : COPY.complete;
+    // Buttons sit under the bottom frame edge; flip above when they'd leave the page.
+    selActions.classList.toggle('above', note.y + h + 64 > LOGICAL_H);
+    setSelectionHidden(false);
+  } else {
+    const node = lotEls.get(selected.id);
+    const item = current.parkingLot.find(i => i.id === selected.id);
+    if (!node || !item) return;
+    const p = node.querySelector('.sel-complete');
+    if (p) p.textContent = item.state === 'complete' ? COPY.restore : COPY.complete;
+  }
+}
+
+/* Frame-drag resize (issue #4): scale from the pointer's distance to the
+   note's fixed top-left origin — same clamp, re-clamp, and hit math as pinch. */
+function startResize(e) {
+  const note = current.notes.find(n => n.id === selected.id);
+  const node = noteEls.get(selected.id);
+  if (!note || !node) { g.mode = 'cancelled'; return; }
+  rebaseNote(note);                  // grab math runs in current-frame units (issue #15)
+  g.mode = 'resize';
+  g.note = note;
+  g.target = { type: 'note', node };
+  g.originX = note.x; g.originY = note.y;
+  const pt = toLogical(e.clientX, e.clientY);
+  g.grabDist = Math.hypot(pt.x - g.originX, pt.y - g.originY) || 1;
+  g.startScale = note.scale;
+  node.classList.add('pressed');
+  setSelectionHidden(true);
+}
+function updateResize(e) {
+  const pt = toLogical(e.clientX, e.clientY);
+  const dist = Math.hypot(pt.x - g.originX, pt.y - g.originY);
+  applyNoteScale(g.note, g.target.node,
+    clamp(g.startScale * (dist / g.grabDist), MIN_SCALE, MAX_SCALE));
+}
+function endResize() {
+  g.target.node.classList.remove('pressed');
+  saveNow();
+  updateSelectionUI();               // reposition + unhide at the new footprint
+}
 
 /* --- 9. Complete / restore / delete + Undo toast ------------------------- */
 function completeNote(node) {
@@ -649,6 +1003,7 @@ function restoreLot(node) {
 }
 
 function deleteNote(node) {
+  if (selected && selected.kind === 'note' && selected.id === node.dataset.id) clearSelection();
   const note = current.notes.find(n => n.id === node.dataset.id);
   const index = current.notes.indexOf(note);
   const snapshot = JSON.parse(JSON.stringify(note));
@@ -663,6 +1018,7 @@ function deleteNote(node) {
   });
 }
 function deleteLot(node) {
+  if (selected && selected.kind === 'lot' && selected.id === node.dataset.id) clearSelection();
   const item = current.parkingLot.find(i => i.id === node.dataset.id);
   const index = current.parkingLot.indexOf(item);
   const snapshot = JSON.parse(JSON.stringify(item));
@@ -691,9 +1047,10 @@ function leave(node, done) {
 
 /* Undo toast (UIUX §9): 5s, restores exact state; a new delete finalizes prior. */
 let undoTimer = null;
-function showUndo(undoFn) {
+function showUndo(undoFn, scope) {
   clearTimeout(undoTimer);
   el.toast.dataset.mode = 'undo';                      // capture priority over save-error
+  el.toast.dataset.scope = scope || 'item';            // 'item' undo is current-bound (finding 1)
   el.toast.textContent = '';
   const msg = document.createElement('span'); msg.className = 'msg'; msg.textContent = COPY.deleted;
   const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = COPY.undo;
@@ -710,6 +1067,7 @@ function showUndo(undoFn) {
 }
 function hideToast() {
   delete el.toast.dataset.mode;
+  delete el.toast.dataset.scope;
   el.toast.classList.remove('show');
   setTimeout(() => { if (!el.toast.classList.contains('show')) el.toast.hidden = true; }, 160);
 }
@@ -728,6 +1086,7 @@ function hideSaveError() {
 
 /* --- 10. Long-press menu ------------------------------------------------- */
 let menuOpen = false, menuKeyHandler = null, menuOutsideHandler = null;
+let menuInvoker = null;              // desktop contextmenu: focus returns here on close
 
 function openMenuFor(target, clientX, clientY) {
   let items = [];
@@ -812,28 +1171,43 @@ function closeMenu() {
   if (menuKeyHandler) document.removeEventListener('keydown', menuKeyHandler, true);
   if (menuOutsideHandler) document.removeEventListener('pointerdown', menuOutsideHandler, true);
   menuKeyHandler = menuOutsideHandler = null;
+  if (menuInvoker) { const m = menuInvoker; menuInvoker = null; m.focus(); }
 }
 
 /* --- 11. Board list + routing -------------------------------------------- */
 let listOpen = false;
 
+// One comparator for every board listing (issue #14): creation order, newest
+// first — immutable, so a card's slot never moves — with an id tiebreak so
+// equal-millisecond creates can't reorder between renders. Boot/recovery keep
+// updatedAt deliberately: updatedAt selects continuity, createdAt orders space.
+const boardOrder = (a, b) => (b.createdAt - a.createdAt) ||
+  (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+
+// Shared row/card content: title, or untitled placeholder + creation date.
+function fillRowContent(node, b) {
+  node.textContent = '';
+  const titled = !!(b.title && b.title.trim().length);
+  const title = document.createElement('span'); title.className = 'row-title';
+  title.textContent = titled ? b.title : COPY.untitled;
+  if (!titled) title.classList.add('untitled');
+  node.appendChild(title);
+  if (!titled) {
+    const date = document.createElement('span'); date.className = 'row-date';
+    date.textContent = formatDate(b.createdAt);
+    node.appendChild(date);
+  }
+}
+
 async function renderList() {
   const all = await idbGetAll();
-  all.sort((a, b) => b.createdAt - a.createdAt);       // creation order, newest first, stable
+  all.sort(boardOrder);
   el.listRows.textContent = '';
   for (const b of all) {
     const row = document.createElement('button');
     row.type = 'button'; row.className = 'board-row'; row.setAttribute('role', 'listitem');
     row.dataset.id = b.id;
-    const title = document.createElement('span'); title.className = 'row-title';
-    if (b.title && b.title.trim().length) { title.textContent = b.title; }
-    else { title.textContent = COPY.untitled; title.classList.add('untitled'); }
-    row.appendChild(title);
-    if (!(b.title && b.title.trim().length)) {
-      const date = document.createElement('span'); date.className = 'row-date';
-      date.textContent = formatDate(b.createdAt);
-      row.appendChild(date);
-    }
+    fillRowContent(row, b);
     attachRowGestures(row, b);
     el.listRows.appendChild(row);
   }
@@ -848,7 +1222,9 @@ function attachRowGestures(row, board) {
   let t = null, sx = 0, sy = 0, longed = false, moved = false;
   row.addEventListener('pointerdown', (e) => {
     sx = e.clientX; sy = e.clientY; longed = false; moved = false;
-    t = setTimeout(() => { longed = true; if (navigator.vibrate) navigator.vibrate(10); openBoardRowMenu(row, board, e.clientX, e.clientY); }, LONGPRESS_MS);
+    if (!isDesktop) {
+      t = setTimeout(() => { longed = true; if (navigator.vibrate) navigator.vibrate(10); openBoardRowMenu(row, board, e.clientX, e.clientY); }, LONGPRESS_MS);
+    }
   });
   row.addEventListener('pointermove', (e) => {
     if (Math.hypot(e.clientX - sx, e.clientY - sy) >= MOVE_THRESHOLD) { moved = true; clearTimeout(t); }
@@ -864,11 +1240,23 @@ async function deleteBoard(id, row) {
   const snapshot = await idbGet(id);
   await idbDelete(id);
   if (row) leave(row, () => row.remove());
-  if (current && current.id === id) current = null;    // guard invalid current on return
-  showUndo(async () => { await idbPut(snapshot); renderList(); });
+  const wasCurrent = current && current.id === id;
+  if (wasCurrent) current = null;                      // guard invalid current on return
+  if (isDesktop) {
+    // No list screen heals a dead `current` on desktop — do it now, or the next
+    // interaction dereferences current.notes (review finding 2).
+    if (wasCurrent) await ensureCurrentValid();
+    renderPane();
+  }
+  showUndo(async () => {
+    await idbPut(snapshot);
+    if (!isDesktop) { renderList(); return; }
+    if (wasCurrent) swapBoard(snapshot.id); else renderPane();
+  }, 'board');
 }
 
 async function openBoardById(id) {
+  finalizeItemUndo();                                   // see swapBoard (finding 1)
   const rec = await idbGet(id);
   if (!rec) return;
   current = rec;
@@ -881,11 +1269,114 @@ function openBoardObj(board) {
 }
 
 async function newBoard() {
+  finalizeItemUndo();                                   // see swapBoard (finding 1)
   const board = newBoardRecord();
   await idbPut(board);
   current = board;
   history.back();                                       // page-turn back to the board
 }
+
+/* --- 11.5 Desktop board pane (issues #9 / #10 / #14) ---------------------- */
+let swapping = false;                // async re-entrancy guard beyond delayAction's window
+
+/* A pending note/lot Undo splices into whatever board is `current` at undo
+   time — switching boards would resurrect it onto the wrong board. Board
+   swaps finalize it (the delete is already persisted). Board-scoped Undo is
+   cross-board-safe and survives. (Review finding 1.) */
+function finalizeItemUndo() {
+  if (el.toast.dataset.scope === 'item') { clearTimeout(undoTimer); hideToast(); }
+}
+
+async function swapBoard(id) {
+  if (swapping) return;
+  if (current && current.id === id) return;
+  finalizeItemUndo();
+  swapping = true;
+  saveNow();                          // persist() snapshots `current` synchronously — safe
+  const rec = await idbGet(id);
+  if (!rec) { swapping = false; renderPane(); return; }
+  el.board.classList.add('swapping');
+  setTimeout(() => {                  // setTimeout, not transitionend: the reduced-motion
+    current = rec;                    // kill-switch zeroes transitions (§8)
+    renderBoard();
+    renderPane();
+    el.board.classList.remove('swapping');
+    swapping = false;
+  }, SWAP_MS);
+}
+
+async function renderPane() {
+  if (!isDesktop || !el.paneCards) return;
+  const all = await idbGetAll();
+  all.sort(boardOrder);
+  el.paneCards.textContent = '';
+  for (const b of all) {
+    const row = document.createElement('div');
+    row.className = 'pane-row'; row.setAttribute('role', 'listitem');
+    const card = document.createElement('button');
+    card.type = 'button'; card.className = 'pane-card'; card.dataset.id = b.id;
+    fillRowContent(card, b);
+    row.appendChild(card);
+    if (current && b.id === current.id) {
+      card.classList.add('active');
+      // Deletion path (a), issue #10: a permanent control on the open board's
+      // card only — deleting keeps the board's contents in front of you.
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'pane-del';
+      del.setAttribute('aria-label', 'Delete board');
+      del.textContent = GLYPH.delete;
+      del.addEventListener('click', () => delayAction(del, () => deleteBoard(b.id, row)));
+      row.appendChild(del);
+    } else {
+      // `click` never fires for the secondary button, so this cannot collide
+      // with the contextmenu path below.
+      card.addEventListener('click', () => delayAction(card, () => swapBoard(b.id)));
+    }
+    // Deletion path (b), issue #10: right-click any card → the existing
+    // one-item danger menu. The one summoning gesture "remove click-and-hold"
+    // doesn't touch, and it collides with nothing else in the app.
+    card.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();            // scoped to the card; elsewhere stays native
+      let x = ev.clientX, y = ev.clientY;
+      if (!x && !y) {                 // Shift+F10 fires contextmenu at 0,0
+        const r = card.getBoundingClientRect();
+        x = r.left + r.width / 2; y = r.top + r.height / 2;
+      }
+      menuInvoker = card;             // focus returns to the card on close
+      openBoardRowMenu(row, b, x, y);
+    });
+    el.paneCards.appendChild(row);
+  }
+  updatePaneOverflow();
+}
+
+/* §10's truncation law at list level (issue #9): when boards overflow the
+   rail, the bottom edge says so; when they don't, it says nothing. */
+function updatePaneOverflow() {
+  if (!el.paneCards || !el.paneMore) return;
+  el.paneMore.hidden = el.paneCards.scrollHeight <= el.paneCards.clientHeight + 1;
+}
+
+/* Live title (issue #14): the active card updates in place per keystroke; a
+   full renderPane on commit reconciles the untitled date line. */
+function updateActiveCardTitle() {
+  const card = el.paneCards && el.paneCards.querySelector('.pane-card.active');
+  if (!card || !current) return;
+  const titleEl = card.querySelector('.row-title');
+  if (!titleEl) return;
+  const titled = !!(current.title && current.title.trim().length);
+  titleEl.textContent = titled ? current.title : COPY.untitled;
+  titleEl.classList.toggle('untitled', !titled);
+}
+
+/* Desktop new-board: same filled control as the list view (shared class), its
+   own listener — the mobile path ends in history.back(), which desktop never
+   pushed. The new board's card appears at the top (createdAt order). */
+el.paneNew.addEventListener('click', () => delayAction(el.paneNew, async () => {
+  const board = newBoardRecord();
+  await idbPut(board);
+  swapBoard(board.id);
+}));
 
 function goToList() {
   if (listOpen) return;
@@ -929,6 +1420,7 @@ async function boot() {
   if (!all.length) { board = newBoardRecord(); await idbPut(board); }
   else { board = all.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a)); }  // launch → most recent
   openBoardObj(board);
+  if (isDesktop) renderPane();
 }
 boot();
 

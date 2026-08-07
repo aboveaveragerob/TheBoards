@@ -1,6 +1,6 @@
 /* Service worker — cache-first app shell, fully offline (PRD §3 / §6.8).
    Version-stamped cache; old caches are cleaned on activate. */
-const CACHE = 'todo-boards-v2';        // bump on every shipped app.js/styles.css change
+const CACHE = 'todo-boards-v3';        // bump on every shipped app.js/styles.css change
 const ASSETS = [
   '.',
   'index.html',

@@ -40,3 +40,21 @@ lives on-device in IndexedDB; there is no backend).
   (Complete/Restore · Boards · Delete). Delete is undoable for 5 seconds.
 - **Boards** (in the long-press menu) opens the board list; the OS back gesture
   returns you to the board.
+
+## On desktop
+
+With a mouse and a window ≥ 1024 px wide, the board switches to a
+mouse-and-keyboard grammar (tablets stay in touch mode):
+
+- **Click** a note to select it; the outlined frame appears with **Complete**
+  and **Delete** underneath. **Drag the frame** to resize. **Double-click** to
+  edit (caret at the end). Click empty canvas to deselect — with nothing
+  selected, a click still creates a note. Parking Lot lines select the same
+  way, with their buttons at the row's right edge. There is no click-and-hold.
+- A **board rail** on the left lists every board, newest first, with the open
+  board marked. Click a card to switch (a brief crossfade), **New board** at
+  the top to create, the active card's 🗑 to delete the open board — or
+  **right-click any card** to delete it. Deletes keep the 5-second Undo.
+- **Esc** deselects (or commits an edit), **Delete** removes the selection,
+  **Enter** edits it. Notes placed on the wider desktop canvas scale their
+  position proportionally when the same board opens on a phone, and back.

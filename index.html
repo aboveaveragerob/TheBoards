@@ -17,6 +17,15 @@
 <body>
   <!-- Board view: the single scaled page. Zero chrome (UIUX §1). -->
   <div id="board-view">
+    <!-- Desktop-only board rail (issues #9/#10): a sunken, always-visible pane.
+         Sits outside #board, so the gesture recognizer never sees its events.
+         display:none unless html.desktop; hidden from AT off-desktop too. -->
+    <aside id="pane" aria-label="Boards">
+      <button id="pane-new" class="primary-btn" type="button">New board</button>
+      <div id="pane-cards" role="list"></div>
+      <div id="pane-more" aria-hidden="true" hidden></div>
+    </aside>
+
     <!-- The one logical 900x1000 page. transform:scale() applied in JS. -->
     <div id="board" role="application" aria-label="Board" aria-roledescription="spatial board">
 
@@ -50,7 +59,7 @@
   <section id="list-view" hidden aria-label="Boards">
     <header id="list-header">
       <h1 id="list-title">Boards</h1>
-      <button id="new-board" type="button">New board</button>
+      <button id="new-board" class="primary-btn" type="button">New board</button>
     </header>
     <div id="list-rows" role="list"></div>
   </section>

@@ -213,3 +213,104 @@ on the device rather than defended — the structure above holds at any duration
 the number would move. The acknowledgment is instant (no transition), so the mandatory
 `prefers-reduced-motion` kill-switch (§8) has nothing to remove and the delay survives it
 intact — correctly, since reduced-motion is about vestibular safety, not about timing.
+
+---
+
+## C. Desktop mode (issue #4; decisions ruled in issues #8–#16, specs in PRs #28–#35)
+
+### B19. Desktop-mode detection
+A session is desktop iff `matchMedia('(min-width: 1024px) and (hover: hover) and
+(pointer: fine)')` matches, re-evaluated live on `change`. One `isDesktop` flag + one
+`desktop` class on `<html>` are the single source of truth; CSS gates on the class and
+never restates the query. Primary-input capability — not width, not UA — excludes
+tablets (iPadOS reports coarse/none even with a trackpad; a stylus is `any-pointer`,
+so an S Pen Z Fold stays mobile). Width is the reverse backstop and guarantees room for
+the 300 px rail. The exclusion is derived, not quoted: desktop's hover-dependent grammar
+would strictly reduce a touch-only device, while mobile mode costs it nothing. Mode
+flips tear down live state (selection, menu, a pushed list entry via `history.back()`
+so B9 holds, half-finished gestures). No persistence, no override.
+
+### B20. Desktop geometry — min-anchored axis inversion beside an unscaled rail
+`renderScale = min(vh/1000, (vw − 300)/900)`; `LOGICAL_H = vh/renderScale`;
+`LOGICAL_W = (vw − 300)/renderScale`; `offX = 300` (the rail is unscaled chrome; the
+sheet fills the rest — `--offx` already flows through `toLogical` and the board
+transform, so stored coordinates stay sheet-relative with no per-note math). Uniform
+scale (no distortion), both axes fill exactly, and **neither logical dimension ever
+drops below the 900×1000 reference** — mobile-placed notes always fit and the top
+furniture never collides, at any window shape. The extra width is the issue's new note
+surface. Mobile's B17 branch is untouched; the furniture CSS became width-agnostic
+(`right:24`, `left:24;right:24`, `calc(50% − 200px)`) — arithmetically identical at 900.
+
+### B21. Cross-device note `x` — scaled, not clamped, not fixed (overrides the B17 default)
+Desktop's variable `LOGICAL_W` lets a note's `x` exceed a phone's 900-unit sheet. Ruling
+(issue #15): positions render **proportionally** in both directions. Each note carries
+`rw`, the `LOGICAL_W` in effect when `x` was last written (`createNote`/drag/pinch/
+resize); rendering computes `renderX = x · (LOGICAL_W / (rw ‖ 900))` for CSS `left`,
+leaving stored `x` untouched — a viewport change never mutates data. Gestures rebase
+(`x = renderX; rw = LOGICAL_W`) at grab, which is visually silent by definition, so all
+grab math runs in current-frame units unchanged. Legacy notes read as `rw = 900` — true
+by construction, so there is no migration. `y` needs none of this (`LOGICAL_H ≥ 1000`
+everywhere); the Parking Lot has no `x`/`y`.
+
+### B22. Desktop selection is instant, inert state; B18 governs actions
+Click selects; the selection (and its dismissal, and the second-click edit entry) is
+**instant and opens no `delayAction` window** — B18's window acknowledges a
+*consequence*, and selection commits nothing. (Confirming mechanics: the drop-guard
+would swallow the second click of every double-click, so delayed selection is also
+impossible.) `handleTap`'s blanket drop-guard moved into the branches that fire
+actions, preserving B18(d) exactly where it does work. Complete/Restore/Delete, board
+create/swap/delete, and creation keep the 400 ms window. Deselecting does not cancel a
+pending action (Undo is the cancellation path); selecting never calls `surfaceNote`
+(it would write — the overlay renders above every note regardless). The selection
+chrome is one overlay in board space: it inherits `renderScale`, never `note.scale`,
+and its buttons are recognizer-routed because `setPointerCapture` retargets native
+clicks inside `#board`. Frame-drag resize shares pinch's scale/clamp/hit math.
+
+### B23. Creation surfaces deselect first; the hit floor is 24 px on desktop
+With a selection active, a click on a creation surface (empty canvas *or* the lot
+background — one rule) only deselects; with none, capture runs exactly as on mobile.
+The ordinary capture loop never pays the extra click — edit and selection are mutually
+exclusive and commit-on-blur doesn't reselect. So near-miss dismissals don't land in an
+invisible hit collar and reselect (or re-edit) the note, `HIT_FLOOR` drops 44 → 24 px
+on desktop only — WCAG 2.5.8 AA, the pointer-agnostic floor; B7's 44 px (2.5.5 AAA,
+fingertip) stands untouched on mobile.
+
+### B24. The board rail replaces the list view on desktop
+A full-height sunken rail (`--pane`, slightly darker paper, inset shadow — embedded,
+not floating) at a fixed 300 CSS px. Cards are compact (56 px, ~40ch) and ordered by
+one shared comparator: `createdAt` desc + `id` tiebreak — immutable, so a card's slot
+never moves (the same claim as positions-permanent); `boot()`/`ensureCurrentValid()`
+keep `updatedAt` deliberately (`updatedAt` selects *continuity*, `createdAt` orders
+*space* — do not "fix" this). When boards overflow the rail, the bottom edge says so
+in the §10 truncation idiom; otherwise it says nothing. Card click swaps the board in
+place — **no history push**, so B9's popstate flow is bypassed, never touched — behind
+a 150 ms crossfade sequenced by `setTimeout` (reduced-motion zeroes transitions, so
+`transitionend` would never fire). Create is the same filled primary control as the
+list view (shared class; its own listener — the mobile path ends in `history.back()`).
+Delete has two paths, neither hover: a permanent control on the **active card only**
+(deleting keeps the board's contents in front of you), and **right-click any card** →
+the existing one-item danger menu — the one summoning gesture "remove click-and-hold"
+doesn't touch. Both land in `deleteBoard` → 400 ms window → 5 s Undo; deleting the
+open board heals `current` immediately via `ensureCurrentValid()` (no list screen will).
+Consequence: the menu *can* open on desktop, so the desktop keyboard handler is inert
+while `menuOpen`.
+
+### B25. Parking Lot on desktop
+Same select grammar as notes (click selects, double-click edits, Complete/Restore +
+Delete; no resize — they are not frames). The selected row draws a frame: an explicit,
+narrow override of §4.4's "never framed," scoped to desktop + selected + one row,
+drawn with `outline` (no padding to absorb a border shift) in `--ink` (selection ≠
+edit, which keeps `--focus-ring`). Buttons sit inline at the row's right edge —
+`#lot-items` is `overflow: hidden`, so below-the-row controls would clip on exactly
+the last, most actionable row. The lot grows to 210 px (`34 + 4·44`, four rows) out of
+the desktop canvas; mobile keeps 128 px. Notes committed near the sheet bottom may
+overlap the taller lot; they render above it (z-order) and are not moved — B17.
+
+### B26. Desktop caret and Undo scope
+Double-click (and Enter on a selection) enters edit with the caret at the **end** —
+issue #4's explicit instruction, a desktop-only override of B14's caret-at-tap-point,
+which stands on mobile. A pending **note/lot** Undo is finalized on any board switch:
+its callback splices into whatever board is `current` at undo time, so switching would
+resurrect the item onto the wrong board (a pre-existing mobile bug the always-visible
+rail turns into a one-click accident). Board-delete Undo is cross-board-safe and
+survives switches — the toast now carries a scope for exactly this distinction.
