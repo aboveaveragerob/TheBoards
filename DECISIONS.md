@@ -213,3 +213,38 @@ on the device rather than defended — the structure above holds at any duration
 the number would move. The acknowledgment is instant (no transition), so the mandatory
 `prefers-reduced-motion` kill-switch (§8) has nothing to remove and the delay survives it
 intact — correctly, since reduced-motion is about vestibular safety, not about timing.
+
+### B19. The desktop board pane is a full-height rail; "5 or 6" sizes the card, not the rail
+Issue #4 specifies the left pane twice, and the two sentences cannot both be literal. One
+describes a **fixture** — "an always-visible pane" on the left, "slightly darker color than
+the board's background," "sink into the board background like it's embedded in it for depth."
+The other caps the **contents** — "fits 5 or 6 compact title cards before having to scroll,"
+alongside "compact" and "the width should fit 6-7 average length words." A real laptop viewport
+is ~800 CSS px tall; less the pane header, at the ~56 px compact-card height the board list
+already uses (`.board-row { min-height: 56px }`), a full-height rail shows roughly twelve cards.
+Holding the count literal costs ~150–190 px cards, at which point they are not compact, and the
+card height would have to change per viewport to keep the number true.
+
+**Decision: the rail is the fixture, and the number is a card-sizing spec.** The pane is
+full height (`#pane { inset-block: 0; left: 0; width: 300px }`, `--pane` a shade under `--paper`,
+sunk by an inset shadow against a `--hairline` right seam). Compact cards stack from the top and
+the rail scrolls only when boards outgrow it. "5 or 6" is honoured as what it was doing — fixing
+the card small enough that five or six read as one glance rather than an inventory — and as the
+expected count at typical board counts, not as a height cap. Three reinforcing details name the
+fixture and only one names the count; the fixture wins, and the count keeps the job it can
+actually do.
+
+**The clause "before having to scroll" is paid back, not dropped.** What it bought was knowing
+there is more without moving anything. §10 already carries that law for text — truncation is
+always indicated — so it applies at list level too: when the boards overflow the rail, the rail's
+bottom edge says so, in the existing `--hairline` / `--ink-shadow` idiom, and says nothing when
+they don't. Without this the full-height reading is a straight loss against the literal one.
+
+**Not chosen:** cards sized generously so five or six fill the height — literal on the number,
+but it contradicts "compact" in the same sentence. Nor a floating auto-height panel capped at six
+— literal on both clauses, but the left side stops being a full-height pane, and a floating panel
+*advances* toward the viewer, which is the opposite of sinking into the page.
+
+**Impermanence:** this holds only while the corpus is small enough for a rail to be a glance-list.
+Past roughly thirty boards no card size and no rail height recovers that, and the answer is
+grouping or search rather than geometry — a different decision, not a tuning of this one.
