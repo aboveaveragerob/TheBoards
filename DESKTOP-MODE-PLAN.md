@@ -1,6 +1,13 @@
 # Desktop Mode for TheBoards — Implementation Plan (Issue #4)
 
-> **Status: awaiting review.** This is a plan, not an implementation — per the request, no solution is built until the nine flagged decisions below are confirmed or vetoed. Reply on the PR (or the issue) with any changes; each decision ships with a recommended default so a simple "approved" is enough to start.
+> **Status: decisions resolved, implemented.** All nine flagged decisions were ruled on
+> (issues #8–#16, companion specs in PRs #28–#35) and the implementation ships in this
+> branch. Six defaults confirmed; three overridden: board create/delete (#10 — no
+> hover-reveal: active-card control + right-click menu, filled New-board button),
+> Parking Lot selected state (#11 — framed selected row, 210 px desktop lot), and
+> cross-device positions (#15 — proportional `x` via a per-note `rw` reference width,
+> replacing keep-truthful). The binding record is `DECISIONS.md` B19–B26; the section
+> below is kept as the original decision framing for history.
 
 ## Context
 
@@ -31,9 +38,17 @@ Binding constraints (from `DECISIONS.md` — PRD.md/UIUX.md are referenced but n
 | 5–6 compact cards, ~6–7 words wide, newest first | `renderPane()` reusing `renderList` row logic (`createdAt` desc, untitled + date fallback) |
 | Click card → swap board, minimalist animation | `swapBoard(id)` — direct load + `renderBoard()`, no history push, ~150 ms crossfade added to §8 |
 
-## ⚠️ Open decisions — flagged for your input (recommended defaults applied)
+## Decisions — resolved (original framing below; rulings in issues #8–#16)
 
-These are the gaps, contradictions, and judgment calls the issue leaves open. Each carries a **recommended default you can veto before implementation**. None is silently baked in.
+Resolutions: 1 → confirmed (#8). 2 → confirmed + rail-bottom overflow indicator (#9).
+3 → **overridden**: filled New-board button; delete = active-card control + right-click
+menu on any card (#10). 4 → confirmed + framed selected row + 210 px desktop lot (#11).
+5 → confirmed, generalized to all creation surfaces, + 24 px desktop hit floor (#12).
+6 → confirmed; edit entry instant too; drop-guard relocated (#13). 7 → confirmed +
+`id` tiebreak + shared comparator (#14). 8 → **overridden**: proportional `x` via
+per-note `rw` (#15, PR #35). 9 → confirmed (#16). Binding text: `DECISIONS.md` B19–B26.
+
+These were the gaps, contradictions, and judgment calls the issue left open. Each carried a **recommended default**:
 
 1. **Desktop detection** — *Default: `(min-width: 1024px) and (hover: hover) and (pointer: fine)` via `matchMedia`, live-switched.* Pointer capability (not width alone) excludes tablets, per "not including tablets." A touch-laptop with a mouse qualifies; an iPad Pro at 1366 px does not.
 2. **Pane geometry** — the issue has an internal tension: "always-visible pane" implies full height, but "5–6 compact cards before scrolling" caps the visible list (compact cards on a full-height 1080p rail show 12+). *Default: full-height sunken rail, compact cards stacking from the top, scrolling only when boards outgrow it* — treating "5–6" as the expectation at typical board counts, not a hard cap.
