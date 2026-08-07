@@ -179,7 +179,12 @@ Implementation lands as **step 7 of the parent plan**, and cannot start before:
 
 ## Draft `DECISIONS.md` entry — paste when implementation lands
 
-> ### B19. Parking Lot lines on desktop: same selection grammar, framed, controls inline
+> **Numbering:** take the next free `B` number at paste time. Do **not** assume B19 —
+> the nine decision branches are resolving in parallel and claiming numbers as they
+> merge (PR #28 already claims B19 for the board pane). The number is assigned when the
+> entry lands, not when it is drafted.
+
+> ### B__. Parking Lot lines on desktop: same selection grammar, framed, controls inline
 >
 > Desktop removes the long-press menu (issue #4), which was a lot line's **only** route to
 > Complete/Delete. Lot lines take the same grammar as notes — click selects, double-click
