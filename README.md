@@ -6,10 +6,6 @@ structure is asserted *after* capture by where things sit and how big they are.
 Task tracking, creative ideation, note-taking, problem-solving — one surface, no
 modes, no chrome.
 
-Built to the binding spec in `PRD.md` (what & why) and `UIUX.md` (how it renders
-& behaves). Design decisions where the spec was silent are recorded in
-`DECISIONS.md`.
-
 ## Run it
 
 Vanilla HTML/CSS/JS — no frameworks, no build step, no dependencies. Serve the
