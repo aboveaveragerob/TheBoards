@@ -208,6 +208,10 @@ touch to action; the common case is ~400 ms.
 end, and the `focusin` edit path for keyboard/AT users. Keyboard activation of a menu item
 *is* delayed — it routes through the same `click` listener, correctly.
 
+**Amended by B27** (mobile capture left the window; B18c's ghost is desktop-only). The
+clause below is the amendment working as written, not a repeal: the structure held and only
+the scope moved.
+
 **Impermanence:** 400 ms is a felt value, given not derived. It should be re-interrogated
 on the device rather than defended — the structure above holds at any duration, and only
 the number would move. The acknowledgment is instant (no transition), so the mandatory
@@ -314,3 +318,153 @@ its callback splices into whatever board is `current` at undo time, so switching
 resurrect the item onto the wrong board (a pre-existing mobile bug the always-visible
 rail turns into a one-click accident). Board-delete Undo is cross-board-safe and
 survives switches — the toast now carries a scope for exactly this distinction.
+
+---
+
+## D. Capture reliability on the device (the note-creation tap issue)
+
+Evidence: a screen recording of a real capture session on the Z Fold (Samsung Internet).
+Sixteen seconds of tapping bare paper to start a note. Most taps did nothing at all; the
+few that landed opened an editor and a keyboard that immediately closed again, and the
+keyboard flapped up and down for the rest of the session. **Not one note survived.**
+
+That is the whole product failing at its first principle — *capture precedes structure*
+(PRD §1). Everything below descends from it. Four independent suppressors were stacked on
+the same gesture and each one alone was enough to lose a tap; the entries are separated
+because the fixes are separable, not because the causes were.
+
+### B27. Mobile capture is instant, and the recognizer suppresses the browser's compatibility mouse events
+
+Two changes, one cause: **`focus()` must run inside the gesture that asked for it.**
+
+**a. Capture leaves B18's window.** Creating a note or a lot line, and entering edit on
+either, now happen synchronously in `pointerup` on mobile. B18's 400 ms beat stays on every
+action that *consequences* something — Complete/Restore, Delete, menu items, Undo, board
+create/swap/delete. This is B22's line ("B18's window acknowledges a *consequence*"),
+extended from desktop selection to mobile capture by the same reasoning: creating a note
+commits nothing, destroys nothing, and can be undone by walking away from it. B18's own
+impermanence clause asked for exactly this re-interrogation *on the device*, and the video
+is it — so this is the mechanism working, not an exception to it.
+
+The functional half is decisive: a browser raises the soft keyboard for a programmatic
+`focus()` only while it can attribute it to user activation, and `setTimeout(…, 400)` is
+outside that. Every mobile focus in the app was reached through `delayAction`'s timer, so
+the keyboard raise was never guaranteed — it was luck.
+
+The formal half is the stronger claim, and it stands on its own: **the editor appearing
+with a live caret is a better acknowledgment than the ghost that preceded it.** B18c
+invented `.tap-ghost` because empty canvas had no element to acknowledge — the promise of
+the frame, then the frame. Once the frame itself can arrive instantly, the promise is a
+stand-in for something no longer absent, and the interface is asking to be thought about
+(UIUX §1) for 400 ms. So the ghost is not deleted, it is **scoped to desktop**, where the
+window it fills still exists. B18c is narrowed, not repealed.
+
+**b. Compatibility mouse events are suppressed at `pointerdown`.** This was the largest
+single cause of the dropped taps and the one the code's own comments had already half
+found. A touch tap fires `pointerup`, then the browser synthesizes `mousedown`/`mouseup`/
+`click`; `setPointerCapture` retargets those to `#board`, which cannot hold focus, so their
+default action pulled focus straight back out of the editor the tap had just opened. The
+note was then empty at blur and B8 correctly destroyed it. **The bug wore the costume of
+the fix**: a tap that worked perfectly, undone one event later, looked exactly like a tap
+that never registered. Measured in the browser, a plain tap lost its note about as often as
+it kept it, and any finger movement at all made it near-certain.
+
+Past the `isEditing` guard the recognizer owns the press outright and places every caret
+and focus explicitly, so `preventDefault()` there removes only duplicates. It is *not*
+called on the editing path, where the native caret is exactly what should run.
+
+**Consequence, deliberately accepted:** B18(d) ("first tap wins") no longer applies to
+capture, because it no longer needs to. An impatient double-tap creates a note, then a
+second — and creating the second blurs the first, which is empty, which B8 discards. One
+note survives, at the last point tapped. The guard that existed to prevent a double-create
+is not weakened; it is made unnecessary by a mechanism already in the system.
+
+**Impermanence:** the 400 ms itself is untouched and still felt-not-derived. If it is ever
+re-interrogated to zero, this entry collapses into it and B18c's ghost goes with it.
+
+### B28. The sheet holds still while a note is being written
+
+`interactive-widget=resizes-visual` in the viewport meta, **plus** a JS guard that skips
+mobile re-layout while a `contenteditable` inside `#board` holds focus, with the skipped
+layout re-applied on `focusout`.
+
+**Why both.** Under B17 the mobile sheet's height *is* the viewport (`LOGICAL_H = 900·vh/vw`),
+which was the right call for filling the screen and the wrong one to leave unguarded when
+something else can change `vh` — and on Android the soft keyboard does exactly that. The
+sheet collapsed to roughly half its height the instant the keyboard opened (measured:
+1983 → 1055 units), a note committed low on the page fell outside it, and
+`#board-view { overflow: hidden }` clipped it away while it still held focus. The user's
+next tap therefore landed on bare canvas, blurred an editor they could no longer see, and
+B8 discarded the empty note — dropping the keyboard, resizing again, and starting over.
+**That loop is the flapping in the video**, and it is not a keyboard bug: it is B17
+faithfully doing its job on a viewport that had stopped meaning what B17 assumed.
+
+The meta directive is the correct fix and states the intent declaratively — the keyboard
+should resize the *visual* viewport, not the layout one. It is Chromium-only, and Samsung
+Internet is Chromium with a lag and its own keyboard/insets layer, so it is treated as the
+primary fix and assumed to be possibly ignored. The guard is what makes the claim true
+everywhere, including a browser that has never heard of the directive.
+
+Deferring rather than discarding matters: a rotation or a fold *during* an edit is a real
+layout change with no second resize coming after blur, so the guard remembers it and
+`focusout` applies it. B17's "committed notes are never re-clamped on resize" is untouched
+and now easier to hold — mid-edit there is no longer a resize to re-clamp against.
+
+### B29. Touch slop 10 px → 16 px
+
+B5 quotes "<10 px" from UIUX §5. On a 7.6-inch foldable held one-handed, a fingertip rolls
+further than 10 CSS px during an ordinary tap, and every such tap was cancelled outright
+(`g.mode = 'cancelled'`) with no feedback of any kind. 16 px recovers them and is still far
+short of any intentional drag. Same license B18 grants itself: a felt value, re-interrogated
+against the device rather than defended from the page it was written on. The constant is
+shared by drag-start, long-press-cancel and list rows, so the recognizer stays coherent at
+one number rather than three.
+
+### B30. A long-press on a creation surface captures; dismissing a menu does not
+
+**Long-press.** No long-press timer is armed over bare canvas or the lot background, so the
+release commits as the tap it always was. Previously the timer fired, vibrated, and threw
+a `TypeError` inside `openMenuFor` — canvas and lot pass `#board`/`#lot` as the target node
+and neither carries a `dataset.id`, so the record lookup returned `undefined`. Worse than
+the crash: `g.longPressed` was set *before* the throw, which suppressed the release. Every
+press held past 500 ms on empty paper produced a buzz and nothing else — and holding a
+moment too long is entirely ordinary on a phone. This is B5 one step further out: a
+deliberate press that isn't a long-press must still act, and so must one that *is* a
+long-press over a surface with nothing to open. Boards is unaffected; it lives on the
+anchor menus. `openMenuFor` also returns early on a missing record now, so no future caller
+can reproduce the crash.
+
+**Dismissal.** The `pointerdown` that closes an open menu is inert — it no longer also
+creates a note on the paper the menu was covering. Dismissal is a retraction, not a choice
+of what was underneath.
+
+### B31. No empty frame outlives its editor
+
+B8 ("no empty frames ever exist") was enforced only at blur, and blur presupposes focus. A
+frame whose editor never received focus never blurred, so it was never discarded: it stayed
+in the model, invisible (`.note-text:empty` is fully transparent), and kept its 44 px hit
+collar (B7). Any later tap inside that collar hit the `isEditing` early-return and died
+silently. **Failed taps left landmines, so the flakiness compounded the longer the user
+tried** — which is precisely the shape of the video, worsening over sixteen seconds.
+
+Three closures, at three different layers, deliberately:
+
+- **`isEditing` now requires real focus**, not just the attribute. An attribute can outlive
+  its edit; focus cannot. A husk is therefore an ordinary note again — the next tap focuses
+  it and the following blur discards it, so the app heals on contact.
+- **Creation verifies its own premise**: if `focus()` did not land, the frame is removed in
+  the same breath. Cheap, and a no-op now that capture runs in-gesture (B27).
+- **Every render sweeps the board** of whitespace-only notes and lot lines. B8 at rest
+  rather than only at blur — so data written by the *old* code cleans itself up the first
+  time it is drawn and this bug leaves nothing behind.
+
+**Not fixed by saving on creation**, which was the tempting one-liner: writing an empty
+frame to disk is the exact thing B8 forbids. A note earns persistence with its first
+character. The real hole — an empty frame swept to disk by some unrelated `saveNow()` —
+is closed by the sweep, which is the right layer for it.
+
+**Verification.** 35 mobile and 26 desktop checks drive a real browser (touch events via
+CDP, mobile emulation) and cover every claim above; run against the pre-fix commit they
+reproduce the video's symptoms exactly, including the `TypeError` and the mid-edit sheet
+collapse. They are the standing regression net for anything that touches the recognizer.
+The device remains the only authority on B28's directive.

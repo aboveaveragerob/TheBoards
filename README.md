@@ -27,6 +27,7 @@ lives on-device in IndexedDB; there is no backend).
 | `app.js` | Persistence, rendering/scale, gestures, z-order, undo, routing |
 | `manifest.json` · `sw.js` | PWA manifest + cache-first offline service worker |
 | `icons/` | 192 / 512 / maskable app icons |
+| `test/` | Browser regression tests for the gesture recognizer (dev-only; see `test/README.md`) |
 
 ## Using the board
 

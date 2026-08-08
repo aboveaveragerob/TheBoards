@@ -23,7 +23,7 @@ let   LOGICAL_W = 900;               // mobile: fixed 900; desktop: derived per 
 let   LOGICAL_H = 1000;              // responsive: recomputed each layout to fill the viewport
 const MAX_NOTE_W = 405;              // 45% of board width (PRD §6.2)
 const MIN_SCALE = 0.5, MAX_SCALE = 2.0;
-const MOVE_THRESHOLD = 10;           // px before a drag begins / long-press cancels
+const MOVE_THRESHOLD = 16;           // px before a drag begins / long-press cancels (B29)
 const LONGPRESS_MS = 500;
 const HIT_FLOOR = 44;                // px physical (PRD §5.3, UIUX §6) — mobile
 const HIT_FLOOR_DESKTOP = 24;        // WCAG 2.5.8 AA; a 44px collar swallows dismiss clicks (issue #12)
@@ -231,6 +231,27 @@ function applyLayout() {
   document.documentElement.style.setProperty('--toast-bottom', '12px');
 }
 
+/* The Android soft keyboard opening fires a viewport resize. Under B17 the
+   mobile sheet's height tracks vh, so recomputing there drags the page out
+   from under the note being written and clips it off the bottom — the next tap
+   lands on bare canvas, blurs the (now invisible) editor, and B8 discards the
+   empty frame, which drops the keyboard, which resizes again. That is the
+   flap. While an editor inside the board holds focus the layout is held still
+   and the deferral remembered, so a genuine rotation or fold mid-edit is
+   postponed rather than lost: commit-on-blur re-applies it. Desktop geometry
+   (B20) has no soft keyboard and is left unguarded. */
+let layoutDeferred = false;
+
+function editingInBoard() {
+  const a = document.activeElement;
+  return !!(a && a.hasAttribute && a.hasAttribute('contenteditable') && el.board.contains(a));
+}
+
+function onViewportResize() {
+  if (!isDesktop && editingInBoard()) { layoutDeferred = true; return; }
+  applyLayout();
+}
+
 /* --- 5. Coordinate + caret helpers --------------------------------------- */
 const toLogical = (clientX, clientY) => ({
   x: (clientX - offX) / renderScale,
@@ -277,8 +298,25 @@ function caretToEnd(node) {
 }
 
 /* --- 6. Rendering -------------------------------------------------------- */
+
+/* B8 at rest, not only at blur: "no empty frames ever exist" (PRD §6.2). The
+   blur discard covers a frame the user abandons; it cannot cover one whose
+   editor never took focus, because no blur ever comes. Any such husk already
+   in storage is swept the next time its board is drawn, so old data heals
+   itself on first sight and the bug leaves nothing behind (B31). Rendering is
+   the right layer: it is the one choke point every board passes through, and
+   it rebuilds the frames anyway. */
+function sanitizeBoard(board) {
+  const keep = r => (r.text || '').trim().length > 0;
+  const n = board.notes.length, l = board.parkingLot.length;
+  board.notes = board.notes.filter(keep);
+  board.parkingLot = board.parkingLot.filter(keep);
+  return board.notes.length !== n || board.parkingLot.length !== l;
+}
+
 function renderBoard() {
   clearSelection();                  // note DOM is about to be rebuilt
+  if (sanitizeBoard(current)) scheduleSave();
   // Anchors.
   for (const key of ['title', 'components', 'requirements']) {
     const node = anchorEls[key];
@@ -357,6 +395,19 @@ function applyCompleteA11y(node, complete) {
 // One recognizer over the board. Targets: note | anchor | lot-item | lot | canvas.
 const pointers = new Map();          // pointerId -> {x,y,startX,startY}
 let g = null;                        // active gesture context
+let swallowTap = false;              // the pointerdown that dismissed a menu is inert (B30)
+
+/* Only these carry a long-press menu. The creation surfaces — bare canvas and
+   the lot background — have no item to act on, so no timer is armed over them
+   and the press stays a pending tap: hold as long as you like on empty paper
+   and the release still captures a note. B5 rules that a deliberate press
+   which isn't a long-press must still act; a press that *is* one, over a
+   surface with nothing to open, is the same case one step further out, and
+   capture precedes structure (PRD §1). Boards is unaffected — it lives on the
+   anchors. (Previously every one of these presses vibrated and then threw in
+   openMenuFor, which also suppressed the release: the dropped taps in the
+   Z Fold capture video.) */
+const HAS_MENU = new Set(['note', 'lot-item', 'anchor']);
 
 function classifyTarget(target) {
   // Selection chrome first: action buttons (notes and lot rows share .sel-btn),
@@ -377,7 +428,16 @@ function classifyTarget(target) {
 el.board.addEventListener('pointerdown', onPointerDown);
 
 function onPointerDown(e) {
+  if (swallowTap) { swallowTap = false; return; }  // this press only dismissed a menu (B30)
   if (isEditing(e.target)) return;                 // let text editing receive taps/caret
+  // Past that guard the recognizer owns this press outright, so the browser's
+  // compatibility mouse events are suppressed at their source (B27). They are
+  // dispatched after pointerup and, because setPointerCapture retargets them
+  // to #board — which cannot hold focus — their default action pulls focus out
+  // of the editor the tap just opened. The note is then empty on blur and B8
+  // discards it: the tap that appeared to do nothing. Every focus and caret
+  // placement on this path is explicit, so nothing is lost by suppressing them.
+  e.preventDefault();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY });
 
   // Second pointer on a note in progress → pinch.
@@ -399,7 +459,7 @@ function onPointerDown(e) {
   }
   try { el.board.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
 
-  if (!isDesktop) {                  // desktop removes click-and-hold entirely (issue #4)
+  if (!isDesktop && HAS_MENU.has(target.type)) {   // desktop removes click-and-hold entirely (issue #4)
     g.longPressTimer = setTimeout(() => {
       if (!g || g.mode !== 'pending' || g.moved) return;
       g.longPressed = true;
@@ -449,8 +509,15 @@ function onPointerUp(e) {
 }
 
 /* --- 8. Editing, drag, pinch, z-order ------------------------------------ */
+/* Editing means an editor that actually holds focus, not merely one wearing the
+   attribute. The attribute alone can outlive its edit — a focus() the browser
+   refused never fires focusout, so nothing strips it — and an unfocused husk
+   answering yes here would swallow every pointerdown over it at source: an
+   invisible dead patch of paper. Requiring focus makes such a node an ordinary
+   note again, which the next tap focuses and the following blur discards. */
 function isEditing(node) {
-  return !!(node.closest && node.closest('[contenteditable]'));
+  const ed = node.closest && node.closest('[contenteditable]');
+  return !!(ed && document.activeElement === ed);
 }
 
 /* Every click commits ACTION_DELAY after the release, never on the same frame.
@@ -526,6 +593,7 @@ function handleTap(target, x, y) {
       // Creation surfaces deselect first (issue #12): with a selection active a
       // click only dismisses; capture stays primary when nothing is selected.
       if (isDesktop && selected) { clearSelection(); break; }
+      if (!isDesktop) { createNote(x, y); break; }              // capture is instant (B27)
       if (pendingAction) break;        // don't draw a ghost a dropped tap would orphan
       const ghost = makeTapGhost(x, y);
       delayAction(ghost, () => { ghost.remove(); createNote(x, y); });
@@ -533,6 +601,7 @@ function handleTap(target, x, y) {
     }
     case 'lot': {
       if (isDesktop && selected) { clearSelection(); break; }   // creation surface too
+      if (!isDesktop) { createLotItem(); break; }               // B27
       delayAction(el.lot, createLotItem);
       break;
     }
@@ -559,10 +628,8 @@ function handleTap(target, x, y) {
         }
         break;
       }
-      delayAction(node, () => {
-        surfaceNote(node);
-        if (note.state === 'active') editNoteText(node, x, y);
-      });
+      surfaceNote(node);                                        // B27
+      if (note.state === 'active') editNoteText(node, x, y);
       break;
     }
     case 'lot-item': {
@@ -584,12 +651,13 @@ function handleTap(target, x, y) {
         }
         break;
       }
-      delayAction(node, () => {
-        if (item.state === 'active') editText(node.querySelector('.lot-text'), x, y);
-      });
+      if (item.state === 'active') editText(node.querySelector('.lot-text'), x, y);  // B27
       break;
     }
-    case 'anchor': delayAction(target.node, () => editText(target.node, x, y)); break;
+    case 'anchor':
+      if (isDesktop) delayAction(target.node, () => editText(target.node, x, y));
+      else editText(target.node, x, y);                         // B27
+      break;
   }
 }
 
@@ -610,7 +678,15 @@ function editNoteText(noteNode, clientX, clientY) {
   editText(noteNode.querySelector('.note-text'), clientX, clientY);
 }
 
-/* Create a note in edit mode at the tapped point (PRD §6.2). */
+/* Create a note in edit mode at the tapped point (PRD §6.2).
+
+   The focus check closes B8's one gap (B31). Commit-on-blur is what discards
+   an empty frame, and blur presupposes focus: if focus is refused the frame
+   never commits, never discards, and persists as a husk that is invisible
+   (.note-text:empty) yet keeps its 44 px hit collar. Creation therefore
+   verifies its own premise in the same breath. It is a no-op whenever focus
+   lands, which — since the whole capture path now runs inside the gesture
+   (B27) — is the ordinary case. */
 function createNote(clientX, clientY) {
   const pt = toLogical(clientX, clientY);
   const note = { id: uuid(), text: '', x: clamp(pt.x, 0, LOGICAL_W - 4),
@@ -621,6 +697,7 @@ function createNote(clientX, clientY) {
   el.board.appendChild(node);
   const text = node.querySelector('.note-text');
   enableEditing(text); text.focus(); caretToEnd(text);
+  if (document.activeElement !== text) removeNoteSilently(note, node);
 }
 
 function createLotItem() {
@@ -630,6 +707,7 @@ function createLotItem() {
   el.lotItems.appendChild(node);
   const text = node.querySelector('.lot-text');
   enableEditing(text); text.focus(); caretToEnd(text);
+  if (document.activeElement !== text) removeLotSilently(item, node);
 }
 
 /* Commit-on-blur for every editable region; empty new notes/items are discarded. */
@@ -640,6 +718,10 @@ document.addEventListener('focusout', (e) => {
   if (t.classList.contains('note-text')) commitNote(t.closest('.note'));
   else if (t.classList.contains('lot-text')) commitLot(t.closest('.lot-item'));
   else if (t.classList.contains('anchor')) commitAnchor(t);
+  // A viewport change held back during the edit lands now that nothing is at
+  // stake — the keyboard's own retraction resize would repeat it, but a
+  // rotation or fold has no such second chance.
+  if (layoutDeferred) { layoutDeferred = false; requestAnimationFrame(applyLayout); }
 });
 
 /* Keyboard/AT users focus a region → enter edit. The pointer path owns taps, so
@@ -733,11 +815,14 @@ function commitLot(node) {
   const item = current.parkingLot.find(i => i.id === node.dataset.id);
   if (!item) return;
   item.text = node.querySelector('.lot-text').textContent;
-  if (item.text.trim().length === 0) {
-    const i = current.parkingLot.indexOf(item);
-    if (i >= 0) current.parkingLot.splice(i, 1);
-    node.remove(); lotEls.delete(item.id);
-  }
+  if (item.text.trim().length === 0) { removeLotSilently(item, node); return; }
+  saveNow();
+}
+function removeLotSilently(item, node) {
+  if (selected && selected.kind === 'lot' && selected.id === item.id) clearSelection();
+  const i = current.parkingLot.indexOf(item);
+  if (i >= 0) current.parkingLot.splice(i, 1);
+  node.remove(); lotEls.delete(item.id);
   saveNow();
 }
 function commitAnchor(node) {
@@ -1097,6 +1182,7 @@ function openMenuFor(target, clientX, clientY) {
     const isNote = target.type === 'note';
     const rec = isNote ? current.notes.find(n => n.id === node.dataset.id)
                        : current.parkingLot.find(i => i.id === node.dataset.id);
+    if (!rec) return;                // a menu over nothing has nothing to offer
     const completed = rec.state === 'complete';
     // Order (UIUX §7): Complete/Restore · Boards · Delete (destructive last).
     if (completed) items.push({ label: COPY.restore, glyph: GLYPH.restore,
@@ -1159,7 +1245,17 @@ function buildMenu(items, clientX, clientY) {
     }
   };
   document.addEventListener('keydown', menuKeyHandler, true);
-  menuOutsideHandler = (ev) => { if (!el.menu.contains(ev.target)) closeMenu(); };
+  // Dismissal is inert (B30): this handler runs in the capture phase, so the
+  // very press that closes the menu would otherwise go on to reach the
+  // recognizer and capture a note on the paper the menu was covering.
+  menuOutsideHandler = (ev) => {
+    if (el.menu.contains(ev.target)) return;
+    if (el.board.contains(ev.target)) {
+      swallowTap = true;
+      setTimeout(() => { swallowTap = false; }, 0);   // never outlives this press
+    }
+    closeMenu();
+  };
   setTimeout(() => document.addEventListener('pointerdown', menuOutsideHandler, true), 0);
 }
 
@@ -1411,8 +1507,8 @@ window.addEventListener('popstate', () => {
 el.newBoard.addEventListener('click', () => delayAction(el.newBoard, newBoard));
 
 /* --- 12. Boot + service worker ------------------------------------------- */
-window.addEventListener('resize', applyLayout);
-if (window.visualViewport) window.visualViewport.addEventListener('resize', applyLayout);
+window.addEventListener('resize', onViewportResize);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', onViewportResize);
 
 async function boot() {
   const all = await idbGetAll();

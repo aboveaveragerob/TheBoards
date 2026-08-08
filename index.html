@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <!-- interactive-widget=resizes-visual: the soft keyboard resizes the visual
+       viewport only, leaving window.innerHeight (and so the sheet) still while
+       a note is being written. See DECISIONS B28. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no, interactive-widget=resizes-visual">
   <meta name="theme-color" content="#EEEBEF" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1A161C" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
