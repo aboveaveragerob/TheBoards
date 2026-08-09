@@ -34,18 +34,29 @@
 
       <!-- The four permanent anchors (PRD §6.1). contenteditable is toggled on
            in JS only while editing, so the gesture recognizer owns tap/drag/
-           long-press without fighting native focus. -->
-      <div class="anchor" id="anchor-components" data-anchor="components"
-           data-placeholder="Components" tabindex="0"
-           role="textbox" aria-multiline="true" aria-label="Components"></div>
+           long-press without fighting native focus.
+
+           The top band is drawn furniture, independent of content (issue #38):
+           one rule across the sheet, a permanent header per side zone, and the
+           title card overhanging the rule and occluding it. Same three-part
+           split the Parking Lot already uses (rule / header / items). -->
+      <div id="band-rule" aria-hidden="true"></div>
+
+      <div class="band-zone" id="zone-components">
+        <div class="anchor" id="anchor-components" data-anchor="components" tabindex="0"
+             role="textbox" aria-multiline="true" aria-label="Components"></div>
+        <div class="band-label" aria-hidden="true">Components</div>
+      </div>
+
+      <div class="band-zone" id="zone-requirements">
+        <div class="anchor" id="anchor-requirements" data-anchor="requirements" tabindex="0"
+             role="textbox" aria-multiline="true" aria-label="Requirements"></div>
+        <div class="band-label" aria-hidden="true">Requirements</div>
+      </div>
 
       <div class="anchor" id="anchor-title" data-anchor="title"
            data-placeholder="What&rsquo;s up?" tabindex="0"
            role="textbox" aria-multiline="true" aria-label="Title"></div>
-
-      <div class="anchor" id="anchor-requirements" data-anchor="requirements"
-           data-placeholder="Required" tabindex="0"
-           role="textbox" aria-multiline="true" aria-label="Requirements"></div>
 
       <!-- Parking Lot zone (PRD §6.5). Unframed stacked lines. -->
       <div id="lot" data-anchor="lot">

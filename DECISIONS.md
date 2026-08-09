@@ -508,3 +508,37 @@ a phone — no cap at all, and the spatial board would collapse into one column.
 at 1 it simply meets the floor with real geometry instead of a ~100-unit invisible collar. B28's
 keyboard deferral is untouched and now load-bearing in a second way — an unguarded resize would
 move every note, and a gesture during one would bake a keyboard-shrunken `rh` into storage.
+
+### B33. The top band is drawn furniture, not a by-product of content (issue #38)
+Three symptoms, one cause: the title card had no frame, there was no rule under Components /
+Requirements, and both headers vanished the moment text was typed. The anchors' only rule was
+`border-bottom` gated on `.filled`/`:focus`, and their only label was a `::before` fed from
+`data-placeholder` — so *what this section is* (permanent) was carried by the same element as
+*this section is empty* (transient), and inherited its transience. A blank board drew nothing;
+a filled board lost its headers. The Parking Lot had the right shape all along (`#lot-rule` /
+`#lot-header` / `#lot-items`); the band never got it.
+
+**Ruling:** the band is furniture and draws unconditionally. One `#band-rule` across the sheet at
+`y=200`, at `#lot-rule`'s weight and gutter. Each side is a `.band-zone` holding its anchor and a
+permanent `.band-label` pinned to the rule and hugging the card — right-aligned left of it,
+left-aligned right of it. The card is a 4-sided frame, always drawn, `--paper`-filled, `top:24`
+to `252`: it **overhangs the rule and occludes it** rather than the rule crossing it, which is
+the whole spatial idea — the line was drawn across the page and the card landed on top of it.
+Geometry is the issue's wireframe measured against the 900×1000 reference sheet: rule `y=200`,
+card 220 wide (24.4444%) and 228 tall, the 1.26 overhang ratio it draws.
+
+Three consequences worth naming. **The card is the one always-drawn frame** — a deliberate
+exception to §6.2 "no empty frames", which exists to keep the *free canvas* clean; the card is
+permanent furniture, and the reference draws it on a blank board. **The title sets at the header
+size** (15/600, not 24/700): the card carries the hierarchy now, and at 24px a 220-wide card
+broke titles mid-word on a phone sheet — the wireframe sets them identically for exactly this
+reason. **The rule does not thicken on tap.** B18(b) still holds, but in each anchor's own idiom
+— the side anchors grow a 3px baseline, the card thickens its frame like a pressed note, both
+padding-compensated. The rule belongs to both zones at once, so thickening it could not say which
+one was tapped; `#lot-rule` can, because it belongs to one.
+
+`.band-zone` is `pointer-events:none` with the anchor `auto`, so `classifyTarget`'s
+`closest('.anchor')` is untouched and the rest of the band stays bare canvas — which is where the
+reference puts notes. No `app.js` change; `.filled` keeps its one remaining job, the card's
+placeholder. Not changed, and inconsistent with the reference until it is: `#lot-header` sits
+*below* its rule where the wireframe puts it above.
