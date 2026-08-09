@@ -33,10 +33,17 @@ lives on-device in IndexedDB; there is no backend).
 
 - **Tap** empty canvas → a note appears and frames itself as you type.
 - **Drag** to move (free overlap, no snapping). **Pinch** to scale a note.
-- **Long-press** any note, anchor, or Parking Lot line for the menu
-  (Complete/Restore · Boards · Delete). Delete is undoable for 5 seconds.
-- **Boards** (in the long-press menu) opens the board list; the OS back gesture
-  returns you to the board.
+- **Long-press** a note or Parking Lot line for its menu (Complete/Restore ·
+  Boards · Delete). Delete is undoable for 5 seconds.
+- **Long-press the title, Components, or Requirements** for the board's own
+  menu: **Export** and **Boards**. Export writes the board you're looking at
+  to a PDF and downloads it, no detour through the list — page one is the
+  sheet itself, page two its text. Completed items export scratched out, with
+  their words absent from the file.
+- **Boards** (in either long-press menu) opens the board list; the OS back
+  gesture returns you to the board.
+- **Long-press a board row** in the list opens the same menu for that board —
+  Export or Delete — whether or not it's the one currently open.
 
 ## On desktop
 
@@ -51,7 +58,8 @@ mouse-and-keyboard grammar (tablets stay in touch mode):
 - A **board rail** on the left lists every board, newest first, with the open
   board marked. Click a card to switch (a brief crossfade), **New board** at
   the top to create, the active card's 🗑 to delete the open board — or
-  **right-click any card** to delete it. Deletes keep the 5-second Undo.
+  **right-click any card** to export or delete it. Deletes keep the 5-second
+  Undo; Export writes the board to a PDF, whether or not that board is open.
 - **Esc** deselects (or commits an edit), **Delete** removes the selection,
   **Enter** edits it. Notes placed on the wider desktop canvas scale their
   position proportionally when the same board opens on a phone, and back.

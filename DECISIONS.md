@@ -542,3 +542,75 @@ one was tapped; `#lot-rule` can, because it belongs to one.
 reference puts notes. No `app.js` change; `.filled` keeps its one remaining job, the card's
 placeholder. Not changed, and inconsistent with the reference until it is: `#lot-header` sits
 *below* its rule where the wireframe puts it above.
+
+## F. Export (issue #43)
+
+### B34. The exporter is hand-rolled, and it draws the reference sheet
+Boards only left the device as screenshots. Issue #43 asks for a `.pdf` on the board-card menu.
+
+**Why no library.** jsPDF plus html2canvas is ~550 KB of vendored code, two new `ASSETS` entries in
+`sw.js`, and a false sentence in the README's first paragraph. PDF is a text format and the base-14
+fonts need no embedding, so the whole exporter is ~430 lines in `app.js` §10.5. B1 already settled
+the precedent — the icons come out of a dependency-free PNG encoder — and the app still has no
+frameworks, no build step and no dependencies. It also keeps the promise the PWA is built on: the
+export works with the aeroplane switch on, because nothing is fetched.
+
+**The frame is 900×1000, not the device.** `LOGICAL_W`/`LOGICAL_H` are viewport-derived (B20, B32),
+so exporting against them would make one board a different document on a phone than on a desktop.
+`exportX`/`exportY` are `renderX`/`renderY` with the reference sheet substituted for the viewport,
+so the export inherits issue #15 and B32 rather than re-deriving them, and B21 holds: stored `x`/`y`
+are read, never written. A pre-`rh` note keeps B32's admission that its authoring height cannot be
+recovered — it maps through `LEGACY_H` and is clamped onto the page at export time only.
+
+Reading, not writing, is the rule for the whole action. Records reach the menu straight from
+`idbGetAll()` and have never passed through `renderBoard`'s sweep, so the export re-runs B8/B31's
+`trim()` filter **on a copy**: a whitespace husk would otherwise export as an empty framed box, and
+filtering in place would be a silent mutation of live state. For the open board the export reads
+`current` rather than the rail's closure, because saves are debounced and the card's snapshot can be
+several keystrokes behind what the user is looking at.
+
+**Four medium decisions.**
+
+*Two pages, A4 portrait.* Page one is the sheet — the thing the screenshot was standing in for —
+scaled 0.581 and centred. Page two is the same board as prose, so the file is searchable and
+readable without decoding a diagram. A4 because a board is 0.9 wide-to-tall and A4 is 0.707: some
+page is left over either way, and a standard size prints anywhere without a dialog.
+
+*Paper edge to edge, always light.* `styles.css` §1 names paper tone as part of the identity
+alongside the frame and the scratch-out, so both pages are filled with `--paper` rather than the
+sheet floating on white — B17 and B32 spent two rulings deleting the letterbox and this is not the
+place to bring it back. Dark mode does not travel: it is an accommodation for an emissive display,
+and `--paper` at `#1A161C` prints as a slab of near-black.
+
+*Helvetica, not embedded.* "Identity comes from structure, never costume" (`styles.css` §1). The
+structure is exact; the costume changes. The honest cost, stated rather than hidden: the browser
+measures in `system-ui` and the viewer sets in Helvetica, so wrap points and a note's `max-content`
+box width can differ by a line. **Positions do not** — those come from the record. A base-14 font
+also cannot say CJK or emoji; those characters export as `?` and the substitution raises a toast,
+because §10's law is that truncation is always indicated and a silently mangled line is truncation.
+
+*The scratch-out destroys the text in the new medium too.* `styles.css` §4.3 says the mark is such
+that "no screenshot/zoom recovers it." The obvious port — draw the text, hatch over it — yields a
+PDF that `pdftotext` reads back verbatim, breaking that promise while looking identical. **A
+completed note or lot line emits no text object at all**: frame, paper, hatch. `opacity: 0.97` goes
+with it, since its job was to let a hair of the 40 %-ink text show through and there is now nothing
+underneath; the ink is mixed down against paper instead, which saves an `/ExtGState`. The
+interrogation produced a simplification, and the promise is a test rather than a claim.
+
+**Two smaller notes.** The item needed no `styles.css` change — it speaks the existing menu language
+(`#menu button`, `.glyph`, `.sep`) — which is the evidence the design was right. And the writer emits
+no dates, so an unchanged board exports byte-identically twice running; the test asserts it.
+
+**Export lives on the board menu, not only the board-card menu.** The issue's own wording — "long
+tap on mobile, right click board card on desktop" — describes one function reached two ways, and on
+mobile the board itself is reachable before its card is: long-pressing the title, Components, or
+Requirements already opened `[Boards]` (`openMenuFor`'s anchor branch), so exporting the board on
+screen required leaving it for the list first. That menu now reads `[Export, Boards]`. Desktop has
+no matching gap — right-click already reaches the active card directly in the rail — so this is
+mobile-only, gated the same way the anchor menu itself is (`!isDesktop`, B23/issue #4).
+
+*Impermanent.* Split §10.5 into its own file once `app.js` passes ~2,200 lines or a second consumer
+appears — it costs a `<script>` tag, an `ASSETS` entry, and a row in the README's Files table today,
+which is why it has not been done yet. `Export` becomes a submenu with `PDF` as the leaf the moment
+a second format exists. The hatch is inline ruled lines; past ~1 MB the order is a Form XObject,
+then `/FlateDecode` — noting the latter makes the build async and breaks the plaintext assertions.
