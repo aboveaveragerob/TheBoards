@@ -261,14 +261,45 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
+  // ---- 9b. section headers are permanent (B33, issue #38) ------------------
+  console.log('\n[9b] Components/Requirements headers survive content');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    for (const [sel, text] of [['#anchor-components', 'widget'], ['#anchor-requirements', 'must ship']]) {
+      const p = await page.evaluate(s => {
+        const r = document.querySelector(s).getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }, sel);
+      await tap(page, p.x, p.y);
+      await page.waitForTimeout(60);
+      await page.keyboard.type(text);
+      await page.evaluate(() => document.activeElement.blur());
+      await page.waitForTimeout(150);
+    }
+    const labels = await page.evaluate(() => [...document.querySelectorAll('.band-label')].map(n => {
+      const r = n.getBoundingClientRect();
+      return { text: n.textContent, w: r.width, h: r.height };
+    }));
+    ok('both headers still rendered', labels.length === 2, JSON.stringify(labels));
+    ok('headers still read Components / Requirements',
+      labels.map(l => l.text).join('|') === 'Components|Requirements', JSON.stringify(labels));
+    ok('headers still have a box', labels.every(l => l.w > 0 && l.h > 0), JSON.stringify(labels));
+    ok('anchors captured the text', await page.evaluate(() =>
+      document.querySelector('#anchor-components').textContent === 'widget' &&
+      document.querySelector('#anchor-requirements').textContent === 'must ship'));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   // ---- 10. sustained capture session: no lost taps -------------------------
   console.log('\n[10] Sustained capture (10 notes, mixed hold times)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     // Rows 120 apart so no tap lands on the ~42px note above it (at 1:1 a note
     // is its real size, not 43% of it), clear of the top furniture and of the
-    // lot band (y 620-830 under B32).
-    const pts = [[80,180],[300,180],[80,300],[300,300],[80,420],[300,420],[80,540],[300,540],[190,240],[190,480]];
+    // lot band (y 620-830 under B32). The centre column starts below the title
+    // card, which reaches y=252 now that it is a framed box (B33).
+    const pts = [[80,180],[300,180],[80,300],[300,300],[80,420],[300,420],[80,540],[300,540],[190,360],[190,480]];
     for (let i = 0; i < pts.length; i++) {
       await tap(page, pts[i][0], pts[i][1], i % 3 === 0 ? 600 : 40);   // some are long-presses
       await page.waitForTimeout(40);
@@ -299,18 +330,28 @@ const activeIsNoteText = page => page.evaluate(() =>
         compFont: getComputedStyle(document.querySelector('#anchor-components')).fontSize,
         title: r('#anchor-title'), comp: r('#anchor-components'),
         req: r('#anchor-requirements'), lot: r('#lot'),
+        rule: r('#band-rule'),
+        titleBorder: getComputedStyle(document.querySelector('#anchor-title')).borderTopWidth,
       };
     });
     ok('renderScale is 1', geo.rs === '1', 'rs=' + geo.rs);
     ok('sheet width is the viewport', geo.lw === '384px', geo.lw);
     ok('sheet height is the viewport', geo.lh === '846px', geo.lh);
-    // Declared sizes now reach the screen: 24/15px, not 10.2/6.4px.
-    ok('title renders at 24px', geo.titleFont === '24px', geo.titleFont);
+    // Declared sizes reach the screen, not ~43% of them. The title sets at the
+    // header size now that the card carries the hierarchy (B33).
+    ok('title renders at 15px', geo.titleFont === '15px', geo.titleFont);
     ok('Components renders at 15px', geo.compFont === '15px', geo.compFont);
-    ok('title is 44.4444% of the sheet', Math.abs(geo.title.width - 170.7) < 1, String(geo.title.width));
+    ok('title card is 24.4444% of the sheet', Math.abs(geo.title.width - 93.9) < 1, String(geo.title.width));
     ok('three-across header preserved',
       geo.comp.right <= geo.title.left && geo.title.right <= geo.req.left,
       JSON.stringify([geo.comp.right, geo.title.left, geo.title.right, geo.req.left]));
+    // B33 / issue #38: the band is drawn furniture. The card is framed on a
+    // blank board, and it overhangs the rule so it occludes it.
+    ok('title card is framed when empty', geo.titleBorder === '2px', geo.titleBorder);
+    ok('band rule is drawn on a blank board', geo.rule.width > 0 && geo.rule.height >= 1,
+      JSON.stringify([geo.rule.width, geo.rule.height]));
+    ok('card overhangs the band rule', geo.title.bottom > geo.rule.top + 1,
+      JSON.stringify([geo.title.bottom, geo.rule.top]));
     ok('lot is 210px — four rows', Math.round(geo.lot.height) === 210, String(geo.lot.height));
     ok('lot sits above the bottom edge', Math.round(geo.lot.bottom) === 830, String(geo.lot.bottom));
     ok('note cap is 45% of the sheet', geo.maxW === '173px', geo.maxW);

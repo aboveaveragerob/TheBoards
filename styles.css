@@ -105,30 +105,72 @@ body {
   content: attr(data-placeholder);
   color: var(--ink-shadow);
 }
-/* Lighter than a note frame: a 1.5px baseline rule when focused or filled. */
-.anchor.filled,
-.anchor:focus { border-bottom: 1.5px solid var(--ink); }
 .anchor:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-/* Mobile (B32): the sheet is the viewport, so the three-across top furniture is
-   written as the fractions of the 900 sheet it always was — 24/900 = 2.6667%,
-   216/900 = 24%, 400/900 = 44.4444%, title left 250/900 = 27.7778%. Identical
-   geometry at 900 units wide, and the same layout at any width. Font sizes are
-   unchanged and now render at their declared size instead of ~45% of it. */
+/* ---- §3 The top band (B33, issue #38) ----------------------------------
+   Drawn furniture, not a by-product of content: one rule across the sheet, a
+   permanent header per side zone, and a title card that overhangs the rule and
+   occludes it. Replaces the old content-gated `.anchor.filled` border-bottom,
+   which made a blank board draw nothing and a filled board lose its headers.
+
+   Geometry from the issue's wireframe, against the 900x1000 reference sheet:
+   rule at y=200; card 220 wide (24.4444%), centred, top 24, bottom 252 — the
+   1.26 overhang ratio the reference draws. Mobile writes the horizontal values
+   as sheet fractions (B32); desktop restates them in px below. ---- */
+#band-rule {                           /* same weight and idiom as #lot-rule */
+  position: absolute;
+  left: 2.6667%; right: 2.6667%; top: 200px;
+  height: 1px; background: var(--ink);
+  z-index: 0;                          /* under the anchors: the card occludes it */
+}
+/* The zone is a positioning frame only — pointer-events:none keeps it and its
+   label out of hitTest, so the recognizer still sees `.anchor` (and bare canvas
+   in the rest of the band, where the reference puts notes). */
+.band-zone {
+  position: absolute;
+  top: 24px; height: 176px;            /* 24 → the rule at 200 */
+  pointer-events: none;
+}
+.band-zone .anchor {
+  left: 0; right: 0; top: 0; width: auto;
+  pointer-events: auto;
+  font-size: 15px; font-weight: 600;
+}
+/* Pinned to the rule and hugging the card — the label never moves and never
+   disappears, whatever the anchor holds. */
+.band-label {
+  position: absolute;
+  left: 0; right: 0; bottom: 6px;
+  font-size: 15px; font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+}
+#zone-components   { left: 2.6667%; right: calc(62.2222% + 8px); }
+#zone-components   .band-label { text-align: right; }
+#zone-requirements { left: calc(62.2222% + 8px); right: 2.6667%; }
+#zone-requirements .band-label { text-align: left; }
+
+/* The card. Always framed, empty or not — the one deliberate exception to §6.2
+   "no empty frames", which protects the free canvas; the card is permanent
+   furniture and the reference draws it on a blank board. Opaque, so it occludes
+   the rule rather than the rule crossing it. min-height, so a long title grows
+   the card downward and keeps the overhang. */
 #anchor-title {
-  /* Centered on the sheet at any width; identical to left:250 at the 900 sheet. */
-  left: 27.7778%; top: 24px; width: 44.4444%;
+  left: 37.7778%; width: 24.4444%;     /* centred: 37.7778 + 24.4444 = 62.2222 */
+  top: 24px; min-height: 228px;        /* bottom 252 against the rule at 200 */
+  /* Column, not row: a contenteditable's line breaks arrive as sibling nodes,
+     and row flex would lay a wrapped title out sideways. */
+  display: flex;
+  flex-direction: column; justify-content: center;
+  padding: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 2px;                  /* near-square, as everywhere */
+  background: var(--paper);
   text-align: center;
-  font-size: 24px; font-weight: 700; line-height: 1.2;
-}
-#anchor-components {
-  left: 2.6667%; top: 24px; width: 24%;
-  font-size: 15px; font-weight: 600;
-}
-#anchor-requirements {
-  /* Pinned to the sheet's right edge; identical to left:660 at the 900 sheet. */
-  right: 2.6667%; top: 24px; width: 24%;
-  font-size: 15px; font-weight: 600;
+  /* The card is the hierarchy, not the type — so the title sets at the section
+     headers' size, as the reference draws it. At 24px the 220-wide card broke
+     titles mid-word on a phone sheet; the box already says "this is the title". */
+  font-size: 15px; font-weight: 600; line-height: 1.3;
 }
 
 /* ---- §3 / §6.5 Parking Lot --------------------------------------------- */
@@ -392,9 +434,10 @@ body {
 /* ---- Furniture geometry (B32). Desktop keeps the fixed px it has always had:
    its LOGICAL_W is derived per layout (B20), so the mobile percentages would
    drift with the window shape instead of holding the sheet's margin. ---- */
-html.desktop #anchor-title        { left: calc(50% - 200px); width: 400px; }
-html.desktop #anchor-components   { left: 24px;  width: 216px; }
-html.desktop #anchor-requirements { right: 24px; width: 216px; }
+html.desktop #anchor-title        { left: calc(50% - 110px); width: 220px; }
+html.desktop #zone-components     { left: 24px; right: calc(50% + 118px); }
+html.desktop #zone-requirements   { left: calc(50% + 118px); right: 24px; }
+html.desktop #band-rule           { left: 24px;  right: 24px; }
 html.desktop #lot                 { left: 24px;  right: 24px; }
 
 /* ---- The board rail (issues #9/#10): full-height, sunken into the sheet.
@@ -577,10 +620,19 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
    correctly by construction. Instant, like everything outside the §8 set.
    ========================================================================== */
 
-/* Content: weight. (.note is handled with .pressed at §4.2 above.) */
-.anchor.tapped {
+/* Content: weight. (.note is handled with .pressed at §4.2 above.) Each anchor
+   thickens in its own idiom now that the band rule is shared furniture (B33):
+   the side anchors grow a baseline, the card thickens its frame like a pressed
+   note. Both padding-compensated, so nothing reflows. The band rule itself does
+   NOT thicken — it belongs to both side zones at once, so it could not say which
+   one was tapped. (#lot-rule can, because it belongs to one zone.) */
+.band-zone .anchor.tapped {
   border-bottom: 3px solid var(--ink);
-  padding-bottom: 2.5px;               /* holds the filled anchor's 5.5px total */
+  padding-bottom: 1px;                 /* 3 + 1 = the base 4px; no reflow */
+}
+#anchor-title.tapped {
+  border-width: 3px;
+  padding: 11px;                       /* 3 + 11 = the base 2 + 12; no reflow */
 }
 .lot-item.tapped .lot-text {
   border-bottom: 2px solid var(--ink);
