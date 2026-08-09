@@ -171,7 +171,7 @@ const activeIsNoteText = page => page.evaluate(() =>
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     // Low on the sheet, where clipping bit — but above the lot, which under B32
-    // occupies y 620-830 at this viewport (846 - 16 bottom - 210 tall).
+    // occupies y 664-830 at this viewport (846 - 16 bottom - 166 tall).
     await tap(page, 200, 560);
     await page.waitForTimeout(80);
     ok('note created low on the sheet', (await noteCount(page)) === 1);
@@ -219,7 +219,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     // dismissing the menu on canvas must NOT also create a note (B30)
     const n0 = await noteCount(page);
     // Bare canvas: above the note, clear of the menu it opened (which hangs
-    // below the press point) and of the lot band (y 620-830 under B32).
+    // below the press point) and of the lot band (y 664-830 under B32/B35).
     await tap(page, 60, 200);
     await page.waitForTimeout(150);
     ok('menu dismissal creates no note (B30)', (await noteCount(page)) === n0, 'before=' + n0 + ' after=' + await noteCount(page));
@@ -302,7 +302,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     const { ctx, page, errors } = await newMobilePage(browser);
     // Rows 120 apart so no tap lands on the ~42px note above it (at 1:1 a note
     // is its real size, not 43% of it), clear of the top furniture and of the
-    // lot band (y 620-830 under B32). The centre column starts below the title
+    // lot band (y 664-830 under B32/B35). The centre column starts below the title
     // card, which reaches y=252 now that it is a framed box (B33).
     const pts = [[80,180],[300,180],[80,300],[300,300],[80,420],[300,420],[80,540],[300,540],[190,360],[190,480]];
     for (let i = 0; i < pts.length; i++) {
@@ -350,10 +350,32 @@ const activeIsNoteText = page => page.evaluate(() =>
     // header size now that the card carries the hierarchy (B33).
     ok('title renders at 15px', geo.titleFont === '15px', geo.titleFont);
     ok('Components renders at 15px', geo.compFont === '15px', geo.compFont);
-    ok('title card is 24.4444% of the sheet', Math.abs(geo.title.width - 93.9) < 1, String(geo.title.width));
+    ok('title card is 37.7778% of the sheet', Math.abs(geo.title.width - 145.1) < 1, String(geo.title.width));
     ok('three-across header preserved',
       geo.comp.right <= geo.title.left && geo.title.right <= geo.req.left,
       JSON.stringify([geo.comp.right, geo.title.left, geo.title.right, geo.req.left]));
+    // B35 moved the headers below the card's overhang: beside a 340-wide card a
+    // phone sheet cannot hold "Requirements", which is one word and cannot
+    // wrap. They must clear the card vertically and stay inside the gutters.
+    // width:max-content means the box is the ink, so the rect is the true bound.
+    const labels = await page.evaluate(() => {
+      const sheet = document.querySelector('#board').getBoundingClientRect();
+      const card = document.querySelector('#anchor-title').getBoundingClientRect();
+      const gut = document.querySelector('#band-rule').getBoundingClientRect();
+      return [...document.querySelectorAll('.band-label')].map(n => {
+        const r = n.getBoundingClientRect();
+        return { text: n.textContent, top: r.top, left: r.left, right: r.right,
+                 cardBottom: card.bottom, gutL: gut.left, gutR: gut.right,
+                 sheetR: sheet.right, clipped: n.scrollWidth > Math.ceil(r.width) };
+      });
+    });
+    ok('band labels clear the card', labels.every(l => l.top >= l.cardBottom),
+      JSON.stringify(labels.map(l => [l.text, l.top, l.cardBottom])));
+    ok('band labels are not clipped', labels.every(l => !l.clipped),
+      JSON.stringify(labels.map(l => [l.text, l.clipped])));
+    ok('band labels stay inside the gutters',
+      labels.every(l => l.left >= l.gutL - 0.5 && l.right <= l.gutR + 0.5),
+      JSON.stringify(labels.map(l => [l.text, l.left, l.right, l.gutL, l.gutR])));
     // B33 / issue #38: the band is drawn furniture. The card is framed on a
     // blank board, and it overhangs the rule so it occludes it.
     ok('title card is framed when empty', geo.titleBorder === '2px', geo.titleBorder);
@@ -361,7 +383,7 @@ const activeIsNoteText = page => page.evaluate(() =>
       JSON.stringify([geo.rule.width, geo.rule.height]));
     ok('card overhangs the band rule', geo.title.bottom > geo.rule.top + 1,
       JSON.stringify([geo.title.bottom, geo.rule.top]));
-    ok('lot is 210px — four rows', Math.round(geo.lot.height) === 210, String(geo.lot.height));
+    ok('lot is 166px — three rows', Math.round(geo.lot.height) === 166, String(geo.lot.height));
     ok('lot sits above the bottom edge', Math.round(geo.lot.bottom) === 830, String(geo.lot.bottom));
     ok('note cap is 45% of the sheet', geo.maxW === '173px', geo.maxW);
     ok('no page errors', errors.length === 0, errors.join(' | '));

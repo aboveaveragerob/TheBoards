@@ -1640,15 +1640,16 @@ function pdfAssemble(streams, title) {
 
 /* ---- Page 1: the board ---------------------------------------------------
    Geometry is styles.css read against the 900x1000 sheet: the 2.6667% gutter
-   is 24, the Components zone ends at 332, Requirements starts at 568, the card
-   is 340..560. Draw order is the stacking order — the card must cover the band
-   rule (B33), and notes sit above every piece of furniture. */
+   is 24, the card is 280..620 (37.7778%, B35), so the Components zone ends at
+   272 and Requirements starts at 628 — the card's edges ±the 8px gap. Draw
+   order is the stacking order — the card must cover the band rule (B33), and
+   notes sit above every piece of furniture. */
 const EXPORT_GEO = {
   gutter: 24, ruleY: 200,
   bandTop: 24, bandH: 176,
-  compL: 24, compR: 332, reqL: 568, reqR: 876,
-  cardL: 340, cardW: 220, cardTop: 24, cardMinH: 228, cardPad: 12,
-  lotTop: EXPORT_H - 16 - 210, lotH: 210, lotHeaderY: 8, lotItemsY: 34, lotRow: 44,
+  compL: 24, compR: 272, reqL: 628, reqR: 876,
+  cardL: 280, cardW: 340, cardTop: 24, cardMinH: 228, cardPad: 12,
+  lotTop: EXPORT_H - 16 - 166, lotH: 166, lotHeaderY: 8, lotItemsY: 34, lotRow: 44,
   headSize: 15, headLH: 19.5,          // 15px / 1.3, the band + card + lot header
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
   noteSize: 17, noteLH: 23.8,          // 17px / 1.4
@@ -1697,16 +1698,17 @@ function exportBoardPage(rec) {
   p.fill(PDF_INK).rect(g.gutter, g.ruleY, EXPORT_W - 2 * g.gutter, 1).raw('f');
 
   const zones = [
-    { text: rec.components, label: 'Components', l: g.compL, r: g.compR, align: 'right' },
-    { text: rec.requirements, label: 'Requirements', l: g.reqL, r: g.reqR, align: 'left' },
+    { text: rec.components, label: 'Components', l: g.compL, r: g.compR, align: 'left' },
+    { text: rec.requirements, label: 'Requirements', l: g.reqL, r: g.reqR, align: 'right' },
   ];
   for (const z of zones) {
     const w = z.r - z.l;
-    const labelTop = g.bandTop + g.bandH - 6 - g.headLH;
+    // The label sits below the card's overhang now (B35), so it no longer
+    // overlays the anchor and the anchor keeps the whole band.
+    const labelTop = g.cardTop + g.cardMinH + 6;
     if (z.text) {
-      // .anchor has padding 2px 0 4px. Clipped at the label: on screen a long
-      // anchor runs under it, and in print that reads as a mistake.
-      p.q().rect(z.l, g.bandTop, w, labelTop - g.bandTop).clip()
+      // .anchor has padding 2px 0 4px, and the zone still stops at the rule.
+      p.q().rect(z.l, g.bandTop, w, g.bandH).clip()
         .lines(pdfWrap(z.text, true, g.headSize, w), z.l, w, g.bandTop + 2,
                g.headSize, g.headLH, true, 'left')
         .Q();

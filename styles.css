@@ -83,6 +83,20 @@ body {
   transform: translate(var(--offx, 0px), var(--offy, 0px)) scale(var(--rs, 1));
   background: var(--paper);
   touch-action: none;
+
+  /* The band's geometry, declared once and derived from here (B35). Every edge
+     in §3 — both zones, the card, the rule, the lot — reads these, so the card
+     can be resized in one place and the columns follow. Previously the card's
+     right edge was the literal 62.2222% restated in three rules, and
+     #zone-components landed on the card's *left* edge only because
+     100 − 62.2222 = 37.7778, i.e. only while the card stayed centred. */
+  --gutter:   2.6667%;                 /* 24/900: the sheet's one margin (B32) */
+  --card-gap: 8px;                     /* card ↔ zone */
+  /* 340/900. Floored so the headers keep their runway: "Requirements" is one
+     word and cannot wrap, so a zone narrower than it overflows the gutter
+     rather than reflowing. The floor only binds below ~380 units. */
+  --card-w: min(37.7778%, 100% - 2 * (var(--gutter) + 100px + var(--card-gap)));
+  --card-l: calc((100% - var(--card-w)) / 2);
 }
 
 /* ---- §3 / §6.1 Anchors (furniture; render beneath notes) ---------------- */
@@ -114,12 +128,13 @@ body {
    which made a blank board draw nothing and a filled board lose its headers.
 
    Geometry from the issue's wireframe, against the 900x1000 reference sheet:
-   rule at y=200; card 220 wide (24.4444%), centred, top 24, bottom 252 — the
-   1.26 overhang ratio the reference draws. Mobile writes the horizontal values
-   as sheet fractions (B32); desktop restates them in px below. ---- */
+   rule at y=200; card 340 wide (37.7778%, B35 — was 220), centred, top 24,
+   bottom 252 — the 1.26 overhang ratio the reference draws. Horizontal values
+   come from #board's --gutter / --card-w / --card-l; desktop restates only
+   those two inputs below. ---- */
 #band-rule {                           /* same weight and idiom as #lot-rule */
   position: absolute;
-  left: 2.6667%; right: 2.6667%; top: 200px;
+  left: var(--gutter); right: var(--gutter); top: 200px;
   height: 1px; background: var(--ink);
   z-index: 0;                          /* under the anchors: the card occludes it */
 }
@@ -136,19 +151,38 @@ body {
   pointer-events: auto;
   font-size: 15px; font-weight: 600;
 }
-/* Pinned to the rule and hugging the card — the label never moves and never
-   disappears, whatever the anchor holds. */
+/* Below the rule and clear of the card's overhang, pinned to the sheet's outer
+   gutters — the label never moves and never disappears, whatever the anchor
+   holds. It sat above the rule hugging the card until B35 widened the card:
+   "Components" and "Requirements" are single words that cannot wrap, and beside
+   a 340-wide card a phone sheet leaves ~101px per column against a word that
+   needs up to ~118px in the widest system-ui. The card was the priority, so the
+   labels took the space that was actually free. Any overflow now runs inward,
+   under the card's bottom edge, where the canvas is empty. */
 .band-label {
   position: absolute;
-  left: 0; right: 0; bottom: 6px;
+  /* The zone ends at the rule (24 + 176 = 200), so this is y=258 — 6px below
+     the card's 252, mirroring the 6px it used to keep above the rule. */
+  top: calc(100% + 58px);
+  /* Sized to the word, then pinned to the sheet's outer gutter below. A column
+     is ~101px on a phone and "Requirements" can want ~118px, and text-align
+     cannot rescue that: CSS puts overflow at the *end* edge whatever the
+     alignment, so a right-aligned label would still run off the sheet. The box
+     grows to the word instead and spills inward, under the card, where the
+     canvas is empty. */
+  width: max-content;
   font-size: 15px; font-weight: 600;
   color: var(--ink);
   line-height: 1.3;
 }
-#zone-components   { left: 2.6667%; right: calc(62.2222% + 8px); }
-#zone-components   .band-label { text-align: right; }
-#zone-requirements { left: calc(62.2222% + 8px); right: 2.6667%; }
-#zone-requirements .band-label { text-align: left; }
+/* Written from --card-l directly rather than from the card's right edge, so
+   neither column depends on the card being centred (B35). */
+#zone-components   { left: var(--gutter);
+                     right: calc(100% - var(--card-l) + var(--card-gap)); }
+#zone-components   .band-label { left: 0; }
+#zone-requirements { left: calc(var(--card-l) + var(--card-w) + var(--card-gap));
+                     right: var(--gutter); }
+#zone-requirements .band-label { right: 0; }
 
 /* The card. Always framed, empty or not — the one deliberate exception to §6.2
    "no empty frames", which protects the free canvas; the card is permanent
@@ -156,7 +190,7 @@ body {
    the rule rather than the rule crossing it. min-height, so a long title grows
    the card downward and keeps the overhang. */
 #anchor-title {
-  left: 37.7778%; width: 24.4444%;     /* centred: 37.7778 + 24.4444 = 62.2222 */
+  left: var(--card-l); width: var(--card-w);   /* centred by construction */
   top: 24px; min-height: 228px;        /* bottom 252 against the rule at 200 */
   /* Column, not row: a contenteditable's line breaks arrive as sibling nodes,
      and row flex would lay a wrapped title out sideways. */
@@ -169,7 +203,9 @@ body {
   text-align: center;
   /* The card is the hierarchy, not the type — so the title sets at the section
      headers' size, as the reference draws it. At 24px the 220-wide card broke
-     titles mid-word on a phone sheet; the box already says "this is the title". */
+     titles mid-word on a phone sheet; the box already says "this is the title".
+     B35's 340-wide card removes that constraint, but restoring 24px is its own
+     call and has not been made. */
   font-size: 15px; font-weight: 600; line-height: 1.3;
 }
 
@@ -179,10 +215,12 @@ body {
   z-index: 1;
   /* Same gutter as the anchors, so the sheet keeps one left margin (B32);
      identical to left:24/width:852 at the 900 sheet. */
-  left: 2.6667%; right: 2.6667%; bottom: 16px;
-  /* Four visible rows (34 header + 4·44), both modes (issue #37; was 128px on
-     mobile, which at 900-and-scale rendered as ~55px — barely one row). */
-  height: 210px;
+  left: var(--gutter); right: var(--gutter); bottom: 16px;
+  /* Three visible rows (34 header + 3·44), both modes. Was four (210px, issue
+     #37); the lot holds two or three questions at most, so the fourth row was
+     canvas the board never got back (B35). #lot-items is overflow:hidden, so
+     this height *is* the visible row budget. */
+  height: 166px;
 }
 #lot-rule {                            /* the single drawn 1px ink rule */
   position: absolute; left: 0; right: 0; top: 0;
@@ -433,12 +471,13 @@ body {
 
 /* ---- Furniture geometry (B32). Desktop keeps the fixed px it has always had:
    its LOGICAL_W is derived per layout (B20), so the mobile percentages would
-   drift with the window shape instead of holding the sheet's margin. ---- */
-html.desktop #anchor-title        { left: calc(50% - 110px); width: 220px; }
-html.desktop #zone-components     { left: 24px; right: calc(50% + 118px); }
-html.desktop #zone-requirements   { left: calc(50% + 118px); right: 24px; }
-html.desktop #band-rule           { left: 24px;  right: 24px; }
-html.desktop #lot                 { left: 24px;  right: 24px; }
+   drift with the window shape instead of holding the sheet's margin.
+
+   Since B35 the band derives from two inputs, so desktop restates only those:
+   every edge — both zones, the card, the rule, the lot — follows. LOGICAL_W is
+   never below 900 here, so the fixed card leaves both columns ≥248 and the
+   mobile min() floor is not needed. ---- */
+html.desktop #board { --gutter: 24px; --card-w: 340px; }
 
 /* ---- The board rail (issues #9/#10): full-height, sunken into the sheet.
    Slightly darker paper + inset shadow = embedded, not floating. Unscaled
