@@ -8,8 +8,8 @@ the gesture recognizer, the capture path, and the layout guard:
 
 | Script | Covers |
 |---|---|
-| `mobile.js` | Touch capture (§D of `DECISIONS.md`): instant note creation, focus and caret, long-press on bare paper, touch slop, empty-frame sweeps, the keyboard-resize guard, menu dismissal |
-| `desktop.js` | Desktop grammar (B19–B26): the B18 ghost and 400 ms window, click-to-select, double-click edit, rail create/swap, right-click menu, drag |
+| `mobile.js` | Touch capture (§D of `DECISIONS.md`): instant note creation, focus and caret, long-press on bare paper, touch slop, empty-frame sweeps, the keyboard-resize guard, menu dismissal, board-row export |
+| `desktop.js` | Desktop grammar (B19–B26): the B18 ghost and 400 ms window, click-to-select, double-click edit, rail create/swap, right-click menu, drag, PDF export (B34) — menu order, byte-accurate xref, and that a completed item's text is absent from the file |
 
 Taps are dispatched as genuine touch events over CDP rather than synthesised
 clicks, because the bug they exist to catch lived in the browser's

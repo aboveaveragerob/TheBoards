@@ -37,6 +37,9 @@ lives on-device in IndexedDB; there is no backend).
   (Complete/Restore · Boards · Delete). Delete is undoable for 5 seconds.
 - **Boards** (in the long-press menu) opens the board list; the OS back gesture
   returns you to the board.
+- **Long-press a board row** in the list for **Export** — the board is written
+  to a PDF and downloaded: page one is the sheet itself, page two its text.
+  Completed items export scratched out, with their words absent from the file.
 
 ## On desktop
 
@@ -51,7 +54,8 @@ mouse-and-keyboard grammar (tablets stay in touch mode):
 - A **board rail** on the left lists every board, newest first, with the open
   board marked. Click a card to switch (a brief crossfade), **New board** at
   the top to create, the active card's 🗑 to delete the open board — or
-  **right-click any card** to delete it. Deletes keep the 5-second Undo.
+  **right-click any card** to export or delete it. Deletes keep the 5-second
+  Undo; Export writes the board to a PDF, whether or not that board is open.
 - **Esc** deselects (or commits an edit), **Delete** removes the selection,
   **Enter** edits it. Notes placed on the wider desktop canvas scale their
   position proportionally when the same board opens on a phone, and back.

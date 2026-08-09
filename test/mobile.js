@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const fs = require('fs');
 const URL = process.env.BOARDS_URL || 'http://localhost:8000/index.html';
 // Point at a specific Chromium with CHROMIUM_PATH; otherwise Playwright's own.
 const launchOpts = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
@@ -9,6 +10,7 @@ const ok = (n, c, extra) => { c ? (pass++, console.log('  PASS ' + n)) : (fail++
 async function newMobilePage(browser) {
   const ctx = await browser.newContext({
     viewport: { width: 384, height: 846 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3,
+    acceptDownloads: true,
   });
   const page = await ctx.newPage();
   const errors = [];
@@ -211,6 +213,9 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('menu opened on note long-press', menuVisible);
     const labels = await page.evaluate(() => [...document.querySelectorAll('#menu button')].map(b => b.textContent));
     ok('menu has Complete/Boards/Delete', labels.length === 3, JSON.stringify(labels));
+    // Export is board-level. The item-order law is per-menu, and a note's menu
+    // is not the place to export the board it happens to sit on.
+    ok('the note menu did not gain Export', !labels.some(l => /Export/.test(l)), JSON.stringify(labels));
     // dismissing the menu on canvas must NOT also create a note (B30)
     const n0 = await noteCount(page);
     // Bare canvas: above the note, clear of the menu it opened (which hangs
@@ -457,6 +462,61 @@ const activeIsNoteText = page => page.evaluate(() =>
     await page.waitForTimeout(60);
     ok('a second note is created on the next tap', (await noteCount(page)) === 2, 'count=' + await noteCount(page));
     ok('the new note holds focus', await activeIsNoteText(page));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 15. long-press a board row exports it (issue #43) -------------------
+  console.log('\n[15] Long-press a board row offers Export');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Pocket board';
+      rec.notes = [
+        { id: 'm1', text: 'TOUCHMARKER', x: 60, y: 300, rw: 900, rh: 1000, scale: 1, state: 'active' },
+        { id: 'm2', text: 'TOUCHSECRET', x: 60, y: 450, rw: 900, rh: 1000, scale: 1, state: 'complete' },
+      ];
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(400);
+    await page.evaluate(() => goToList());
+    await page.waitForTimeout(300);
+
+    const row = await page.evaluate(() => {
+      const r = [...document.querySelectorAll('#list-rows .board-row')]
+        .find(x => x.textContent.includes('Pocket board')).getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    const before = await noteCount(page);
+    await tap(page, row.x, row.y, 700);                  // long-press, not a tap
+    await page.waitForTimeout(200);
+    ok('menu opened on row long-press',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false));
+    const shape = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')];
+      return { labels: b.map(x => x.textContent), danger: b.map(x => x.classList.contains('danger')) };
+    });
+    ok('row menu is Export then Delete', shape.labels.length === 2 &&
+       /Export/.test(shape.labels[0]) && /Delete/.test(shape.labels[1]), JSON.stringify(shape.labels));
+    ok('only Delete is danger', shape.danger[0] === false && shape.danger[1] === true);
+    ok('the long-press did not also open the board',
+       await page.evaluate(() => document.querySelector('#list-view').hidden === false));
+
+    const btn = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')].find(x => /Export/.test(x.textContent));
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    const [dl] = await Promise.all([page.waitForEvent('download'), tap(page, btn.x, btn.y)]);
+    const s = fs.readFileSync(await dl.path()).toString('latin1');
+    ok('touch export produced a PDF', s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
+    ok('filename is the board slug', /^pocket-board-\d{4}-\d{2}-\d{2}\.pdf$/.test(dl.suggestedFilename()),
+       dl.suggestedFilename());
+    ok('active note text is in the file', s.includes('(TOUCHMARKER)'));
+    ok('completed note text is ABSENT', !s.includes('TOUCHSECRET'));
+    ok('exporting created no notes', (await noteCount(page)) === before);
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
