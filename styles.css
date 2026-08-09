@@ -110,19 +110,24 @@ body {
 .anchor:focus { border-bottom: 1.5px solid var(--ink); }
 .anchor:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
+/* Mobile (B32): the sheet is the viewport, so the three-across top furniture is
+   written as the fractions of the 900 sheet it always was — 24/900 = 2.6667%,
+   216/900 = 24%, 400/900 = 44.4444%, title left 250/900 = 27.7778%. Identical
+   geometry at 900 units wide, and the same layout at any width. Font sizes are
+   unchanged and now render at their declared size instead of ~45% of it. */
 #anchor-title {
   /* Centered on the sheet at any width; identical to left:250 at the 900 sheet. */
-  left: calc(50% - 200px); top: 24px; width: 400px;
+  left: 27.7778%; top: 24px; width: 44.4444%;
   text-align: center;
   font-size: 24px; font-weight: 700; line-height: 1.2;
 }
 #anchor-components {
-  left: 24px; top: 24px; width: 216px;
+  left: 2.6667%; top: 24px; width: 24%;
   font-size: 15px; font-weight: 600;
 }
 #anchor-requirements {
   /* Pinned to the sheet's right edge; identical to left:660 at the 900 sheet. */
-  right: 24px; top: 24px; width: 216px;
+  right: 2.6667%; top: 24px; width: 24%;
   font-size: 15px; font-weight: 600;
 }
 
@@ -130,11 +135,13 @@ body {
 #lot {
   position: absolute;
   z-index: 1;
-  left: 24px; right: 24px; bottom: 16px; /* spans the sheet; identical to width:852 at 900 */
-  height: 128px;
+  /* Same gutter as the anchors, so the sheet keeps one left margin (B32);
+     identical to left:24/width:852 at the 900 sheet. */
+  left: 2.6667%; right: 2.6667%; bottom: 16px;
+  /* Four visible rows (34 header + 4·44), both modes (issue #37; was 128px on
+     mobile, which at 900-and-scale rendered as ~55px — barely one row). */
+  height: 210px;
 }
-/* Desktop: four visible rows (34 + 4·44) out of the taller canvas (issue #11). */
-html.desktop #lot { height: 210px; }
 #lot-rule {                            /* the single drawn 1px ink rule */
   position: absolute; left: 0; right: 0; top: 0;
   height: 1px; background: var(--ink);
@@ -191,7 +198,7 @@ html.desktop #lot { height: 210px; }
   display: block;
   box-sizing: border-box;
   width: max-content;
-  max-width: 405px;                    /* ≈52ch measure (§2.3) */
+  max-width: var(--note-max-w, 405px); /* 45% of the sheet (PRD §6.2, B32) */
   padding: 10px 12px;
   border: 2px solid var(--ink);
   border-radius: 2px;                  /* near-square: reads as drawn, not card */
@@ -381,6 +388,14 @@ html.desktop #lot { height: 210px; }
    Desktop mode (html.desktop) — issues #4 / #9–#15. Everything here is gated
    on the class the JS mode flag owns; the media query is never restated.
    ========================================================================== */
+
+/* ---- Furniture geometry (B32). Desktop keeps the fixed px it has always had:
+   its LOGICAL_W is derived per layout (B20), so the mobile percentages would
+   drift with the window shape instead of holding the sheet's margin. ---- */
+html.desktop #anchor-title        { left: calc(50% - 200px); width: 400px; }
+html.desktop #anchor-components   { left: 24px;  width: 216px; }
+html.desktop #anchor-requirements { right: 24px; width: 216px; }
+html.desktop #lot                 { left: 24px;  right: 24px; }
 
 /* ---- The board rail (issues #9/#10): full-height, sunken into the sheet.
    Slightly darker paper + inset shadow = embedded, not floating. Unscaled

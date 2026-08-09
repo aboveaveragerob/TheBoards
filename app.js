@@ -19,9 +19,11 @@
 'use strict';
 
 /* --- 1. Constants & copy ------------------------------------------------- */
-let   LOGICAL_W = 900;               // mobile: fixed 900; desktop: derived per layout (B20)
+let   LOGICAL_W = 900;               // mobile: = vw, the sheet is the viewport (B32); desktop: derived per layout (B20)
 let   LOGICAL_H = 1000;              // responsive: recomputed each layout to fill the viewport
-const MAX_NOTE_W = 405;              // 45% of board width (PRD §6.2)
+let   LEGACY_H = 1000;               // the LOGICAL_H the pre-B32 build would have produced
+                                     // on this device; places notes that predate `rh`.
+const MAX_NOTE_W = 405;              // 45% of the 900 sheet (PRD §6.2); desktop cap — see noteMaxW
 const MIN_SCALE = 0.5, MAX_SCALE = 2.0;
 const MOVE_THRESHOLD = 16;           // px before a drag begins / long-press cancels (B29)
 const LONGPRESS_MS = 500;
@@ -205,25 +207,35 @@ function applyLayout() {
     LOGICAL_W = (vw - PANE_W) / renderScale;
     offX = PANE_W;
     offY = 0;
+    LEGACY_H = LOGICAL_H;            // desktop geometry is unchanged by B32
   } else {
-    // Mobile (B17): width fills the viewport; height tracks the device aspect
-    // so a single uniform scale fills both axes — no letterbox, no distortion.
-    LOGICAL_W = 900;
-    LOGICAL_H = LOGICAL_W * vh / vw; // vw/LOGICAL_W === vh/LOGICAL_H
-    renderScale = vw / LOGICAL_W;
+    // Mobile (B32, overrides B17): the sheet IS the viewport. B17's fill still
+    // holds — a scale of 1 is uniform by construction, so no letterbox and no
+    // distortion — but every declared px is now a real px, which is the whole
+    // point: at 900-and-scale the furniture rendered at ~45% and was unreadable.
+    LOGICAL_W = vw;
+    LOGICAL_H = vh;
+    renderScale = 1;
     offX = 0;
     offY = 0;
+    LEGACY_H = 900 * vh / vw;        // the height B17 would have produced here
   }
   el.board.style.setProperty('--logical-w', LOGICAL_W + 'px');
   el.board.style.setProperty('--logical-h', LOGICAL_H + 'px');
   el.board.style.setProperty('--rs', renderScale);
   el.board.style.setProperty('--offx', offX + 'px');
   el.board.style.setProperty('--offy', offY + 'px');
-  // Re-derive each note's on-sheet x (proportional across widths) and its
+  // Before the loop: setHitInset measures offsetWidth, which the cap changes.
+  el.board.style.setProperty('--note-max-w', noteMaxW() + 'px');
+  // Re-derive each note's on-sheet x and y (proportional across frames) and its
   // decoupled hit area (physical size changed).
   noteEls.forEach((node, id) => {
     const note = current && current.notes.find(n => n.id === id);
-    if (note) { node.style.left = renderX(note) + 'px'; setHitInset(node, note); }
+    if (note) {
+      node.style.left = renderX(note) + 'px';
+      node.style.top = renderY(note) + 'px';
+      setHitInset(node, note);
+    }
   });
   if (selected) updateSelectionUI();
   if (isDesktop && el.paneCards) updatePaneOverflow();
@@ -239,7 +251,14 @@ function applyLayout() {
    flap. While an editor inside the board holds focus the layout is held still
    and the deferral remembered, so a genuine rotation or fold mid-edit is
    postponed rather than lost: commit-on-blur re-applies it. Desktop geometry
-   (B20) has no soft keyboard and is left unguarded. */
+   (B20) has no soft keyboard and is left unguarded.
+
+   Under B32 the guard earns a second job. The proportional collapse is the same
+   (846 → 450 is the same ratio as B17's 1983 → 1055), but y is now frame-
+   relative, so an unguarded keyboard resize would move every note on screen —
+   and a gesture grabbing one while the keyboard is up would rebase it, writing
+   rh = the shrunken height into storage permanently. This deferral is the only
+   thing standing between the soft keyboard and that write. Do not weaken it. */
 let layoutDeferred = false;
 
 function editingInBoard() {
@@ -265,10 +284,36 @@ const toLogical = (clientX, clientY) => ({
    (visually silent: renderX equals the on-screen position at that instant). */
 const renderX = (note) => note.x * (LOGICAL_W / (note.rw || 900));
 
+/* Cross-frame y (B32) — the mirror of rw. B21 ruled y needed no counterpart
+   because LOGICAL_H ≥ 1000 everywhere; at 1:1 the mobile height is vh, so that
+   premise is gone and note.rh records the LOGICAL_H its y was last written
+   against. Notes written before B32 have no rh, and unlike rw's legacy 900 it
+   cannot be recovered — the old mobile height was device-dependent — so they
+   are mapped through the height the previous build would have produced here
+   (LEGACY_H) and clamped into the page AT RENDER TIME ONLY. Stored y is never
+   mutated, so B17's "committed positions are permanent" holds; the clamp exists
+   solely so a note authored on the old ~2000-unit sheet stays reachable rather
+   than clipped off a page that will never be that tall again.
+   The clamp is on the legacy branch alone: applied to live notes it would fight
+   createNote's own LOGICAL_H − 4 bottom clamp and rebaseNote would write the
+   pulled-up value back — the silent mutation B21 forbids. */
+const renderY = (note) => note.rh
+  ? note.y * (LOGICAL_H / note.rh)
+  : clamp(note.y * (LOGICAL_H / LEGACY_H), 0, Math.max(0, LOGICAL_H - HIT_FLOOR));
+
 function rebaseNote(note) {
   note.x = renderX(note);
+  note.y = renderY(note);
   note.rw = LOGICAL_W;
+  note.rh = LOGICAL_H;
 }
+
+/* PRD §6.2's cap is "45% of board width"; 405 was that fraction of the fixed
+   900 sheet, and at 1:1 a fixed 405 is ~98% of a phone — no cap at all, and the
+   spatial board collapses into one column. Desktop keeps the literal: its
+   LOGICAL_W is derived per layout (B20), and 45% of it would widen desktop
+   notes to ~570px, which B32 does not license. */
+const noteMaxW = () => isDesktop ? MAX_NOTE_W : Math.round(LOGICAL_W * 0.45);
 
 function setHitInset(node, note) {
   const w = node.offsetWidth, h = node.offsetHeight;   // logical (transform-independent)
@@ -338,7 +383,7 @@ function makeNoteEl(note) {
   node.dataset.id = note.id;
   node.setAttribute('tabindex', '0');
   node.style.left = renderX(note) + 'px';
-  node.style.top = note.y + 'px';
+  node.style.top = renderY(note) + 'px';
   node.style.transform = 'scale(' + note.scale + ')';
 
   const text = document.createElement('div');
@@ -690,7 +735,7 @@ function editNoteText(noteNode, clientX, clientY) {
 function createNote(clientX, clientY) {
   const pt = toLogical(clientX, clientY);
   const note = { id: uuid(), text: '', x: clamp(pt.x, 0, LOGICAL_W - 4),
-                 y: clamp(pt.y, 0, LOGICAL_H - 4), rw: LOGICAL_W,
+                 y: clamp(pt.y, 0, LOGICAL_H - 4), rw: LOGICAL_W, rh: LOGICAL_H,
                  scale: 1.0, state: 'active' };
   current.notes.push(note);                          // top of z-order
   const node = makeNoteEl(note);
@@ -1020,12 +1065,13 @@ function updateSelectionUI() {
     if (!note || !node || !selEl) return;
     const w = node.offsetWidth * note.scale, h = node.offsetHeight * note.scale;
     selEl.style.left = renderX(note) + 'px';
-    selEl.style.top = note.y + 'px';
+    const top = renderY(note);
+    selEl.style.top = top + 'px';
     selEl.style.width = w + 'px';
     selEl.style.height = h + 'px';
     selPrimary.textContent = note.state === 'complete' ? COPY.restore : COPY.complete;
     // Buttons sit under the bottom frame edge; flip above when they'd leave the page.
-    selActions.classList.toggle('above', note.y + h + 64 > LOGICAL_H);
+    selActions.classList.toggle('above', top + h + 64 > LOGICAL_H);
     setSelectionHidden(false);
   } else {
     const node = lotEls.get(selected.id);
