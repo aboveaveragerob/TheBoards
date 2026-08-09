@@ -106,7 +106,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
-  // ---- 5. rapid double tap -> exactly one surviving note -------------------
+  // ---- 5. rapid double tap -> second tap only dismisses (issue #41) --------
   console.log('\n[5] Impatient double-tap');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
@@ -114,8 +114,8 @@ const activeIsNoteText = page => page.evaluate(() =>
     await tap(page, 250, 550);
     await page.waitForTimeout(150);
     const n = await noteCount(page);
-    ok('one note survives (empty first one discarded)', n === 1, 'count=' + n);
-    ok('the survivor holds focus', await activeIsNoteText(page));
+    ok('the empty first note is discarded, no second one created', n === 0, 'count=' + n);
+    ok('nothing holds focus (keyboard dismissed)', !(await activeIsNoteText(page)));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
@@ -305,6 +305,10 @@ const activeIsNoteText = page => page.evaluate(() =>
       await page.waitForTimeout(40);
       await page.keyboard.type('n' + i);
       await page.waitForTimeout(30);
+      // Tap away to dismiss before the next capture (issue #41): a tap onto a
+      // new spot while this one is still focused now only deselects it.
+      await page.evaluate(() => document.activeElement && document.activeElement.blur());
+      await page.waitForTimeout(20);
     }
     await page.evaluate(() => document.activeElement && document.activeElement.blur());
     await page.waitForTimeout(400);
@@ -431,6 +435,28 @@ const activeIsNoteText = page => page.evaluate(() =>
         };
       };
     })));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 14. tap away deselects; a further tap opens a new note (issue #41) --
+  console.log('\n[14] Tap away from an editing note only deselects it');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 150, 300);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('keep me');
+    await tap(page, 150, 550);                 // tap away on bare canvas
+    await page.waitForTimeout(150);
+    ok('no phantom second note appears', (await noteCount(page)) === 1, 'count=' + await noteCount(page));
+    ok('nothing holds focus (keyboard dismissed)', !(await activeIsNoteText(page)));
+    const textAfterDismiss = await page.evaluate(() =>
+      document.querySelector('.note-text').textContent);
+    ok('the original note text is unchanged', textAfterDismiss === 'keep me', textAfterDismiss);
+    await tap(page, 150, 550);                 // a further tap now creates a new note
+    await page.waitForTimeout(60);
+    ok('a second note is created on the next tap', (await noteCount(page)) === 2, 'count=' + await noteCount(page));
+    ok('the new note holds focus', await activeIsNoteText(page));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

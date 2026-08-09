@@ -635,10 +635,14 @@ function handleTap(target, x, y) {
     }
     case 'sel-frame': break;           // a motionless click on the ring does nothing
     case 'canvas': {
-      // Creation surfaces deselect first (issue #12): with a selection active a
-      // click only dismisses; capture stays primary when nothing is selected.
+      // Creation surfaces deselect first (issue #12 desktop / #41 mobile): with
+      // a selection active, or a note mid-edit, a tap only dismisses; capture
+      // is only primary when nothing is selected or being edited.
       if (isDesktop && selected) { clearSelection(); break; }
-      if (!isDesktop) { createNote(x, y); break; }              // capture is instant (B27)
+      if (!isDesktop) {
+        if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
+        createNote(x, y); break;                                // capture is instant (B27)
+      }
       if (pendingAction) break;        // don't draw a ghost a dropped tap would orphan
       const ghost = makeTapGhost(x, y);
       delayAction(ghost, () => { ghost.remove(); createNote(x, y); });
@@ -646,7 +650,10 @@ function handleTap(target, x, y) {
     }
     case 'lot': {
       if (isDesktop && selected) { clearSelection(); break; }   // creation surface too
-      if (!isDesktop) { createLotItem(); break; }               // B27
+      if (!isDesktop) {
+        if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
+        createLotItem(); break;                                 // B27
+      }
       delayAction(el.lot, createLotItem);
       break;
     }
