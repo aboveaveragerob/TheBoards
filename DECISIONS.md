@@ -468,3 +468,43 @@ CDP, mobile emulation) and cover every claim above; run against the pre-fix comm
 reproduce the video's symptoms exactly, including the `TypeError` and the mid-edit sheet
 collapse. They are the standing regression net for anything that touches the recognizer.
 The device remains the only authority on B28's directive.
+
+## E. Mobile legibility (issue #37)
+
+### B32. The mobile sheet is 1:1 with the viewport (overrides B17, and B21's `y` clause)
+B17 kept the phone on a fixed 900-unit sheet scaled to fit, which on a ~400 px phone means
+`renderScale ≈ 0.45`: 24 px of title reached the screen as 10 px, the Components/Required
+labels as 6 px, and the 128 px Parking Lot as ~55 px — about one row. The sections were never
+resizable and are not made so here; they were literals being shrunk. **Decision:** on mobile
+`LOGICAL_W = vw`, `LOGICAL_H = vh`, `renderScale = 1`. The sheet *is* the viewport, every
+declared px is a real px, and B17's claim survives intact — a scale of 1 is uniform by
+construction, so there is still no letterbox and no distortion.
+
+The three-across top furniture (Components · Title · Required) is preserved exactly. It could
+no longer be written as px against a known 900 sheet, so its mobile rules are restated as the
+fractions they always were — 24/900 = 2.6667 %, 216/900 = 24 %, 400/900 = 44.4444 % — which is
+identical geometry at 900 units and the same layout at any width. Desktop keeps fixed px
+(`html.desktop` overrides): its `LOGICAL_W` is derived per layout (B20), so percentages there
+would drift with the window shape. The Parking Lot takes desktop's 210 px (`34 + 4·44`) in
+both modes, so four rows are visible everywhere.
+
+B21 ruled that `y` needed no counterpart to `rw` because `LOGICAL_H ≥ 1000` everywhere. At 1:1
+the mobile height is `vh`, so that premise is false and every note now carries `rh` beside
+`rw`, written at exactly the same call sites (`createNote`, and `rebaseNote` at drag/pinch/
+resize grab) and read by `renderY`. Notes written before B32 have no `rh`, and unlike `rw`'s
+legacy 900 it cannot be recovered — the old mobile height was device-dependent (~1700–2000) —
+so they are mapped through the height the previous build would have produced on *this* device
+(`LEGACY_H`) and clamped into the page **at render time only**. Stored `y` is never mutated, so
+B17's "committed positions are permanent, never re-clamped on resize" holds; the clamp exists
+solely so a note authored on the old ~2000-unit sheet stays reachable rather than clipped off a
+page that — unlike a rotation — will never be that tall again. The clamp is scoped to the
+legacy branch: applied to live notes it would fight `createNote`'s own bottom clamp and
+`rebaseNote` would write the pulled-up value back, which is the silent mutation B21 forbids.
+
+Two consequences carried with it. The 405 px note cap (45 % of the old sheet, PRD §6.2) becomes
+a width-relative `--note-max-w` set in `applyLayout`, because at 1:1 a fixed 405 px is ~98 % of
+a phone — no cap at all, and the spatial board would collapse into one column. The decoupled
+44 px hit floor (B7) needs no change at all: it was always parameterised on `renderScale`, and
+at 1 it simply meets the floor with real geometry instead of a ~100-unit invisible collar. B28's
+keyboard deferral is untouched and now load-bearing in a second way — an unguarded resize would
+move every note, and a gesture during one would bake a keyboard-shrunken `rh` into storage.

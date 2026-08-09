@@ -188,6 +188,29 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
+  console.log('\n[D8] B32 leaves desktop furniture alone');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    const geo = await page.evaluate(() => {
+      const w = s => getComputedStyle(document.querySelector(s));
+      return {
+        title: w('#anchor-title').width, comp: w('#anchor-components').width,
+        req: w('#anchor-requirements').width,
+        lotH: w('#lot').height, lotL: w('#lot').left,
+        maxW: getComputedStyle(document.querySelector('#board'))
+          .getPropertyValue('--note-max-w').trim(),
+      };
+    });
+    ok('title still 400px', geo.title === '400px', geo.title);
+    ok('Components still 216px', geo.comp === '216px', geo.comp);
+    ok('Required still 216px', geo.req === '216px', geo.req);
+    ok('lot still 210px tall', geo.lotH === '210px', geo.lotH);
+    ok('lot gutter still 24px', geo.lotL === '24px', geo.lotL);
+    ok('note cap still 405px', geo.maxW === '405px', geo.maxW);
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== desktop: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);

@@ -133,7 +133,7 @@ const activeIsNoteText = page => page.evaluate(() =>
         const all = store.getAll();
         all.onsuccess = () => {
           const b = all.result[0];
-          b.notes.push({ id: 'husk-1', text: '   ', x: 300, y: 500, rw: 900, scale: 1, state: 'active' });
+          b.notes.push({ id: 'husk-1', text: '   ', x: 300, y: 500, rw: 900, rh: 1000, scale: 1, state: 'active' });
           const put = store.put(b);
           put.onsuccess = () => res(b.id);
           put.onerror = () => rej(put.error);
@@ -156,7 +156,8 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('husk purged from storage', inData === false);
     // its former patch of paper is live again
     const before = await noteCount(page);
-    await tap(page, 128, 500);   // logical 300 -> css 300*384/900 = 128
+    // rw/rh 900x1000 -> css 300*384/900 = 128 , 500*846/1000 = 423 (B32 renderY)
+    await tap(page, 128, 423);
     await page.waitForTimeout(80);
     ok('tap on its former location creates a note', (await noteCount(page)) === before + 1);
     ok('no page errors', errors.length === 0, errors.join(' | '));
@@ -167,7 +168,9 @@ const activeIsNoteText = page => page.evaluate(() =>
   console.log('\n[7] Viewport shrink during edit (keyboard proxy)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
-    await tap(page, 200, 700);            // low on the sheet, where clipping bit
+    // Low on the sheet, where clipping bit — but above the lot, which under B32
+    // occupies y 620-830 at this viewport (846 - 16 bottom - 210 tall).
+    await tap(page, 200, 560);
     await page.waitForTimeout(80);
     ok('note created low on the sheet', (await noteCount(page)) === 1);
     const before = await page.evaluate(() =>
@@ -210,7 +213,9 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('menu has Complete/Boards/Delete', labels.length === 3, JSON.stringify(labels));
     // dismissing the menu on canvas must NOT also create a note (B30)
     const n0 = await noteCount(page);
-    await tap(page, 60, 700);
+    // Bare canvas: above the note, clear of the menu it opened (which hangs
+    // below the press point) and of the lot band (y 620-830 under B32).
+    await tap(page, 60, 200);
     await page.waitForTimeout(150);
     ok('menu dismissal creates no note (B30)', (await noteCount(page)) === n0, 'before=' + n0 + ' after=' + await noteCount(page));
     ok('menu is closed', await page.evaluate(() => document.querySelector('#menu').hidden !== false));
@@ -260,7 +265,10 @@ const activeIsNoteText = page => page.evaluate(() =>
   console.log('\n[10] Sustained capture (10 notes, mixed hold times)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
-    const pts = [[80,300],[300,300],[80,420],[300,420],[80,540],[300,540],[80,660],[300,660],[190,360],[190,600]];
+    // Rows 120 apart so no tap lands on the ~42px note above it (at 1:1 a note
+    // is its real size, not 43% of it), clear of the top furniture and of the
+    // lot band (y 620-830 under B32).
+    const pts = [[80,180],[300,180],[80,300],[300,300],[80,420],[300,420],[80,540],[300,540],[190,240],[190,480]];
     for (let i = 0; i < pts.length; i++) {
       await tap(page, pts[i][0], pts[i][1], i % 3 === 0 ? 600 : 40);   // some are long-presses
       await page.waitForTimeout(40);
@@ -271,6 +279,117 @@ const activeIsNoteText = page => page.evaluate(() =>
     await page.waitForTimeout(400);
     const texts = await page.evaluate(() => [...document.querySelectorAll('.note-text')].map(n => n.textContent).sort());
     ok('all 10 taps captured a note', texts.length === 10, 'got ' + texts.length + ': ' + JSON.stringify(texts));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 11. 1:1 sheet geometry: the furniture is legible (B32, issue #37) ----
+  console.log('\n[11] 1:1 sheet + furniture geometry (B32)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    const geo = await page.evaluate(() => {
+      const cs = getComputedStyle(document.querySelector('#board'));
+      const r = s => document.querySelector(s).getBoundingClientRect();
+      return {
+        rs: cs.getPropertyValue('--rs').trim(),
+        lw: cs.getPropertyValue('--logical-w').trim(),
+        lh: cs.getPropertyValue('--logical-h').trim(),
+        maxW: cs.getPropertyValue('--note-max-w').trim(),
+        titleFont: getComputedStyle(document.querySelector('#anchor-title')).fontSize,
+        compFont: getComputedStyle(document.querySelector('#anchor-components')).fontSize,
+        title: r('#anchor-title'), comp: r('#anchor-components'),
+        req: r('#anchor-requirements'), lot: r('#lot'),
+      };
+    });
+    ok('renderScale is 1', geo.rs === '1', 'rs=' + geo.rs);
+    ok('sheet width is the viewport', geo.lw === '384px', geo.lw);
+    ok('sheet height is the viewport', geo.lh === '846px', geo.lh);
+    // Declared sizes now reach the screen: 24/15px, not 10.2/6.4px.
+    ok('title renders at 24px', geo.titleFont === '24px', geo.titleFont);
+    ok('Components renders at 15px', geo.compFont === '15px', geo.compFont);
+    ok('title is 44.4444% of the sheet', Math.abs(geo.title.width - 170.7) < 1, String(geo.title.width));
+    ok('three-across header preserved',
+      geo.comp.right <= geo.title.left && geo.title.right <= geo.req.left,
+      JSON.stringify([geo.comp.right, geo.title.left, geo.title.right, geo.req.left]));
+    ok('lot is 210px — four rows', Math.round(geo.lot.height) === 210, String(geo.lot.height));
+    ok('lot sits above the bottom edge', Math.round(geo.lot.bottom) === 830, String(geo.lot.bottom));
+    ok('note cap is 45% of the sheet', geo.maxW === '173px', geo.maxW);
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 12. rh keeps y portable across frames (B32) --------------------------
+  console.log('\n[12] Note y is frame-relative (rh)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 200, 400);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('portable');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(200);
+    const before = await page.evaluate(() => {
+      const n = document.querySelector('.note').getBoundingClientRect();
+      return { top: n.top, h: window.innerHeight };
+    });
+    await page.setViewportSize({ width: 384, height: 600 });   // not editing: layout applies
+    await page.waitForTimeout(200);
+    const after = await page.evaluate(() => {
+      const n = document.querySelector('.note').getBoundingClientRect();
+      return { top: n.top, h: window.innerHeight };
+    });
+    ok('top stays proportional to the sheet',
+      Math.abs(after.top / after.h - before.top / before.h) < 0.01,
+      before.top + '/' + before.h + ' -> ' + after.top + '/' + after.h);
+    ok('a resize does not rewrite rh', await page.evaluate(() => new Promise(res => {
+      const rq = indexedDB.open('boards-db');
+      rq.onsuccess = () => {
+        const all = rq.result.transaction('boards', 'readonly').objectStore('boards').getAll();
+        all.onsuccess = () => {
+          const n = all.result.flatMap(b => b.notes).find(n => n.text === 'portable');
+          res(!!n && n.rh === 846);          // the frame it was written in, not 600
+        };
+      };
+    })));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 13. pre-B32 notes stay reachable, and are not rewritten -------------
+  console.log('\n[13] Legacy note (no rh) is rescued, not mutated');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(() => new Promise((res, rej) => {
+      const rq = indexedDB.open('boards-db');
+      rq.onsuccess = () => {
+        const store = rq.result.transaction('boards', 'readwrite').objectStore('boards');
+        const all = store.getAll();
+        all.onsuccess = () => {
+          const b = all.result[0];
+          // Written on the old ~1983-unit mobile sheet: off the bottom of a 846 page.
+          b.notes.push({ id: 'legacy-1', text: 'old', x: 300, y: 1500, rw: 900, scale: 1, state: 'active' });
+          const put = store.put(b);
+          put.onsuccess = () => res(); put.onerror = () => rej(put.error);
+        };
+      };
+      rq.onerror = () => rej(rq.error);
+    }));
+    await page.reload();
+    await page.waitForTimeout(700);
+    const top = await page.evaluate(() => {
+      const n = document.querySelector('[data-id="legacy-1"]');
+      return n ? n.getBoundingClientRect().top : null;
+    });
+    ok('legacy note renders on the sheet', top !== null && top >= 0 && top <= 846 - 44, String(top));
+    ok('stored y is untouched', await page.evaluate(() => new Promise(res => {
+      const rq = indexedDB.open('boards-db');
+      rq.onsuccess = () => {
+        const all = rq.result.transaction('boards', 'readonly').objectStore('boards').getAll();
+        all.onsuccess = () => {
+          const n = all.result.flatMap(b => b.notes).find(n => n.id === 'legacy-1');
+          res(!!n && n.y === 1500 && n.rh === undefined);
+        };
+      };
+    })));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
