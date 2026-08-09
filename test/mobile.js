@@ -521,6 +521,56 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
+  // ---- 16. long-press the board itself exports it, no detour through the list
+  console.log('\n[16] Long-press an anchor exports the open board (issue #43)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    const t = await page.evaluate(() => {
+      const r = document.querySelector('#anchor-title').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await tap(page, t.x, t.y);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('Board in hand');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(150);
+    const note = await page.evaluate(() => {
+      const r = document.querySelector('#board').getBoundingClientRect();
+      return { x: r.x + 80, y: r.y + 300 };
+    });
+    await tap(page, note.x, note.y);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('ANCHORPATHMARKER');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(200);
+
+    await tap(page, t.x, t.y, 700);                       // long-press the title card
+    await page.waitForTimeout(200);
+    ok('menu opened on anchor long-press', await page.evaluate(() =>
+      document.querySelector('#menu').hidden === false));
+    const shape = await page.evaluate(() =>
+      [...document.querySelectorAll('#menu button')].map(b => b.textContent));
+    ok('anchor menu is Export then Boards', shape.length === 2 &&
+       /Export/.test(shape[0]) && /Boards/.test(shape[1]), JSON.stringify(shape));
+    ok('still on the board — no navigation yet',
+       await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
+
+    const btn = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')].find(x => /Export/.test(x.textContent));
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    const [dl] = await Promise.all([page.waitForEvent('download'), tap(page, btn.x, btn.y)]);
+    const s = fs.readFileSync(await dl.path()).toString('latin1');
+    ok('touch export from the anchor menu produced a PDF',
+       s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
+    ok('the open board — not a stale snapshot — was exported', s.includes('(ANCHORPATHMARKER)'));
+    ok('exporting did not navigate to the list',
+       await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== mobile: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);

@@ -601,6 +601,14 @@ interrogation produced a simplification, and the promise is a test rather than a
 (`#menu button`, `.glyph`, `.sep`) — which is the evidence the design was right. And the writer emits
 no dates, so an unchanged board exports byte-identically twice running; the test asserts it.
 
+**Export lives on the board menu, not only the board-card menu.** The issue's own wording — "long
+tap on mobile, right click board card on desktop" — describes one function reached two ways, and on
+mobile the board itself is reachable before its card is: long-pressing the title, Components, or
+Requirements already opened `[Boards]` (`openMenuFor`'s anchor branch), so exporting the board on
+screen required leaving it for the list first. That menu now reads `[Export, Boards]`. Desktop has
+no matching gap — right-click already reaches the active card directly in the rail — so this is
+mobile-only, gated the same way the anchor menu itself is (`!isDesktop`, B23/issue #4).
+
 *Impermanent.* Split §10.5 into its own file once `app.js` passes ~2,200 lines or a second consumer
 appears — it costs a `<script>` tag, an `ASSETS` entry, and a row in the README's Files table today,
 which is why it has not been done yet. `Export` becomes a submenu with `PDF` as the leaf the moment
