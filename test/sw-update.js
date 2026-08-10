@@ -11,7 +11,7 @@
  *   1. install the OLD sw.js (v4, plain cache-first) and warm its cache
  *   2. change styles.css WITHOUT touching sw.js  -> must still serve stale
  *      (the bug, reproduced — if this step passes clean, the test is lying)
- *   3. ship the NEW sw.js (v5 + stale-while-revalidate) -> must go current
+ *   3. ship the NEW sw.js (bumped + stale-while-revalidate) -> must go current
  *
  * Run: CHROMIUM_PATH=... node test/sw-update-check.js
  */
@@ -82,11 +82,13 @@ const server = http.createServer((req, res) => {
   res.end(fs.readFileSync(file));
 });
 
-// The marker: --band-h only exists in the post-B36 stylesheet. Reading it back
-// through getComputedStyle proves which bytes the page is actually running,
-// rather than which bytes are on disk.
-const bandOf = page => page.evaluate(() =>
-  getComputedStyle(document.querySelector('#board')).getPropertyValue('--band-h').trim());
+// The marker: --card-h is the band's one input since B37, and the shipped
+// stylesheet sets it to 68px. Reading it back through getComputedStyle proves
+// which bytes the page is actually running, rather than which bytes are on disk.
+const SHIPPED_CARD_H = '68px';
+const CARD_H_RE = /--card-h:\s*68px;/;
+const cardOf = page => page.evaluate(() =>
+  getComputedStyle(document.querySelector('#board')).getPropertyValue('--card-h').trim());
 
 const swState = page => page.evaluate(async () => {
   const r = await navigator.serviceWorker.getRegistration();
@@ -123,7 +125,7 @@ async function launchUntil(page, pred, max = 4) {
     fs.writeFileSync(path.join(DIR, 'sw.js'), OLD_SW);
     fs.writeFileSync(path.join(DIR, 'styles.css'),
       fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8')
-        .replace(/--band-h:\s*clamp\([^;]+;/, '--band-h:   200px;'));   // pre-B36
+        .replace(CARD_H_RE, '--card-h:   200px;'));   // a build that is not this one
     await page.goto(URL);
     await page.waitForFunction(() => !!document.querySelector('#board'));
     await page.waitForFunction(async () => {
@@ -133,19 +135,19 @@ async function launchUntil(page, pred, max = 4) {
     await page.reload();                            // first load the SW controls
     await page.waitForTimeout(400);
     ok('service worker is active', await swState(page) === 'active');
-    ok('old stylesheet is what renders', (await bandOf(page)) === '200px', await bandOf(page));
+    ok('old stylesheet is what renders', (await cardOf(page)) === '200px', await cardOf(page));
 
     // ---- 2. ship new CSS without bumping sw.js -> the bug ------------------
     console.log('\n[2] New styles.css, sw.js untouched — reproduces the stranding');
     fs.copyFileSync(path.join(ROOT, 'styles.css'), path.join(DIR, 'styles.css'));
-    const strandedAt = await launchUntil(page, async p => /clamp\(/.test(await bandOf(p)));
+    const strandedAt = await launchUntil(page, async p => (await cardOf(p)) === SHIPPED_CARD_H);
     ok('the new stylesheet never reaches the page (bug reproduced)',
       strandedAt === 0,
       `landed on launch ${strandedAt} — if it lands at all, the harness is not exercising the old SW`);
-    ok('what renders is still the old stylesheet', (await bandOf(page)) === '200px', await bandOf(page));
+    ok('what renders is still the old stylesheet', (await cardOf(page)) === '200px', await cardOf(page));
 
     // ---- 3. ship the real sw.js -> the fix ---------------------------------
-    console.log('\n[3] Bumped sw.js (v5 + stale-while-revalidate) — the fix');
+    console.log('\n[3] Bumped sw.js (current cache + stale-while-revalidate) — the fix');
     fs.copyFileSync(path.join(ROOT, 'sw.js'), path.join(DIR, 'sw.js'));
     // A real browser byte-checks sw.js on navigation and installs the new one.
     // Chromium under test throttles that check hard enough that it does not fire
@@ -156,29 +158,33 @@ async function launchUntil(page, pred, max = 4) {
       const r = await navigator.serviceWorker.getRegistration();
       await r.update();
     });
-    const shippedAt = await launchUntil(page, async p => /clamp\(/.test(await bandOf(p)));
+    const shippedAt = await launchUntil(page, async p => (await cardOf(p)) === SHIPPED_CARD_H);
     ok('the new stylesheet reaches the page', shippedAt > 0, `never landed in 4 launches`);
     ok('and it lands within two launches', shippedAt > 0 && shippedAt <= 2, `launch ${shippedAt}`);
 
     const keys = await page.evaluate(() => window.caches.keys());
-    ok('cache is todo-boards-v5', keys.includes('todo-boards-v5'), JSON.stringify(keys));
-    // v4 may briefly outlive its own activate: the outgoing worker keeps serving
-    // the page until v5 claims it, and its runtime-cache path can re-create the
-    // entry it was just deleted from. Harmless — nothing reads v4 once v5
-    // controls — so this asserts the eviction ran, not that v4 never reappears.
-    ok('v5 is what the page reads from',
-      /clamp\(/.test(await page.evaluate(async () => {
-        const c = await window.caches.open('todo-boards-v5');
+    // Read the shipped name rather than restating it, so a bump does not need an
+    // edit here — the point is that the cache the app declares is the live one.
+    const CACHE = (fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8')
+      .match(/todo-boards-v\d+/) || [''])[0];
+    ok('cache is ' + CACHE, keys.includes(CACHE), JSON.stringify(keys));
+    // The old cache may briefly outlive its own activate: the outgoing worker keeps
+    // serving the page until the new one claims it, and its runtime-cache path can re-create the
+    // entry it was just deleted from. Harmless — nothing reads the old one once
+    // the new one controls — so this asserts the eviction ran, not that v4 never reappears.
+    ok('the live cache is what the page reads from',
+      CARD_H_RE.test(await page.evaluate(async (name) => {
+        const c = await window.caches.open(name);
         const r = await c.match(new Request('styles.css').url);
         return r ? await r.text() : '';
-      })), 'v5 cache does not hold the new stylesheet');
+      }, CACHE)), CACHE + ' does not hold the new stylesheet');
 
     // ---- 4. the safety net: a later change with NO bump self-heals ---------
     console.log('\n[4] Stale-while-revalidate: a missed bump costs one launch, not forever');
     fs.writeFileSync(path.join(DIR, 'styles.css'),
       fs.readFileSync(path.join(DIR, 'styles.css'), 'utf8')
-        .replace(/--band-h:\s*clamp\([^;]+;/, '--band-h:   111px;'));   // sw.js NOT bumped
-    const healedAt = await launchUntil(page, async p => (await bandOf(p)) === '111px');
+        .replace(CARD_H_RE, '--card-h:   111px;'));   // sw.js NOT bumped
+    const healedAt = await launchUntil(page, async p => (await cardOf(p)) === '111px');
     ok('a change with no version bump still lands', healedAt > 0, 'never landed in 4 launches');
     ok('and it costs one stale launch, not forever', healedAt > 0 && healedAt <= 2, `launch ${healedAt}`);
 

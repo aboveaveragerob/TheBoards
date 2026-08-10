@@ -226,13 +226,15 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('title card is 340px', geo.title === '340px', geo.title);
     ok('title card is framed', geo.titleBorder === '2px', geo.titleBorder);
     ok('band rule keeps the 24px gutter', geo.ruleL === '24px', geo.ruleL);
-    ok('band rule sits at y=200', geo.ruleT === '200px', geo.ruleT);
+    ok('band rule sits at y=48', geo.ruleT === '48px', geo.ruleT);
     // Screen space, so the 8px logical gap arrives scaled — assert the ordering.
     ok('zones clear the card on both sides',
       geo.zoneGap[0] < geo.zoneGap[1] && geo.zoneGap[2] < geo.zoneGap[3],
       JSON.stringify(geo.zoneGap));
     ok('Components and Requirements zones match', geo.comp === geo.req, geo.comp + ' / ' + geo.req);
-    ok('lot is 166px tall — three rows (B35)', geo.lotH === '166px', geo.lotH);
+    // Desktop is the mode that keeps three rows: B20 pins LOGICAL_H >= 1000,
+    // and B37's budget only drops to two below 900.
+    ok('lot is 166px tall — three rows (B37)', geo.lotH === '166px', geo.lotH);
     ok('lot gutter still 24px', geo.lotL === '24px', geo.lotL);
     ok('note cap still 405px', geo.maxW === '405px', geo.maxW);
     ok('no page errors', errors.length === 0, errors.join(' | '));

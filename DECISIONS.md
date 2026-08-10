@@ -747,3 +747,95 @@ on the one viewport anybody checked.
 landscape. It only turns landscape at the `132px` floor. So the floor, not the fraction, is the
 number to argue about if a landscape card on a phone matters more than band height. Nobody has
 made that call.
+
+### B37. The band is sized by the type it holds, not by the sheet (supersedes B36's band paragraph; overrides B35's three-row lot on a phone)
+
+Issue #49, with two pictures: the app on the device, and the paper board it exists to reproduce.
+Measured off both, as a percentage of sheet height —
+
+| edge | the paper board | the app | now |
+|---|---|---|---|
+| title card top | 1.9 % | 3.1 % | 1.9 % |
+| **band rule** | **5.2 %** | **19.9 %** | **6.5 %** |
+| title card bottom | 7.8 % | 24.9 % | 11.1 % |
+| headers | 5.4–7.4 % | 26.7–27.8 % | 11.9–14.6 % |
+| Parking Lot rule | 79.8 % | 75.3 % | 81.3 % |
+
+(the app column is the reporter's own 414×737 sheet, read off the screenshot in the issue.)
+
+B36 made the band's vertical geometry a fraction of `--logical-h` so that both axes would be
+fractions of the sheet. Symmetry was the wrong argument. **Across is a fraction of the sheet
+because it holds the sheet's own divisions; down is set by the type.** B32 made the mobile sheet
+1:1 with the viewport, so `renderScale` is 1 and the title stays 15 px however tall the sheet is —
+only the box around it grew. At `0.2 × 737` that box is a rule at 147 and a card running to 185:
+a quarter of a phone spent framing two lines of text, which is the whole of issue #49.
+
+Three complaints, one cause. *"Far too large vertically"* is the 25 %. The *"giant gap at the
+top"* is B33's overhang: the card ran `24 → 1.26 × --band-h`, so 123 px of it sat above the rule
+and 39 below — the rule at 76 % of the way down a box it is supposed to cross. The paper board
+draws the rule through the card's **midpoint**. And *"the headers no longer align with the
+borders"* follows from both: `.band-label` is pinned under the card, and the card's bottom had
+moved a quarter of the way down the sheet, so the headers floated ~120 px clear of the rule they
+belong to.
+
+**Ruling.** The card is its content box, and the band is the card:
+
+```
+--band-top: 14px;                                         /* card + zone top */
+--card-h:   68px;      /* 2 x (15px x 1.3) + 2 x 12 padding + 2 x 2 border */
+--rule-y:   calc(var(--band-top) + var(--card-h) / 2);    /* the rule crosses the middle */
+```
+
+Fixed units, identical on every sheet — desktop scales the whole sheet uniformly (B20), so a
+proportion held in logical px is held on screen too. Four derivations collapse to three, and
+`--overhang` is deleted: the 1.26 ratio was a way of saying "the card hangs below the rule", and a
+card centred on the rule says it better. `.band-zone` becomes the card's own box, so
+`.band-label`'s offset is a plain `calc(100% + 6px)`.
+
+**Two lines, not one, and the labels follow the card past them.** A phone card is ~145 units wide;
+one line is not the common case and three is not rare — the reporter's own title, "LinkedIn
+Learnings To Do", takes three. `min-height` already grew the card, but the labels did not go with
+it, and `.band-label` is `width: max-content` spilling *inward* by design (B35), so "Requirements"
+ran under the card's frame. `applyLayout` now republishes the card's rendered height as
+`--card-actual-h` and `.band-zone` reads it, the same way it republishes `--note-max-w`; the input
+handler calls it again as the title is typed. `test/mobile.js` [9c] pins it, and fails without it.
+
+**The lot's budget is whole rows.** `166 = 34 + 3·44` is 18 % of the 1000-unit reference sheet and
+a quarter of a 737-unit phone — the same fraction-versus-proportion error, in the section B35
+already shortened once. It cannot simply scale: rows are 44 px hit targets and `#lot-items` clips,
+so a proportional height draws a row cut off at the knees. So the budget steps by whole rows —
+three above 900 units, two below — chosen in `applyLayout` because CSS cannot step a length. A row
+past the budget still exists, still saves and still exports; it is simply not drawn (B35). Desktop
+keeps three: B20 pins `LOGICAL_H ≥ 1000`.
+
+**The exporter drops its zone clip.** `EXPORT_GEO` follows the CSS (`ruleY: 48`, `bandTop`/
+`cardTop: 14`, `cardMinH: 68`) and `bandH` is gone with the clip it fed. Against a 176-unit zone
+that clip bit at nine lines and nobody met it; against 68 it would bite at three, silently cutting
+anchor text the board still shows. The screen sets no `overflow` there, so neither does the export
+(B34). The exported label now hangs off the *measured* card height for the same reason the screen's
+does.
+
+**And `test/mobile.js` [11c] reads the board instead of a copy of the stylesheet.** B36's version
+resolved a hand-copied clamp string in a throwaway probe, so it could only ever catch `EXPORT_GEO`
+drifting from that copy — never from the CSS. It now measures the live `#band-rule`, `#anchor-title`
+and `.band-label` and requires `EXPORT_GEO` to agree.
+
+Free canvas, mobile, between the card's bottom and the lot's top — the same measure B36's table uses:
+
+| sheet | after B35 | after B36 | now |
+|---|---|---|---|
+| 414×737 (the phone in #49) | — | 50.1 % | **70.1 %** |
+| 384×846 | 48.7 % | 53.3 % | **74.0 %** |
+| 1000×715 | 39.3 % | 49.3 % | **69.2 %** |
+| 800×600 | — | — | **63.3 %** |
+
+*Settled, at last.* B35's *known, not fixed* asked for "a card wider than 176 units **or the rule
+moved up**", and B36 took neither — it scaled the rule instead, which is what put it at 147 on a
+phone. This moves it up. The phone card is 145×68, landscape at 2.1:1.
+
+*Not reopened.* The title's 15 px, and `--card-w`'s 37.7778 %. The complaint was vertical and the
+horizontal geometry is doing its job.
+
+*Impermanent, still.* `EXPORT_GEO` remains a second copy of this geometry. [11c] now pins it to the
+rendered board rather than to a literal, which is as close to one source as two files get without
+a shared module.

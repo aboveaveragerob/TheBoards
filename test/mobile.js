@@ -170,8 +170,8 @@ const activeIsNoteText = page => page.evaluate(() =>
   console.log('\n[7] Viewport shrink during edit (keyboard proxy)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
-    // Low on the sheet, where clipping bit — but above the lot, which under B32
-    // occupies y 664-830 at this viewport (846 - 16 bottom - 166 tall).
+    // Low on the sheet, where clipping bit — but above the lot, which occupies
+    // y 708-830 at this viewport (846 - 16 bottom - 122 two-row lot, B37).
     await tap(page, 200, 560);
     await page.waitForTimeout(80);
     ok('note created low on the sheet', (await noteCount(page)) === 1);
@@ -219,7 +219,8 @@ const activeIsNoteText = page => page.evaluate(() =>
     // dismissing the menu on canvas must NOT also create a note (B30)
     const n0 = await noteCount(page);
     // Bare canvas: above the note, clear of the menu it opened (which hangs
-    // below the press point) and of the lot band (y 664-830 under B32/B35).
+    // below the press point), of the lot band (y 708-830) and of the top band,
+    // whose labels end at y=107.5 (B37).
     await tap(page, 60, 200);
     await page.waitForTimeout(150);
     ok('menu dismissal creates no note (B30)', (await noteCount(page)) === n0, 'before=' + n0 + ' after=' + await noteCount(page));
@@ -296,14 +297,56 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
+  // ---- 9c. A title that outgrows the card takes the headers with it (B37) ---
+  // The card is sized for two lines, and a phone card is ~145 units wide, so a
+  // real title regularly takes three — "LinkedIn Learnings To Do" does, which
+  // is the board in issue #49. At the min-height alone the labels stayed where
+  // a two-line card left them and "Requirements" (width: max-content, spilling
+  // inward by design since B35) ran under the card's frame. The labels have to
+  // follow the card down.
+  console.log('\n[9c] A three-line title pushes the headers down, not under the card');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    const p = await page.evaluate(() => {
+      const r = document.querySelector('#anchor-title').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await tap(page, p.x, p.y);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('LinkedIn Learnings To Do');
+    await page.waitForTimeout(120);
+    const g = await page.evaluate(() => {
+      const b = document.querySelector('#board').getBoundingClientRect();
+      const q = s => { const r = document.querySelector(s).getBoundingClientRect();
+                       return { top: r.top - b.top, bottom: r.bottom - b.top, height: r.height }; };
+      return { sheetH: b.height, card: q('#anchor-title'), lot: q('#lot'),
+               labels: [...document.querySelectorAll('.band-label')].map(n => {
+                 const r = n.getBoundingClientRect();
+                 return { text: n.textContent, top: r.top - b.top, bottom: r.bottom - b.top };
+               }) };
+    });
+    ok('the title grew the card past its two-line minimum', g.card.height > 68,
+      String(g.card.height));
+    ok('the headers moved down with it — while still typing',
+      g.labels.every(l => l.top >= g.card.bottom),
+      JSON.stringify([g.card.bottom, ...g.labels.map(l => [l.text, l.top])]));
+    ok('the headers are still clear of the lot',
+      g.labels.every(l => l.bottom <= g.lot.top), JSON.stringify([g.lot.top, g.labels]));
+    // The grown card must not eat the board it sits on.
+    const free = (g.lot.top - Math.max(...g.labels.map(l => l.bottom))) / g.sheetH;
+    ok('free canvas is still >=64% of the sheet', free >= 0.64, (free * 100).toFixed(1) + '%');
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   // ---- 10. sustained capture session: no lost taps -------------------------
   console.log('\n[10] Sustained capture (10 notes, mixed hold times)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     // Rows 120 apart so no tap lands on the ~42px note above it (at 1:1 a note
     // is its real size, not 43% of it), clear of the top furniture and of the
-    // lot band (y 664-830 under B32/B35). The centre column starts below the title
-    // card, which reaches y=252 now that it is a framed box (B33).
+    // lot band (y 708-830, B37). The top band ends at the header labels' y=107.5,
+    // so every row here is on bare canvas.
     const pts = [[80,180],[300,180],[80,300],[300,300],[80,420],[300,420],[80,540],[300,540],[190,360],[190,480]];
     for (let i = 0; i < pts.length; i++) {
       await tap(page, pts[i][0], pts[i][1], i % 3 === 0 ? 600 : 40);   // some are long-presses
@@ -354,8 +397,8 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('three-across header preserved',
       geo.comp.right <= geo.title.left && geo.title.right <= geo.req.left,
       JSON.stringify([geo.comp.right, geo.title.left, geo.title.right, geo.req.left]));
-    // B35 moved the headers below the card's overhang: beside a 340-wide card a
-    // phone sheet cannot hold "Requirements", which is one word and cannot
+    // B35 moved the headers below the card: beside a 340-wide card a phone
+    // sheet cannot hold "Requirements", which is one word and cannot
     // wrap. They must clear the card vertically and stay inside the gutters.
     // width:max-content means the box is the ink, so the rect is the true bound.
     const labels = await page.evaluate(() => {
@@ -364,7 +407,8 @@ const activeIsNoteText = page => page.evaluate(() =>
       const gut = document.querySelector('#band-rule').getBoundingClientRect();
       return [...document.querySelectorAll('.band-label')].map(n => {
         const r = n.getBoundingClientRect();
-        return { text: n.textContent, top: r.top, left: r.left, right: r.right,
+        return { text: n.textContent, top: r.top, bottom: r.bottom,
+                 left: r.left, right: r.right,
                  cardBottom: card.bottom, gutL: gut.left, gutR: gut.right,
                  sheetR: sheet.right, clipped: n.scrollWidth > Math.ceil(r.width) };
       });
@@ -381,30 +425,41 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('title card is framed when empty', geo.titleBorder === '2px', geo.titleBorder);
     ok('band rule is drawn on a blank board', geo.rule.width > 0 && geo.rule.height >= 1,
       JSON.stringify([geo.rule.width, geo.rule.height]));
-    ok('card overhangs the band rule', geo.title.bottom > geo.rule.top + 1,
+    ok('card crosses the band rule', geo.title.bottom > geo.rule.top + 1,
       JSON.stringify([geo.title.bottom, geo.rule.top]));
-    ok('lot is 166px — three rows', Math.round(geo.lot.height) === 166, String(geo.lot.height));
+    ok('lot is 122px — two rows on a phone', Math.round(geo.lot.height) === 122, String(geo.lot.height));
     ok('lot sits above the bottom edge', Math.round(geo.lot.bottom) === 830, String(geo.lot.bottom));
     ok('note cap is 45% of the sheet', geo.maxW === '173px', geo.maxW);
-    // B36: the band rides the sheet below 1000 units. At 846 the rule is at
-    // 0.2*846 and the card keeps B33's 1.26 overhang against it.
-    ok('band rule scales with the sheet', Math.abs(geo.rule.top - 169.2) < 1, String(geo.rule.top));
-    ok('card keeps the 1.26 overhang ratio',
-      Math.abs(geo.title.bottom / geo.rule.top - 1.26) < 0.01,
-      String(geo.title.bottom / geo.rule.top));
+    // B37 (issue #49): the band is sized by the type it holds, not by the sheet,
+    // so the rule is at 14 + 68/2 = 48 on every sheet — and it crosses the card
+    // at its *middle*, which is how the reference board draws it. B36 had it at
+    // 0.2 * the sheet with 76% of the card above it: 147 and a 185-deep card on
+    // a phone, which is the "giant gap at the top" the issue names.
+    ok('band rule is at the card midpoint, not a fraction of the sheet',
+      Math.abs(geo.rule.top - 48) < 1, String(geo.rule.top));
+    ok('the rule crosses the card at its middle',
+      Math.abs((geo.rule.top - geo.title.top) - (geo.title.bottom - geo.rule.top)) < 1,
+      JSON.stringify([geo.title.top, geo.rule.top, geo.title.bottom]));
+    // The headline number, and the thing issue #49 was actually about. Between
+    // the header labels and the lot: 107.5 -> 708 of an 846 sheet.
+    {
+      const labelBottom = Math.max(...labels.map(l => l.bottom));
+      const free = (geo.lot.top - labelBottom) / 846;
+      ok('free canvas is >=68% of the sheet', free >= 0.68, (free * 100).toFixed(1) + '%');
+    }
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
 
-  // ---- 11b. The short-window case (B36) ------------------------------------
-  // The regression this exists for: on a short, wide window the band's fixed
-  // 252px card bottom plus the lot's 182px left ~a third of the sheet free, and
-  // B35's 44px barely moved it. The band is now a fraction of --logical-h, so
-  // the free canvas has to hold up as the sheet gets shorter — which is exactly
-  // what the 384x846 block above cannot see.
-  console.log('\n[11b] Free canvas survives a short sheet (B36)');
+  // ---- 11b. The short-window case (B36, retuned by B37) ---------------------
+  // The regression this exists for: on a short, wide window the furniture ate
+  // the board. B36 made the band a fraction of --logical-h, which fixed the
+  // short *window* and broke the tall *phone* (issue #49) — 0.2 of 737 is a
+  // 147px rule. B37 makes it fixed units instead, so the floors here go up and
+  // the rule must land at the same 48 at every sheet height.
+  console.log('\n[11b] Free canvas survives a short sheet (B37)');
   {
-    for (const [w, h, floor] of [[1000, 715, 0.45], [800, 600, 0.40]]) {
+    for (const [w, h, floor] of [[1000, 715, 0.65], [800, 600, 0.60]]) {
       const { ctx, page, errors } = await newMobilePage(browser, { width: w, height: h });
       const g = await page.evaluate(() => {
         const b = document.querySelector('#board').getBoundingClientRect();
@@ -419,8 +474,10 @@ const activeIsNoteText = page => page.evaluate(() =>
       ok(`${tag} is mobile mode`, !g.desktop, String(g.desktop));
       ok(`${tag} free canvas is >=${floor * 100}% of the sheet`,
         free / g.sheetH >= floor, `${free.toFixed(1)}px of ${g.sheetH} = ${(100 * free / g.sheetH).toFixed(1)}%`);
-      // The clearances the shrinking band could break.
-      ok(`${tag} card still overhangs the rule`, g.card.bottom > g.rule.top + 1,
+      // The band is type-sized, so it does not move when the sheet does.
+      ok(`${tag} band rule is still at 48`, Math.abs(g.rule.top - 48) < 1, String(g.rule.top));
+      // The clearances the band could break.
+      ok(`${tag} card still crosses the rule`, g.card.bottom > g.rule.top + 1,
         JSON.stringify([g.card.bottom, g.rule.top]));
       ok(`${tag} label clears the card and the lot`,
         g.label.top >= g.card.bottom && g.label.bottom <= g.lot.top,
@@ -430,36 +487,41 @@ const activeIsNoteText = page => page.evaluate(() =>
     }
   }
 
-  // ---- 11c. EXPORT_GEO still matches the band's ceiling (B36) ---------------
-  // The exporter draws a fixed EXPORT_H reference sheet and cannot read
-  // computed CSS, so its literals are only correct while --band-h's ceiling is
-  // what the reference sheet resolves to. Pin them together so a future change
-  // to one cannot silently desynchronise the other.
-  console.log('\n[11c] EXPORT_GEO matches the band ceiling');
+  // ---- 11c. EXPORT_GEO still draws what the board draws (B37) ---------------
+  // The exporter cannot read computed CSS, so it restates the band a second
+  // time and the two can drift. Since B37 the band is fixed units, identical at
+  // every sheet size, so the comparison is direct: measure the live board and
+  // require EXPORT_GEO to agree. The B36 form of this test resolved a *copy* of
+  // the clamp in a throwaway probe, so it could only catch EXPORT_GEO drifting
+  // from that hand-copied string — never from the stylesheet itself.
+  console.log('\n[11c] EXPORT_GEO matches what the board draws');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     const m = await page.evaluate(() => {
-      // Resolve the clamp at the 1000-unit reference sheet in a throwaway node.
-      const probe = document.createElement('div');
-      probe.style.cssText = 'position:absolute;visibility:hidden;--logical-h:1000px;' +
-        'top:clamp(132px, 0.2 * var(--logical-h), 200px)';
-      document.querySelector('#board').appendChild(probe);
-      const bandH = parseFloat(getComputedStyle(probe).top);
-      probe.remove();
-      return { bandH };
+      const b = document.querySelector('#board').getBoundingClientRect();
+      const q = s => { const r = document.querySelector(s).getBoundingClientRect();
+                       return { top: r.top - b.top, bottom: r.bottom - b.top }; };
+      return { rule: q('#band-rule'), card: q('#anchor-title'),
+               label: q('#zone-components .band-label') };
     });
     const src = fs.readFileSync(__dirname + '/../app.js', 'utf8');
     const num = k => Number((src.match(new RegExp(k + ':\\s*(\\d+)')) || [])[1]);
-    const [bandTop, bandH, ruleY, cardTop, cardMinH] =
-      ['bandTop', 'bandH', 'ruleY', 'cardTop', 'cardMinH'].map(num);
-    ok('the clamp ceiling is the reference rule at y=200', m.bandH === 200, String(m.bandH));
-    ok('EXPORT_GEO bandTop + bandH lands on the same rule',
-      bandTop + bandH === m.bandH, JSON.stringify([bandTop, bandH, m.bandH]));
-    ok('EXPORT_GEO ruleY is the ceiling', ruleY === m.bandH, String(ruleY));
-    // cardTop + cardMinH must equal the ceiling plus B33's 0.26 overhang.
-    ok('EXPORT_GEO card bottom keeps the 1.26 overhang',
-      cardTop + cardMinH === Math.round(1.26 * m.bandH),
-      JSON.stringify([cardTop + cardMinH, Math.round(1.26 * m.bandH)]));
+    const [bandTop, ruleY, cardTop, cardMinH] =
+      ['bandTop', 'ruleY', 'cardTop', 'cardMinH'].map(num);
+    ok('EXPORT_GEO ruleY is where the board draws the rule',
+      ruleY === Math.round(m.rule.top), JSON.stringify([ruleY, m.rule.top]));
+    ok('EXPORT_GEO cardTop is where the board draws the card',
+      cardTop === Math.round(m.card.top), JSON.stringify([cardTop, m.card.top]));
+    ok('EXPORT_GEO bandTop is the same top — zone and card start together',
+      bandTop === cardTop, JSON.stringify([bandTop, cardTop]));
+    ok('EXPORT_GEO card bottom is the boards card bottom',
+      cardTop + cardMinH === Math.round(m.card.bottom),
+      JSON.stringify([cardTop + cardMinH, m.card.bottom]));
+    // app.js:1708 computes the exported label as cardTop + cardMinH + 6; the
+    // stylesheet says card bottom + 6. Same number or the PDF drifts.
+    ok('EXPORT_GEO label offset is the stylesheets 6px',
+      cardTop + cardMinH + 6 === Math.round(m.label.top),
+      JSON.stringify([cardTop + cardMinH + 6, m.label.top]));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
