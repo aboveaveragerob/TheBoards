@@ -1,22 +1,25 @@
-# Deploy the app to GitHub Pages.
+# Deploy the app to GitHub Pages, and assert what ends up served.
 #
 # Why this exists rather than the implicit `pages-build-deployment` trigger:
 # that trigger fires from repository settings, not from anything in the tree,
-# so when it stops there is nothing to look at. It stopped. Pages for a private
-# repository needs a paid plan, the repo went private, and GitHub disabled the
-# builds silently — no failed run, no notice. Two merges (#45, #46) landed on
-# main and produced no run at all, and `sw.js` v5 sat undeployed while the app
-# on the device kept serving cache v4.
+# so when it stops there is nothing in the repo to look at. It stopped. The repo
+# went private, GitHub deleted the Pages site, and the merges of #45 and #46
+# produced no build at all — no failed run, no notice. `sw.js` v5 sat on main
+# undeployed while the installed app went on serving cache v4 from disk, so
+# nothing looked broken from the outside either.
 #
 # Declared here, a deploy is a run in the Actions tab that either publishes or
-# goes red. Silence stops being a possible outcome. Same lesson as B36: the
-# check has to be on delivery, not on the artifact being correct.
+# goes red. Silence stops being a possible outcome. Same lesson as B36, one
+# layer out: the check has to be on delivery, not on the artifact being correct.
 #
-# One-time human step: Settings -> Pages -> Build and deployment -> Source:
-# GitHub Actions. Taking the repo private deleted the Pages site outright and
-# making it public again did not restore it, and a workflow cannot create one
-# with the default GITHUB_TOKEN. The preflight below says exactly this in the
-# run if it has not been done.
+# ONE-TIME HUMAN STEP, if the `config` job fails: turn Pages on at
+# Settings -> Pages -> Build and deployment. Either source works —
+#   "GitHub Actions"        -> the publish job below does it
+#   "Deploy from a branch"  -> GitHub's builder does it, and this only verifies
+# — and the workflow reads the setting rather than insisting on one. A workflow
+# cannot enable Pages itself: the default GITHUB_TOKEN gets "Resource not
+# accessible by integration" for that call, which is how the first two runs of
+# this file failed.
 name: Deploy to Pages
 
 on:
@@ -35,26 +38,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Read the Pages configuration so the rest of the workflow can adapt to it.
+  # Split out as its own job so that the publish job — and only the publish job
+  # — claims the github-pages environment: in branch mode the verification must
+  # not take that environment, or it would serialize against the very
+  # deployment it is waiting on.
+  config:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+    outputs:
+      build_type: ${{ steps.read.outputs.build_type }}
+      url: ${{ steps.read.outputs.url }}
     steps:
-      - uses: actions/checkout@v4
-
-      # Preflight, because the two ways this can be misconfigured produce error
-      # messages that do not say what to do about them.
-      #
-      # There is currently no Pages site on this repo at all: taking the repo
-      # private deleted it, and making it public again did not bring it back.
-      # The first attempt at this workflow tried to create one with
-      # configure-pages' `enablement: true` and got "Resource not accessible by
-      # integration" — GITHUB_TOKEN cannot create a Pages site unless the repo
-      # allows read/write workflow permissions. So enabling Pages is a human
-      # step, once, and this says so in the run rather than failing obscurely
-      # two steps later.
-      - name: Check Pages is enabled
+      - id: read
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -63,22 +58,33 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/pages")
           if [ "$code" = "404" ]; then
-            echo "::error::GitHub Pages is not enabled for this repository. Enable it once at Settings -> Pages -> Build and deployment -> Source: GitHub Actions, then re-run this workflow (or push again)."
+            echo "::error::GitHub Pages is not enabled for this repository. Turn it on once at Settings -> Pages -> Build and deployment. Either source works: 'GitHub Actions' (this workflow publishes) or 'Deploy from a branch' -> main / root (GitHub publishes and this workflow checks the result)."
             exit 1
           fi
           if [ "$code" != "200" ]; then
             echo "::error::Could not read Pages settings (HTTP $code)."
             cat /tmp/pages.json; exit 1
           fi
-          build_type=$(python3 -c "import json;print(json.load(open('/tmp/pages.json')).get('build_type'))")
-          echo "Pages build_type: $build_type"
-          if [ "$build_type" != "workflow" ]; then
-            echo "::error::Pages source is '$build_type', not 'workflow'. Set Settings -> Pages -> Source to GitHub Actions so this workflow is what publishes."
-            exit 1
-          fi
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          d = json.load(open('/tmp/pages.json'))
+          print('build_type=' + str(d.get('build_type')))
+          print('url=' + str(d.get('html_url') or ''))
+          PY
+          cat "$GITHUB_OUTPUT"
 
+  publish:
+    needs: config
+    if: needs.config.outputs.build_type == 'workflow'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
-
       # No build step: the repo root IS the site (index.html, app.js,
       # styles.css, sw.js, manifest.json, icons/). This also ships test/ and the
       # markdown, which is harmless on a public repo — and cheaper than keeping
@@ -86,22 +92,44 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
-
       - id: deploy
         uses: actions/deploy-pages@v4
 
-      # The deployed cache name is the one string that says which build is live.
-      # Asserting it here is the delivery check the local suites cannot make.
+  # The deployed cache name is the one string that says which build is live, so
+  # this is the delivery check the local suites structurally cannot make: they
+  # prove the bytes are correct, only this proves they are served.
+  #
+  # always() so a skipped publish (branch mode) still gets verified; the guard
+  # on config is what stops it running when there is no site to check.
+  verify:
+    needs: [config, publish]
+    if: always() && needs.config.result == 'success' && needs.publish.result != 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Verify the deployed service worker is this commit's
+        env:
+          DEPLOYED: ${{ needs.publish.outputs.page_url }}
+          CONFIGURED: ${{ needs.config.outputs.url }}
+          MODE: ${{ needs.config.outputs.build_type }}
         run: |
-          url="${{ steps.deploy.outputs.page_url }}"
+          url="${DEPLOYED:-$CONFIGURED}"
+          url="${url%/}"
+          if [ -z "$url" ]; then
+            echo "::error::No Pages URL to check."; exit 1
+          fi
           expected=$(grep -o "todo-boards-v[0-9]*" sw.js | head -1)
-          echo "expecting $expected at ${url}sw.js"
-          for i in 1 2 3 4 5; do
-            served=$(curl -sf "${url}sw.js" | grep -o "todo-boards-v[0-9]*" | head -1 || true)
-            [ "$served" = "$expected" ] && echo "serving $served" && exit 0
-            echo "attempt $i: serving '${served:-<nothing>}', retrying in 15s"
-            sleep 15
+          echo "mode=$MODE  expecting $expected at $url/sw.js"
+          # Under "deploy from a branch" GitHub's builder is racing this job,
+          # hence the budget: a slow publish should read as slow, not broken.
+          served=""
+          for i in $(seq 1 12); do
+            served=$(curl -sf "$url/sw.js" | grep -o "todo-boards-v[0-9]*" | head -1 || true)
+            if [ "$served" = "$expected" ]; then
+              echo "serving $served — this commit is live"; exit 0
+            fi
+            echo "attempt $i: serving '${served:-<nothing>}', retrying in 20s"
+            sleep 20
           done
-          echo "::error::Pages is serving '${served:-<nothing>}', expected '$expected'"
+          echo "::error::Pages is serving '${served:-<nothing>}' at $url/sw.js, expected '$expected'. Either the publish has not landed yet, or the site is stale."
           exit 1
