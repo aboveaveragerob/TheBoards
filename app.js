@@ -237,6 +237,9 @@ function applyLayout() {
   el.board.style.setProperty('--offy', offY + 'px');
   // Before the loop: setHitInset measures offsetWidth, which the cap changes.
   el.board.style.setProperty('--note-max-w', noteMaxW() + 'px');
+  el.board.style.setProperty('--lot-h', lotH() + 'px');
+  // After --logical-w: the card's width sets how many lines the title takes.
+  syncCardHeight();
   // Re-derive each note's on-sheet x and y (proportional across frames) and its
   // decoupled hit area (physical size changed).
   noteEls.forEach((node, id) => {
@@ -324,6 +327,26 @@ function rebaseNote(note) {
    LOGICAL_W is derived per layout (B20), and 45% of it would widen desktop
    notes to ~570px, which B32 does not license. */
 const noteMaxW = () => isDesktop ? MAX_NOTE_W : Math.round(LOGICAL_W * 0.45);
+
+/* The Parking Lot's visible row budget (B37, issue #49). Whole rows only: a row
+   is a 44px hit target (§6) and #lot-items clips, so a fraction of the sheet
+   would draw a row cut in half. Three rows plus the 16px bottom margin is 182 —
+   fine on the 1000-unit reference sheet at 18%, a quarter of a 737-unit phone.
+   Below 900 the lot drops to two. It is chosen here rather than in CSS for the
+   same reason --note-max-w is: CSS cannot step a length by whole rows.
+   Desktop always takes three — B20 pins LOGICAL_H >= 1000. */
+const LOT_HEAD = 34, LOT_ROW = 44, LOT_3ROW_MIN_H = 900;
+const lotH = () => LOT_HEAD + LOT_ROW * (LOGICAL_H >= LOT_3ROW_MIN_H ? 3 : 2);
+
+/* The card's *rendered* height, republished so the header labels sit under the
+   card it actually is rather than the two-line card --card-h assumes (B37).
+   A phone card is ~145 units wide and a real title often takes three lines; at
+   the min-height alone the labels stayed put and "Requirements" — width:
+   max-content, spilling inward by design (B35) — ran under the card's frame.
+   Cheap: one offsetHeight read, and only where the title can have changed. */
+function syncCardHeight() {
+  el.board.style.setProperty('--card-actual-h', anchorEls.title.offsetHeight + 'px');
+}
 
 function setHitInset(node, note) {
   const w = node.offsetWidth, h = node.offsetHeight;   // logical (transform-independent)
@@ -854,7 +877,10 @@ el.board.addEventListener('input', (e) => {
   } else if (t.classList.contains('anchor')) {
     current[t.dataset.anchor] = t.textContent;
     t.classList.toggle('filled', !!t.textContent.length);
-    if (isDesktop && t.dataset.anchor === 'title') updateActiveCardTitle();
+    if (t.dataset.anchor === 'title') {
+      syncCardHeight();                  // the card grows as it is typed into
+      if (isDesktop) updateActiveCardTitle();
+    }
     scheduleSave();
   }
 });
@@ -1645,10 +1671,11 @@ function pdfAssemble(streams, title) {
    order is the stacking order — the card must cover the band rule (B33), and
    notes sit above every piece of furniture. */
 const EXPORT_GEO = {
-  gutter: 24, ruleY: 200,
-  bandTop: 24, bandH: 176,
+  gutter: 24, ruleY: 48,                // --band-top + --card-h / 2 (B37)
+  bandTop: 14,
   compL: 24, compR: 272, reqL: 628, reqR: 876,
-  cardL: 280, cardW: 340, cardTop: 24, cardMinH: 228, cardPad: 12,
+  cardL: 280, cardW: 340, cardTop: 14, cardMinH: 68, cardPad: 12,
+  // The export sheet is 1000 units tall, so it keeps the three-row lot (B37).
   lotTop: EXPORT_H - 16 - 166, lotH: 166, lotHeaderY: 8, lotItemsY: 34, lotRow: 44,
   headSize: 15, headLH: 19.5,          // 15px / 1.3, the band + card + lot header
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
@@ -1701,26 +1728,30 @@ function exportBoardPage(rec) {
     { text: rec.components, label: 'Components', l: g.compL, r: g.compR, align: 'left' },
     { text: rec.requirements, label: 'Requirements', l: g.reqL, r: g.reqR, align: 'right' },
   ];
-  for (const z of zones) {
-    const w = z.r - z.l;
-    // The label sits below the card's overhang now (B35), so it no longer
-    // overlays the anchor and the anchor keeps the whole band.
-    const labelTop = g.cardTop + g.cardMinH + 6;
-    if (z.text) {
-      // .anchor has padding 2px 0 4px, and the zone still stops at the rule.
-      p.q().rect(z.l, g.bandTop, w, g.bandH).clip()
-        .lines(pdfWrap(z.text, true, g.headSize, w), z.l, w, g.bandTop + 2,
-               g.headSize, g.headLH, true, 'left')
-        .Q();
-    }
-    p.lines([z.label], z.l, w, labelTop, g.headSize, g.headLH, true, z.align);
-  }
-
+  // Measured before the zones are drawn, because the labels hang off it: the
+  // card is at least cardMinH and grows with the title, and the labels follow
+  // it down (B37 — .band-zone reads --card-actual-h for the same reason).
   const title = rec.title || '';
   const cardContentW = g.cardW - 2 * g.cardPad - 2 * g.border;
   const titleLines = title ? pdfWrap(title, true, g.headSize, cardContentW) : [];
   const cardH = Math.max(g.cardMinH,
                          titleLines.length * g.headLH + 2 * g.cardPad + 2 * g.border);
+  for (const z of zones) {
+    const w = z.r - z.l;
+    // 6px under the card, mirroring .band-label's `top: calc(100% + 6px)`.
+    const labelTop = g.cardTop + cardH + 6;
+    if (z.text) {
+      // .anchor has padding 2px 0 4px. Not clipped to the zone: on screen the
+      // zone sets no overflow, so a long entry flows down over the canvas, and
+      // since B37 made the zone the card's own 68-unit box a clip here would
+      // start cutting text at three lines that the board still shows. The
+      // export draws what the screen draws (B34).
+      p.lines(pdfWrap(z.text, true, g.headSize, w), z.l, w, g.bandTop + 2,
+              g.headSize, g.headLH, true, 'left');
+    }
+    p.lines([z.label], z.l, w, labelTop, g.headSize, g.headLH, true, z.align);
+  }
+
   p.frame(g.cardL, g.cardTop, g.cardW, cardH, g.radius, g.border, PDF_PAPER);
   if (titleLines.length) {
     // justify-content: center — the block is centred in the card, then each
