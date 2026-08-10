@@ -1,0 +1,73 @@
+# Deploy the app to GitHub Pages.
+#
+# Why this exists rather than the implicit `pages-build-deployment` trigger:
+# that trigger fires from repository settings, not from anything in the tree,
+# so when it stops there is nothing to look at. It stopped. Pages for a private
+# repository needs a paid plan, the repo went private, and GitHub disabled the
+# builds silently — no failed run, no notice. Two merges (#45, #46) landed on
+# main and produced no run at all, and `sw.js` v5 sat undeployed while the app
+# on the device kept serving cache v4.
+#
+# Declared here, a deploy is a run in the Actions tab that either publishes or
+# goes red. Silence stops being a possible outcome. Same lesson as B36: the
+# check has to be on delivery, not on the artifact being correct.
+name: Deploy to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:          # force a deploy without inventing a commit
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a half-finished publish; queue behind it instead.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # enablement: true switches the Pages source to Actions if it is still on
+      # "deploy from a branch", so this workflow does not depend on someone
+      # having flipped a setting by hand — the failure being fixed was itself a
+      # settings change nobody saw.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # No build step: the repo root IS the site (index.html, app.js,
+      # styles.css, sw.js, manifest.json, icons/). This also ships test/ and the
+      # markdown, which is harmless on a public repo — and cheaper than keeping
+      # a second list of what the app consists of in sync with sw.js's ASSETS.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      # The deployed cache name is the one string that says which build is live.
+      # Asserting it here is the delivery check the local suites cannot make.
+      - name: Verify the deployed service worker is this commit's
+        run: |
+          url="${{ steps.deploy.outputs.page_url }}"
+          expected=$(grep -o "todo-boards-v[0-9]*" sw.js | head -1)
+          echo "expecting $expected at ${url}sw.js"
+          for i in 1 2 3 4 5; do
+            served=$(curl -sf "${url}sw.js" | grep -o "todo-boards-v[0-9]*" | head -1 || true)
+            [ "$served" = "$expected" ] && echo "serving $served" && exit 0
+            echo "attempt $i: serving '${served:-<nothing>}', retrying in 15s"
+            sleep 15
+          done
+          echo "::error::Pages is serving '${served:-<nothing>}', expected '$expected'"
+          exit 1

@@ -25,9 +25,24 @@ lives on-device in IndexedDB; there is no backend).
 | `index.html` | App shell (board view, list view, menu, toast) |
 | `styles.css` | Design tokens, both themes, board geometry, note component |
 | `app.js` | Persistence, rendering/scale, gestures, z-order, undo, routing |
-| `manifest.json` · `sw.js` | PWA manifest + cache-first offline service worker |
+| `manifest.json` · `sw.js` | PWA manifest + stale-while-revalidate offline service worker |
 | `icons/` | 192 / 512 / maskable app icons |
 | `test/` | Browser regression tests for the gesture recognizer (dev-only; see `test/README.md`) |
+| `.github/workflows/pages.yml` | Deploy to Pages, and assert the deployed `sw.js` is this commit's |
+
+## Shipping
+
+`sw.js`'s cache name is the one string that says which build is live, so it is
+the fastest way to answer "did my change actually reach anyone":
+
+```
+curl -s https://<pages-host>/sw.js | grep todo-boards-
+```
+
+**Bump `CACHE` in `sw.js` on every shipped `app.js`/`styles.css` change.** The
+worker re-installs only when its own bytes change; the stale-while-revalidate
+fetch handler means a missed bump costs one stale launch rather than every
+launch after it, but it is a net, not a substitute (B36).
 
 ## Using the board
 
