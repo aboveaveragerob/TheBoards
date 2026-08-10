@@ -11,6 +11,12 @@
 # Declared here, a deploy is a run in the Actions tab that either publishes or
 # goes red. Silence stops being a possible outcome. Same lesson as B36: the
 # check has to be on delivery, not on the artifact being correct.
+#
+# One-time human step: Settings -> Pages -> Build and deployment -> Source:
+# GitHub Actions. Taking the repo private deleted the Pages site outright and
+# making it public again did not restore it, and a workflow cannot create one
+# with the default GITHUB_TOKEN. The preflight below says exactly this in the
+# run if it has not been done.
 name: Deploy to Pages
 
 on:
@@ -37,13 +43,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # enablement: true switches the Pages source to Actions if it is still on
-      # "deploy from a branch", so this workflow does not depend on someone
-      # having flipped a setting by hand — the failure being fixed was itself a
-      # settings change nobody saw.
+      # Preflight, because the two ways this can be misconfigured produce error
+      # messages that do not say what to do about them.
+      #
+      # There is currently no Pages site on this repo at all: taking the repo
+      # private deleted it, and making it public again did not bring it back.
+      # The first attempt at this workflow tried to create one with
+      # configure-pages' `enablement: true` and got "Resource not accessible by
+      # integration" — GITHUB_TOKEN cannot create a Pages site unless the repo
+      # allows read/write workflow permissions. So enabling Pages is a human
+      # step, once, and this says so in the run rather than failing obscurely
+      # two steps later.
+      - name: Check Pages is enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          code=$(curl -s -o /tmp/pages.json -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pages")
+          if [ "$code" = "404" ]; then
+            echo "::error::GitHub Pages is not enabled for this repository. Enable it once at Settings -> Pages -> Build and deployment -> Source: GitHub Actions, then re-run this workflow (or push again)."
+            exit 1
+          fi
+          if [ "$code" != "200" ]; then
+            echo "::error::Could not read Pages settings (HTTP $code)."
+            cat /tmp/pages.json; exit 1
+          fi
+          build_type=$(python3 -c "import json;print(json.load(open('/tmp/pages.json')).get('build_type'))")
+          echo "Pages build_type: $build_type"
+          if [ "$build_type" != "workflow" ]; then
+            echo "::error::Pages source is '$build_type', not 'workflow'. Set Settings -> Pages -> Source to GitHub Actions so this workflow is what publishes."
+            exit 1
+          fi
+
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       # No build step: the repo root IS the site (index.html, app.js,
       # styles.css, sw.js, manifest.json, icons/). This also ships test/ and the
