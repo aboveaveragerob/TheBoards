@@ -97,6 +97,29 @@ body {
      rather than reflowing. The floor only binds below ~380 units. */
   --card-w: min(37.7778%, 100% - 2 * (var(--gutter) + 100px + var(--card-gap)));
   --card-l: calc((100% - var(--card-w)) / 2);
+
+  /* The band's *vertical* geometry, given the same treatment (B36). It was a
+     flat 200px at every viewport height while the horizontal axis was a
+     fraction of the sheet, so on a short window the band plus the lot owned
+     most of the page: 252 (card bottom) + 182 (lot + its 16) = 434px of
+     furniture regardless of how much sheet there was to spend it on.
+
+     The lot cannot scale — 166 = 34 + 3·44 is built from §6 hit-target floors
+     and a proportional lot would put rows under 44px. The band has no such
+     constraint; it is drawn furniture, not a touch target. So the band scales
+     and the lot does not.
+
+     Derived from --logical-h (a px length, set in JS) rather than a %: custom
+     properties substitute as raw tokens, so a % here would resolve against
+     each *use site's* containing block, and .band-label's is .band-zone, whose
+     height is itself derived from this. The px form resolves identically
+     everywhere.
+
+     The 200px ceiling keeps the 900x1000 reference sheet — and desktop, where
+     LOGICAL_H >= 1000 by construction (B20) — exactly as they were. The floor
+     keeps the card frameable on a very short sheet. */
+  --band-h:   clamp(132px, 0.2 * var(--logical-h, 1000px), 200px);
+  --overhang: calc(0.26 * var(--band-h));   /* B33's 1.26 ratio, kept proportional */
 }
 
 /* ---- §3 / §6.1 Anchors (furniture; render beneath notes) ---------------- */
@@ -129,12 +152,14 @@ body {
 
    Geometry from the issue's wireframe, against the 900x1000 reference sheet:
    rule at y=200; card 340 wide (37.7778%, B35 — was 220), centred, top 24,
-   bottom 252 — the 1.26 overhang ratio the reference draws. Horizontal values
-   come from #board's --gutter / --card-w / --card-l; desktop restates only
-   those two inputs below. ---- */
+   bottom 252 — the 1.26 overhang ratio the reference draws. Every edge here is
+   derived from #board: --gutter / --card-w / --card-l across, --band-h /
+   --overhang down. The reference sheet's values are what those resolve to at
+   1000 units, so this paragraph still describes the drawing; below 1000 the
+   band rides the sheet (B36). Desktop restates only --gutter and --card-w. ---- */
 #band-rule {                           /* same weight and idiom as #lot-rule */
   position: absolute;
-  left: var(--gutter); right: var(--gutter); top: 200px;
+  left: var(--gutter); right: var(--gutter); top: var(--band-h);
   height: 1px; background: var(--ink);
   z-index: 0;                          /* under the anchors: the card occludes it */
 }
@@ -143,7 +168,7 @@ body {
    in the rest of the band, where the reference puts notes). */
 .band-zone {
   position: absolute;
-  top: 24px; height: 176px;            /* 24 → the rule at 200 */
+  top: 24px; height: calc(var(--band-h) - 24px);   /* 24 → the rule (B36) */
   pointer-events: none;
 }
 .band-zone .anchor {
@@ -161,9 +186,10 @@ body {
    under the card's bottom edge, where the canvas is empty. */
 .band-label {
   position: absolute;
-  /* The zone ends at the rule (24 + 176 = 200), so this is y=258 — 6px below
-     the card's 252, mirroring the 6px it used to keep above the rule. */
-  top: calc(100% + 58px);
+  /* The zone ends at the rule, so 100% *is* the rule; the card hangs --overhang
+     below it, and the label keeps 6px under that — the same 6px it used to keep
+     above the rule. At the 200px ceiling this is the old y=258 exactly. */
+  top: calc(100% + var(--overhang) + 6px);
   /* Sized to the word, then pinned to the sheet's outer gutter below. A column
      is ~101px on a phone and "Requirements" can want ~118px, and text-align
      cannot rescue that: CSS puts overflow at the *end* edge whatever the
@@ -191,7 +217,9 @@ body {
    the card downward and keeps the overhang. */
 #anchor-title {
   left: var(--card-l); width: var(--card-w);   /* centred by construction */
-  top: 24px; min-height: 228px;        /* bottom 252 against the rule at 200 */
+  /* Bottom = --band-h + --overhang, i.e. the rule plus B33's overhang; 252
+     against a 200 rule, and proportional below that (B36). */
+  top: 24px; min-height: calc(var(--band-h) + var(--overhang) - 24px);
   /* Column, not row: a contenteditable's line breaks arrive as sibling nodes,
      and row flex would lay a wrapped title out sideways. */
   display: flex;
