@@ -7,9 +7,9 @@ const launchOpts = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHR
 let pass = 0, fail = 0;
 const ok = (n, c, extra) => { c ? (pass++, console.log('  PASS ' + n)) : (fail++, console.log('  FAIL ' + n + (extra ? ' :: ' + extra : ''))); };
 
-async function newMobilePage(browser) {
+async function newMobilePage(browser, viewport = { width: 384, height: 846 }) {
   const ctx = await browser.newContext({
-    viewport: { width: 384, height: 846 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3,
+    viewport, isMobile: true, hasTouch: true, deviceScaleFactor: 3,
     acceptDownloads: true,
   });
   const page = await ctx.newPage();
@@ -386,6 +386,80 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('lot is 166px — three rows', Math.round(geo.lot.height) === 166, String(geo.lot.height));
     ok('lot sits above the bottom edge', Math.round(geo.lot.bottom) === 830, String(geo.lot.bottom));
     ok('note cap is 45% of the sheet', geo.maxW === '173px', geo.maxW);
+    // B36: the band rides the sheet below 1000 units. At 846 the rule is at
+    // 0.2*846 and the card keeps B33's 1.26 overhang against it.
+    ok('band rule scales with the sheet', Math.abs(geo.rule.top - 169.2) < 1, String(geo.rule.top));
+    ok('card keeps the 1.26 overhang ratio',
+      Math.abs(geo.title.bottom / geo.rule.top - 1.26) < 0.01,
+      String(geo.title.bottom / geo.rule.top));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 11b. The short-window case (B36) ------------------------------------
+  // The regression this exists for: on a short, wide window the band's fixed
+  // 252px card bottom plus the lot's 182px left ~a third of the sheet free, and
+  // B35's 44px barely moved it. The band is now a fraction of --logical-h, so
+  // the free canvas has to hold up as the sheet gets shorter — which is exactly
+  // what the 384x846 block above cannot see.
+  console.log('\n[11b] Free canvas survives a short sheet (B36)');
+  {
+    for (const [w, h, floor] of [[1000, 715, 0.45], [800, 600, 0.40]]) {
+      const { ctx, page, errors } = await newMobilePage(browser, { width: w, height: h });
+      const g = await page.evaluate(() => {
+        const b = document.querySelector('#board').getBoundingClientRect();
+        const q = s => { const r = document.querySelector(s).getBoundingClientRect();
+                         return { top: r.top - b.top, bottom: r.bottom - b.top }; };
+        return { desktop: document.documentElement.classList.contains('desktop'),
+                 sheetH: b.height, card: q('#anchor-title'), lot: q('#lot'),
+                 label: q('#zone-components .band-label'), rule: q('#band-rule') };
+      });
+      const free = g.lot.top - g.card.bottom;
+      const tag = `${w}x${h}`;
+      ok(`${tag} is mobile mode`, !g.desktop, String(g.desktop));
+      ok(`${tag} free canvas is >=${floor * 100}% of the sheet`,
+        free / g.sheetH >= floor, `${free.toFixed(1)}px of ${g.sheetH} = ${(100 * free / g.sheetH).toFixed(1)}%`);
+      // The clearances the shrinking band could break.
+      ok(`${tag} card still overhangs the rule`, g.card.bottom > g.rule.top + 1,
+        JSON.stringify([g.card.bottom, g.rule.top]));
+      ok(`${tag} label clears the card and the lot`,
+        g.label.top >= g.card.bottom && g.label.bottom <= g.lot.top,
+        JSON.stringify([g.card.bottom, g.label.top, g.label.bottom, g.lot.top]));
+      ok(`${tag} no page errors`, errors.length === 0, errors.join(' | '));
+      await ctx.close();
+    }
+  }
+
+  // ---- 11c. EXPORT_GEO still matches the band's ceiling (B36) ---------------
+  // The exporter draws a fixed EXPORT_H reference sheet and cannot read
+  // computed CSS, so its literals are only correct while --band-h's ceiling is
+  // what the reference sheet resolves to. Pin them together so a future change
+  // to one cannot silently desynchronise the other.
+  console.log('\n[11c] EXPORT_GEO matches the band ceiling');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    const m = await page.evaluate(() => {
+      // Resolve the clamp at the 1000-unit reference sheet in a throwaway node.
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:absolute;visibility:hidden;--logical-h:1000px;' +
+        'top:clamp(132px, 0.2 * var(--logical-h), 200px)';
+      document.querySelector('#board').appendChild(probe);
+      const bandH = parseFloat(getComputedStyle(probe).top);
+      probe.remove();
+      return { bandH };
+    });
+    const src = fs.readFileSync(__dirname + '/../app.js', 'utf8');
+    const num = k => Number((src.match(new RegExp(k + ':\\s*(\\d+)')) || [])[1]);
+    const [bandTop, bandH, ruleY, cardTop, cardMinH] =
+      ['bandTop', 'bandH', 'ruleY', 'cardTop', 'cardMinH'].map(num);
+    ok('the clamp ceiling is the reference rule at y=200', m.bandH === 200, String(m.bandH));
+    ok('EXPORT_GEO bandTop + bandH lands on the same rule',
+      bandTop + bandH === m.bandH, JSON.stringify([bandTop, bandH, m.bandH]));
+    ok('EXPORT_GEO ruleY is the ceiling', ruleY === m.bandH, String(ruleY));
+    // cardTop + cardMinH must equal the ceiling plus B33's 0.26 overhang.
+    ok('EXPORT_GEO card bottom keeps the 1.26 overhang',
+      cardTop + cardMinH === Math.round(1.26 * m.bandH),
+      JSON.stringify([cardTop + cardMinH, Math.round(1.26 * m.bandH)]));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

@@ -678,3 +678,72 @@ but restoring 24 px is its own call about hierarchy and has not been made.
 *Impermanent.* `EXPORT_GEO` in `app.js` restates all of this a second time against the 900-unit
 export sheet, because the exporter cannot read computed CSS from a board it never renders. Four
 values moved here that a shared constants module would have moved once.
+
+### B36. A shipped change reached `main` and never reached the device (supersedes B35's "known, not fixed")
+
+B35 shipped correct CSS that nobody could see. `sw.js` carries a version-stamped cache and the
+instruction, on its own line 3, to *bump on every shipped `app.js`/`styles.css` change*. The fetch
+handler was unconditionally cache-first — return the hit, and only touch the network when there
+isn't one — and a service worker re-installs only when **its own bytes** change. So a missed bump
+was not a delayed update, it was a permanent one. B35 (`9ace6d6`) and the export follow-up
+(`072a15e`) both landed without a bump: an installed app was pinned to `825a006` and would have
+stayed there forever.
+
+This is worth stating plainly because the failure was not in the code that was written, it was in
+what "done" was taken to mean. The suites asserted the stylesheet was correct — it was — and the
+correct stylesheet sat behind a cache nobody had invalidated. **Asserting the source is not
+asserting delivery.** `test/sw-update.js` now asserts delivery: it installs the old worker, warms
+its cache, changes `styles.css` *without* touching `sw.js` and requires the page to stay stale
+(the bug, reproduced — if that step ever passes clean the harness has stopped exercising the
+worker), then ships the bumped worker and requires the change to land within two launches.
+
+Two changes, and only the first is load-bearing:
+
+**The cache is `v5`.** That is the fix. Everything else is insurance.
+
+**The fetch handler is stale-while-revalidate.** Still cache-first — a warm hit is returned without
+waiting on the network, so offline behaviour and cold-start latency are exactly as before — but the
+fetch now runs *alongside* the hit rather than only in its absence, and overwrites the entry. A
+missed bump now costs one stale launch instead of everything after it. The bump discipline stays:
+it is what makes an update land on the *next* launch rather than the one after. Cost is one
+background request per asset per launch when online, which for eight small static files is not a
+consideration. A caveat worth recording: an outgoing worker keeps serving the page until the new
+one claims it, and its runtime-cache path can re-create the very entry `activate` just deleted, so
+a dead `v4` may briefly outlive its own eviction. Nothing reads it once `v5` controls.
+
+**And the band's vertical geometry is now a fraction of the sheet**, which is B35's *known, not
+fixed* paragraph, fixed. The two axes had been treated differently for no reason anyone chose:
+horizontal was a fraction of the viewport (B32/B35), vertical was flat px. So `252` of card plus
+`182` of lot was `434 px` of furniture on *any* sheet — over 60 % of a short window, which is why
+the card rendered portrait there and why B35's 44 px barely registered.
+
+```
+--band-h:   clamp(132px, 0.2 * var(--logical-h, 1000px), 200px);
+--overhang: calc(0.26 * var(--band-h));      /* B33's 1.26 ratio, kept proportional */
+```
+
+Four literals become four derivations — `#band-rule`'s `top`, `.band-zone`'s `height`,
+`#anchor-title`'s `min-height`, `.band-label`'s offset — and each reduces to today's value at the
+`200px` ceiling, so the reference sheet is untouched *by construction* rather than by inspection.
+Desktop is untouched for free: B20's min-anchored scale keeps `LOGICAL_H ≥ 1000`, so desktop always
+hits the ceiling and `test/desktop.js` passes unchanged. `EXPORT_GEO` needs no edit for the same
+reason, and `test/mobile.js` now pins it to the ceiling so the two cannot drift apart silently.
+
+Free canvas, mobile, between the card's bottom and the lot's top:
+
+| sheet | before B35 | after B35 | now |
+|---|---|---|---|
+| 384×846 (phone) | 43.5 % | 48.7 % | **53.3 %** |
+| 1000×715 | 33.1 % | 39.3 % | **49.3 %** |
+| 800×600 | 20.3 % | 27.7 % | **42.0 %** |
+
+*Derived from `--logical-h`, not a percentage.* A custom property substitutes as raw tokens, so a
+`%` inside `--band-h` would resolve against each **use site's** containing block — and
+`.band-label` sits inside `.band-zone`, whose height is itself derived from `--band-h`. The px form
+resolves identically everywhere. This is the kind of thing that would have shipped looking correct
+on the one viewport anybody checked.
+
+*Known, not fixed.* The phone card is 145×189 (0.77:1) — squarer than B35's 145×228, still not
+landscape. It only turns landscape at the `132px` floor. So the floor, not the fraction, is the
+number to argue about if a landscape card on a phone matters more than band height. Nobody has
+made that call.
