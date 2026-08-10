@@ -221,9 +221,9 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
           .getPropertyValue('--note-max-w').trim(),
       };
     });
-    // B33 / issue #38: the card is the wireframe's 220px box, and the two side
-    // zones fill the sheet either side of it with an 8px gap.
-    ok('title card is 220px', geo.title === '220px', geo.title);
+    // B33 / issue #38 as widened by B35: the card is a 340px box, and the two
+    // side zones fill the sheet either side of it with an 8px gap.
+    ok('title card is 340px', geo.title === '340px', geo.title);
     ok('title card is framed', geo.titleBorder === '2px', geo.titleBorder);
     ok('band rule keeps the 24px gutter', geo.ruleL === '24px', geo.ruleL);
     ok('band rule sits at y=200', geo.ruleT === '200px', geo.ruleT);
@@ -232,7 +232,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       geo.zoneGap[0] < geo.zoneGap[1] && geo.zoneGap[2] < geo.zoneGap[3],
       JSON.stringify(geo.zoneGap));
     ok('Components and Requirements zones match', geo.comp === geo.req, geo.comp + ' / ' + geo.req);
-    ok('lot still 210px tall', geo.lotH === '210px', geo.lotH);
+    ok('lot is 166px tall — three rows (B35)', geo.lotH === '166px', geo.lotH);
     ok('lot gutter still 24px', geo.lotL === '24px', geo.lotL);
     ok('note cap still 405px', geo.maxW === '405px', geo.maxW);
     ok('no page errors', errors.length === 0, errors.join(' | '));

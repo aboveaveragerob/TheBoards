@@ -614,3 +614,67 @@ appears — it costs a `<script>` tag, an `ASSETS` entry, and a row in the READM
 which is why it has not been done yet. `Export` becomes a submenu with `PDF` as the leaf the moment
 a second format exists. The hatch is inline ruled lines; past ~1 MB the order is a Form XObject,
 then `/FlateDecode` — noting the latter makes the build async and breaks the plaintext assertions.
+
+## G. Band and lot proportions
+
+### B35. B32 preserved the fractions, not the proportions they were chosen for (supersedes B33's card width; overrides the four-row lot)
+Two complaints, one cause. The Parking Lot ate a quarter of a phone sheet, and the title card was a
+portrait stamp taller than it was wide — the exact opposite of what a title card is. Both numbers
+were correct once, against the 900×1000 reference sheet, and neither was re-derived when B32 made
+the mobile sheet 1:1 with the viewport. B32 restated the horizontal geometry "as the fractions
+[it] always [was] — 24/900 = 2.6667 %, 216/900 = 24 %" and called that "identical geometry at 900
+units and the same layout at any width." The first half is true; the second is not. `220/900` is
+24.4444 % of *any* width, so on a 384-unit phone the card renders 93.9 px wide. The fraction
+survived; the proportion it encoded did not.
+
+The narrowness had already extracted a price. `styles.css` demoted the title from 24 px to 15 px —
+the section headers' own size — because "at 24px the 220-wide card broke titles mid-word on a phone
+sheet." That is the card losing an argument with the type it exists to hold.
+
+**Ruling.** The card is **340/900 = 37.7778 %** (280..620 on the reference sheet), landscape at
+1.5:1 rather than portrait at 0.96:1. Both side zones absorb it evenly, 308 → 248. The Parking Lot
+is **166 px = 34 header + 3·44**, one row down from four: the section holds two or three questions
+at most and is often unused, so the fourth row was canvas the board never got back. `#lot-items` is
+`overflow:hidden`, so that height *is* the visible row budget — a fourth item still exists in the
+record and still exports, it is simply not drawn.
+
+**The band's edges are now derived, not restated.** B33 wrote the card's right edge as the literal
+`62.2222 %` in three rules, and `#zone-components` reached the card's *left* edge only because
+`100 − 62.2222 = 37.7778` — a dependency on the card being centred that nothing named and no test
+guarded, so widening the card by hand would have desynchronised one column and not the other.
+`#board` now declares `--gutter`, `--card-gap`, `--card-w`, `--card-l`; the rule, both zones, the
+card and the lot read them. Desktop's five px overrides collapse to two inputs
+(`--gutter: 24px; --card-w: 340px`) and every edge follows.
+
+**The headers moved below the rule, and the card is why.** B33 pinned them above the rule hugging
+the card, which worked while the card was 220 wide. It does not survive 340: the columns drop to
+~101 px on a 384-unit sheet, and "Components"/"Requirements" are single words that cannot wrap.
+Nor can alignment rescue them — CSS puts overflow at the line box's *end* edge whatever
+`text-align` says, so a right-aligned "Requirements" still runs off the sheet rather than back onto
+it. The first attempt floored `--card-w` to protect the columns instead; the arithmetic killed it,
+since a floor wide enough for the widest `system-ui` (~118 px, measured) leaves a phone card of
+~100 px — narrower than the one the change exists to widen.
+
+So the card took the width and the labels took the space that was actually free: `top: calc(100% +
+58px)` puts them at y=258, 6 px below the card's 252, mirroring the 6 px they used to keep above
+the rule. Each is `width: max-content` pinned to its outer gutter (`left: 0` / `right: 0`), so the
+box is the word and any spill runs *inward*, under the card's bottom edge, where the canvas is
+empty. This also settles the inconsistency B33 left standing: the band now reads rule-then-header,
+the same way `#lot-rule` / `#lot-header` always has. Two consequences: the anchor gets its whole
+176 px back (the exporter's clip at the label is gone with it), and a below-rule label sits in
+canvas territory where `.band-zone`'s `pointer-events: none` lets a tap fall through and create a
+note under it — the same way the rule itself behaves. `test/mobile.js` pins all of it: the labels
+clear the card, are not clipped, and stay inside the gutters.
+
+*Known, not fixed.* The band's vertical geometry is fixed px (rule at 200, card 24..252) while its
+horizontal geometry is a fraction of the viewport, so the card is landscape at 1.49:1 on the
+reference sheet and on desktop, but 145×228 — still portrait — on a 384-unit phone. A landscape
+card there needs a card wider than 176 units (46 % of the sheet, leaving 79 px columns) or the rule
+moved up. Both are band-height decisions, not card-width ones.
+
+*Not reopened.* The title's 15 px. A 340-wide card removes the constraint that forced the demotion,
+but restoring 24 px is its own call about hierarchy and has not been made.
+
+*Impermanent.* `EXPORT_GEO` in `app.js` restates all of this a second time against the 900-unit
+export sheet, because the exporter cannot read computed CSS from a board it never renders. Four
+values moved here that a shared constants module would have moved once.
