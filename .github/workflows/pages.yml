@@ -47,7 +47,7 @@ jobs:
       # "deploy from a branch", so this workflow does not depend on someone
       # having flipped a setting by hand — the failure being fixed was itself a
       # settings change nobody saw.
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
         with:
           enablement: true
 
