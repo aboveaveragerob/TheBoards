@@ -211,8 +211,21 @@ const activeIsNoteText = page => page.evaluate(() =>
     await page.waitForTimeout(150);
     const menuVisible = await page.evaluate(() => document.querySelector('#menu').hidden === false);
     ok('menu opened on note long-press', menuVisible);
-    const labels = await page.evaluate(() => [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('menu has Complete/Boards/Delete', labels.length === 3, JSON.stringify(labels));
+    // B43 (issues #59/#60): All boards · Complete · Copy · Delete, top to
+    // bottom — danger last, behind the one separator.
+    const shape = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')];
+      return { labels: b.map(x => x.textContent),
+               danger: b.map(x => x.classList.contains('danger')),
+               seps: document.querySelectorAll('#menu .sep').length };
+    });
+    const labels = shape.labels;
+    ok('menu is All boards · Complete · Copy · Delete', labels.length === 4 &&
+       /All boards/.test(labels[0]) && /Complete/.test(labels[1]) &&
+       /Copy/.test(labels[2]) && /Delete/.test(labels[3]), JSON.stringify(labels));
+    ok('only Delete is danger, and it is last',
+       shape.danger.join('|') === 'false|false|false|true', JSON.stringify(shape.danger));
+    ok('one separator before Delete', shape.seps === 1, String(shape.seps));
     // Export is board-level. The item-order law is per-menu, and a note's menu
     // is not the place to export the board it happens to sit on.
     ok('the note menu did not gain Export', !labels.some(l => /Export/.test(l)), JSON.stringify(labels));
@@ -384,7 +397,6 @@ const activeIsNoteText = page => page.evaluate(() =>
         rs: cs.getPropertyValue('--rs').trim(),
         lw: cs.getPropertyValue('--logical-w').trim(),
         lh: cs.getPropertyValue('--logical-h').trim(),
-        maxW: cs.getPropertyValue('--note-max-w').trim(),
         titleFont: titleStyle.fontSize,
         compFont: getComputedStyle(document.querySelector('#anchor-components')).fontSize,
         title: r('#anchor-title'), comp: r('#anchor-components'),
@@ -454,7 +466,6 @@ const activeIsNoteText = page => page.evaluate(() =>
       JSON.stringify([geo.title.bottom, geo.rule.top]));
     ok('lot is 122px — two rows on a phone', Math.round(geo.lot.height) === 122, String(geo.lot.height));
     ok('lot sits above the bottom edge', Math.round(geo.lot.bottom) === 830, String(geo.lot.bottom));
-    ok('note cap is 45% of the sheet', geo.maxW === '173px', geo.maxW);
     // B37 (issue #49): the band is sized by the type it holds, not by the sheet,
     // so the rule is at 14 + 68/2 = 48 on every sheet, unchanged by B38.
     ok('band rule is at 48, not a fraction of the sheet',
@@ -472,6 +483,21 @@ const activeIsNoteText = page => page.evaluate(() =>
       const free = (geo.lot.top - Math.max(geo.title.bottom, geo.anchorBottom)) / 846;
       ok('free canvas is >=68% of the sheet', free >= 0.68, (free * 100).toFixed(1) + '%');
     }
+    // Issue #53 (B39): no 45% cap — a long line wraps only at the sheet's
+    // right edge, spanning most of the viewport where 173px used to stop it.
+    await tap(page, 24, 250);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('The quick brown fox jumps over the lazy dog while the '
+      + 'cat watches from the window and the dog barks at the mailman going past');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(300);
+    const wrap = await page.evaluate(() => {
+      const n = document.querySelector('.note');
+      return { right: n.getBoundingClientRect().right, w: n.offsetWidth };
+    });
+    ok('long note wraps at the sheet right edge (issue #53)',
+       wrap.right <= 384 + 1, JSON.stringify(wrap));
+    ok('and spans past the old 45% cap', wrap.w > 173, String(wrap.w));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
@@ -593,6 +619,42 @@ const activeIsNoteText = page => page.evaluate(() =>
         };
       };
     })));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 12b. note size is frame-relative too (issue #57, B40) ----------------
+  // renderX's law applied to visual scale: shrinking the sheet shrinks the
+  // note at the same ratio, so relative geometry survives the resize. Reading
+  // is not writing (B21): with no grab there is no rebase, and the stored
+  // scale stays exactly what the author set.
+  console.log('\n[12b] Note size scales with the sheet width (homothetic, B40)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 150, 400);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('hi');           // short: never meets --note-max-w
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(300);
+    const before = await page.evaluate(() =>
+      document.querySelector('.note').getBoundingClientRect().width);
+    await page.setViewportSize({ width: 300, height: 846 });
+    await page.waitForTimeout(200);
+    const after = await page.evaluate(() =>
+      document.querySelector('.note').getBoundingClientRect().width);
+    ok('rendered width shrank by ~300/384',
+      Math.abs(after / before - 300 / 384) < 0.02, before + ' -> ' + after);
+    ok('stored scale unchanged — no grab, no write (B21)',
+      await page.evaluate(() => new Promise(res => {
+        const rq = indexedDB.open('boards-db');
+        rq.onsuccess = () => {
+          const all = rq.result.transaction('boards', 'readonly').objectStore('boards').getAll();
+          all.onsuccess = () => {
+            const n = all.result.flatMap(b => b.notes).find(n => n.text === 'hi');
+            res(!!n && n.scale === 1 && n.rw === 384);
+          };
+        };
+      })));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
@@ -743,8 +805,8 @@ const activeIsNoteText = page => page.evaluate(() =>
       document.querySelector('#menu').hidden === false));
     const shape = await page.evaluate(() =>
       [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('anchor menu is Export then Boards', shape.length === 2 &&
-       /Export/.test(shape[0]) && /Boards/.test(shape[1]), JSON.stringify(shape));
+    ok('anchor menu is Export then All boards', shape.length === 2 &&
+       /Export/.test(shape[0]) && /All boards/.test(shape[1]), JSON.stringify(shape));
     ok('still on the board — no navigation yet',
        await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
 
@@ -760,6 +822,79 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('the open board — not a stale snapshot — was exported', s.includes('(ANCHORPATHMARKER)'));
     ok('exporting did not navigate to the list',
        await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 17. Copy from the long-press menu (issue #59) -----------------------
+  console.log('\n[17] Long-press menu Copy shows the Copied notice');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await tap(page, 200, 400);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('pocket text');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(200);
+    const box = await page.evaluate(() => {
+      const r = document.querySelector('.note').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await tap(page, box.x, box.y, 700);
+    await page.waitForTimeout(150);
+    const btn = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')].find(x => /Copy/.test(x.textContent));
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    ok('the menu offers Copy', !!btn);
+    if (btn) {
+      await tap(page, btn.x, btn.y);
+      await page.waitForTimeout(600);                    // through the B18 window
+      ok('menu closed after the window',
+        await page.evaluate(() => document.querySelector('#menu').hidden !== false));
+      ok('Copied notice shows', await page.evaluate(() => {
+        const t = document.querySelector('#toast');
+        return t.classList.contains('show') && /Copied/.test(t.textContent);
+      }));
+      ok('the record text reached the clipboard', await page.evaluate(() =>
+        navigator.clipboard.readText().then(t => t === 'pocket text', () => false)));
+      ok('copying deleted nothing', (await noteCount(page)) === 1);
+    }
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 18. screen wrap ≡ export wrap, in authored units (issue #53, B39) ---
+  // One law, two resolutions: the screen caps at (LOGICAL_W − renderX)/eff,
+  // exportNoteBox at (EXPORT_W − exportX)/(scale·exportMult) — both reduce to
+  // (rw − x)/scale, so a cap-hitting note wraps at the same width on a phone
+  // sheet and on the 900 export frame. This is the cross-frame agreement B40
+  // left as "known, not fixed".
+  console.log('\n[18] Screen and export share one wrap law (issue #53)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 100, 300);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('a long line of perfectly ordinary words that has to wrap '
+      + 'well before the right edge arrives because it just keeps going and going');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(300);
+    const m = await page.evaluate(() => {
+      const note = current.notes[current.notes.length - 1];
+      const node = document.querySelector('[data-id="' + note.id + '"]');
+      const box = exportNoteBox(note);
+      return { screenW: node.offsetWidth, exportW: box.w,
+               cap: (note.rw - note.x) / (note.scale || 1),
+               x: note.x, rw: note.rw, lines: box.lines.length };
+    });
+    // Authored at x=100 on this 384 sheet: the cap is 284 authored units.
+    ok('screen wrap width is the authored-unit cap (±1)',
+       Math.abs(m.screenW - m.cap) <= 1, JSON.stringify(m));
+    ok('export wrap width agrees with the screen (±1)',
+       Math.abs(m.exportW - m.screenW) <= 1, JSON.stringify(m));
+    ok('the exported note wraps to more than one line', m.lines > 1, String(m.lines));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

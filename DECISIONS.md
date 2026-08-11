@@ -918,3 +918,254 @@ unifying the two sizes is a hierarchy call nobody has made.
 *Impermanent, still.* `EXPORT_GEO` remains a second copy of this geometry. [11c] pins it to the
 rendered board rather than to a literal, which is as close to one source as two files get without
 a shared module.
+
+---
+
+## H. Note width (issue #53)
+
+### B39. A note wraps at the sheet's right edge, not at a predetermined width (resolves B40's cap residue)
+
+The bug report: neither desktop nor mobile text frames should have predefined widths — the
+max width is the width of the entire board, and only a line that would exceed the board's
+right edge wraps. The cap in force was a number: 405 on desktop, 45% of the sheet on mobile
+(`noteMaxW()`, published once per layout on `#board`). Both were readings of PRD §6.2's "45%
+of board width" against frames that no longer exist for every note — the cap was frame-blind,
+which is B40's *known, not fixed* paragraph.
+
+**Ruling.** A note's max-width is the remaining distance to the sheet's right edge, in the
+note's own unscaled units, floored so an edge-adjacent note stays a usable column:
+
+```
+noteMaxW(note) = max(NOTE_MIN_W, (LOGICAL_W − renderX(note)) / effScale(note))
+NOTE_MIN_W = 60          /* ~3 chars at 17px + 28px of padding and border */
+```
+
+which reduces to `(rw − x)/scale` in authored units — **frame-invariant**: the same note
+wraps at the same point on every device, and a grab's rebase (B21/B40) cannot rewrap it,
+because the fold leaves that ratio unchanged. The var moves from `#board` to each `.note`
+(custom properties inherit; `.note-text` reads it as before, fallback `none`), set by
+`applyNoteWidth` in `makeNoteEl`, in `applyLayout`'s per-note loop (before `setHitInset`,
+which measures the offsetWidth the cap changes), in `applyNoteScale` (scale changes the
+unscaled cap), and live in `updateDrag`.
+
+**The cap is live during a drag.** Dragging a note rightward tightens its cap and the text
+rewraps narrower as it goes; the smaller footprint frees more x, and the loop converges in a
+single pass per move — an overhanging rewrapped foot means the cap was floored, and pulling
+x back to the edge leaves the applied cap exact — at worst at `x = LOGICAL_W −
+NOTE_MIN_W·scale`. The rewrap changes the *height* too, so the drag's bottom bound is live
+as well (`settleDragFoot`): derived per move from the measured foot, plus the overhang the
+grab itself admitted — B40's oversized cross-frame arrival never teleports, and only
+overhang the drag's own rewrap creates is pulled back onto the sheet. The per-move measure
+is reflow-guarded: the width write and `offsetWidth` read are skipped while the cap provably
+cannot bind (the note at natural width, the cap at or above it), and the drop forces one
+exact settle before `saveNow`. Legal under B17/B21: the re-clamp runs inside the gesture,
+which owns its writes; outside a gesture stored x/y are untouched, and a note that used to
+wrap at 405/45% simply rewraps wider and flatter where it stands — intended, shipped.
+
+**The export mirrors the law, mandatorily.** `exportNoteBox` wraps at `max(NOTE_MIN_W,
+(EXPORT_W − exportX)/((scale ‖ 1)·exportMult))` — the same `(rw − x)/scale`, resolved
+against the 900 frame — replacing B40's authoring-frame cap (`min(405, 0.45·rw)`), and
+`EXPORT_GEO.noteMaxW` is gone. Screen wrap width ≡ export wrap width in authored units,
+which resolves B40's known-not-fixed cap paragraph outright: no double-shrink on a
+narrowing phone, and a cap-hitting cross-frame note can no longer disagree between the
+desktop screen and the PDF. `test/desktop.js` [D17] and `test/mobile.js` [18] pin the
+equality; [D8] and mobile [11] now assert edge-wrap where they asserted the numbers.
+
+**Costs.** A note created at the right edge is born a NOTE_MIN_W column — the floor is the
+price of never refusing capture there. A note's wrap width now depends on where it sits, so
+dragging changes its shape; that is the feature. And the one-column collapse the 45% cap
+existed to prevent (B32) is now the author's own choice to make — a note only spans the
+sheet if its text is long and its x is 0.
+
+*Known, not fixed.* The law binds x. Vertically, typing can still grow a note past the
+sheet's bottom (the input path has never clamped position, and B17 wants it that way), and
+a cross-frame arrival keeps whatever bottom overhang it arrived with — only a drag's own
+rewrap is pulled back. `NOTE_MIN_W` is a felt value — re-interrogate it on the device, like
+B18's 400ms.
+
+Supersedes PRD §6.2's 45% cap as read by B32 ("--note-max-w set in applyLayout" — the
+per-note var is the pattern now) and B40's exportNoteBox cap; B40 is annotated in place.
+
+---
+
+## I. Homothetic note rendering (issue #57)
+
+### B40. Notes render homothetically: position's law applied to size (extends B21/B32)
+
+The bug: resizing a desktop window slid constant-size notes into each other, and the PDF —
+a fixed 900×1000 frame — showed the same collisions. B21 maps `x` proportionally
+(`renderX = x · LOGICAL_W/rw`) and B32 gave `y` the mirror law against `rh`, but a note's
+*visual* size stayed constant in logical px, so positions tracked the frame while sizes did
+not, and relative geometry was not preserved across viewport changes.
+
+**Ruling.** The law the position already obeys is applied to the scale: `noteMult =
+LOGICAL_W / (rw ‖ 900)` — renderX's own ratio — and a note draws at `effScale = scale ·
+noteMult`. Along x, position ×k and width ×k together preserve horizontal overlap *exactly*
+for any change of sheet width: the viewport resizes and the notes resize at the same ratio,
+which is issue #57's instruction verbatim. Desktop's geometry (B20) has two regimes and both
+cooperate: width-limited windows pin `LOGICAL_W ≡ 900` (the multiplier never moves), and
+height-limited windows pin `LOGICAL_H ≡ 1000` so *only* width varies — the reported case,
+where preservation is exact.
+
+At grab, `rebaseNote` folds the multiplier into the stored scale (`scale *= mult`, alongside
+the existing `x`/`y`/`rw`/`rh` rebase). Visually silent by construction — `effScale` before
+equals `scale` after — and mult ≡ 1 from then on, so every gesture (drag footprints, pinch,
+frame-drag resize) runs in current-frame units unmodified. A folded scale may legitimately
+leave [0.5, 2.0], so the pinch/resize clamps widen to include the start value
+(`gestureScale`: `clamp(start·f, min(MIN_SCALE, start), max(MAX_SCALE, start))`, one helper
+shared by both per B22): an out-of-range note never jumps at gesture start, and can always be
+scaled back into the authored range but never further out. The footprint clamps get the same
+treatment, because a folded note can be bigger than the sheet and the old
+`[0, max(0, sheet − foot)]` range then degenerates to `[0, 0]` — a corner pin. The drag range
+is fixed at grab and widened to admit the grab position (silence again), and
+`applyNoteScale`'s re-clamp becomes `min`/`max` of the same pair — sheet-inside-note where
+note-inside-sheet is impossible; for any fitting note both are byte-for-byte the old bounds.
+The multiplier itself is never clamped — MIN/MAX_SCALE bound the *authored* scale at gesture
+time, not the frame mapping. The export applies the same law against its own sheet
+(`exportMult = EXPORT_W / (rw ‖ 900)`), which is the downstream fix: screen and PDF now share
+one law, where before the PDF drew every note at authored size regardless of the frame it was
+written in. `exportNoteBox` wraps at the *authoring* frame's width cap
+(`min(405, 0.45·rw)` — 45% of a mobile sheet, the literal 405 on desktop, selected without a
+mode flag because B20 pins desktop `rw ≥ 900`): wrapped at the literal 405, a phone-authored
+note would re-wrap wide and, under `exportMult`, run off the export sheet. `effScale` and the
+fold guard a missing legacy `scale` with `‖ 1`, as the exporter always has — a drag must not
+write `NaN` into storage.
+
+Costs. A note authored on a wide desktop frame arrives small on a phone (and a phone note
+large on desktop) — that is the point, but cross-device notes no longer land at "their" size;
+the decoupled hit floor (B7) is what keeps a shrunken note tappable. Stored `scale` is no
+longer confined to [0.5, 2.0] after a cross-frame grab; every read site outside the widened
+clamps was checked and none assumes the range.
+
+*Known, not fixed.* Size rides the x-ratio while y rides the height ratio (B32), so when the
+two diverge — an aspect-ratio change — vertical clearances can still shift: a note may close
+on or open from the one below it even though horizontal geometry holds. Accepted: mapping y
+by the x-ratio instead would push notes off the bottom of a shorter sheet and demand exactly
+the re-clamps B17/B21 forbid. And the *screen's* width cap is still frame-blind — a note
+holding `--note-max-w` loses width twice on a narrowing phone (once as the cap tightens, once
+from the multiplier), and a phone note re-wraps at desktop's 405 and can overhang the sheet
+there, which is why the footprint clamps above had to learn the oversized case. The cap is a
+later unit's subject and is untouched here; until it lands, a cap-hitting cross-frame note is
+the one place the desktop screen and the PDF still disagree — the PDF draws the authored
+proportions.
+
+*[The width-cap clauses above are resolved by B39 (issue #53): the cap is now per-note and
+frame-invariant — `(rw − x)/scale` — and the export shares it. The y/aspect clause stands.]*
+
+B21's grab-time rebase (`x = renderX; rw = LOGICAL_W`) now folds scale as well; B22's
+"frame-drag resize shares pinch's scale/clamp/hit math" still holds — the two clamps widened
+together.
+
+---
+
+## J. Desktop dismissal and multi-selection (issues #54, #55)
+
+### B41. Click-away while editing commits and dismisses, never creates; shift-click herds notes
+
+**#54.** The desktop `canvas`/`lot` tap guarded on `selected` alone, but while EDITING nothing
+is selected (edit paths clear selection first) and the recognizer's `isEditing` early-out tests
+the *clicked* target, not the active editor — so a click on bare paper mid-edit sailed past the
+guard, `preventDefault` had already suppressed the native blur (B27), and the tap fell into the
+ghost + `createNote` path: dismissal and creation on the same click. Ruling: a mode-independent
+`isEditing(document.activeElement) → blur` guard sits ABOVE the `selected` check in both
+creation-surface cases — the blur runs the commit-on-blur path, the click is spent on
+dismissing, and the NEXT click creates (ghost + B18 window), which is desktop parity with #41's
+mobile rule. The desktop `note`/`lot-item` branches commit an open editor the same way before
+selecting; on the edited note's own hit collar the click only dismisses, because edit and
+selection are mutually exclusive (B22).
+
+**#55.** Desktop notes gain shift-click multi-selection; **lot rows stay single-select by
+design** — a lot line is a list entry, not a spatial object worth herding. `selected` remains
+the sole PRIMARY, so every existing `selected &&` guard is untouched; a module-level `multiSel`
+set holds member ids and is empty (today's behavior, bit-for-bit) or size ≥ 2 and containing
+the primary. The primary wears the one `#selection` overlay; every other member wears
+`.multi-selected`, a CSS outline that rides the node itself — zero JS positioning. With two or
+more selected the overlay hides its edges and handles: **resize is single-selection only**.
+Shift-click toggles membership (adding makes the clicked note primary; removing the primary
+promotes another member; the last removal clears) and never pairs into the double-click window;
+a plain click collapses to single. Group drag: grabbing a member moves every member by one
+delta — per-member `rebaseNote` at grab (B21's licensed write, folding each member's scale per
+B40), per-member bounds widened to admit the grab position, `.pressed` on all, `surfaceNote`
+only on the grabbed one, one `saveNow` at drop. Members hitting different clamps can compress
+the group's relative geometry at the sheet edge — accepted; the alternative is a group that can
+never park flush. Right-click (the recognizer now ignores non-primary buttons outright) opens
+the selection's own menu via the delegated board `contextmenu` listener: Complete all — Restore
+all only when EVERY member is complete — then the hairline, then Delete all in `--danger`
+(UIUX §7); singular labels at size 1; empty canvas and active editors keep the browser's native
+menu. The sel-actions row acts on the whole selection: Complete/Restore keyed off the primary
+applied to all, Copy joins every text primary-first with newlines, Delete routes through the
+new `deleteNotes` — one B18 window, one save, ONE Undo that re-inserts every note at its
+original index and restores DOM order. `clearSelection` strips rings and set together, so
+`applyMode`'s teardown and `renderBoard`'s rebuild stay one call; note-removal paths drop ids
+from the set, and a set of one collapses back to a plain single selection.
+`test/desktop.js` [D18] pins the dismiss-then-create sequence; [D19] pins rings, hidden
+handles, the shared drag delta, the menu shape, and the batch Undo round-trip.
+
+---
+
+## K. The desktop rail's categories (issue #58)
+
+### B42. The rail sorts into To-Do / Idea / Unsorted, and each section pages (supersedes B24's overflow ellipsis)
+The desktop rail splits into three equal sections — To-Do Boards, Idea Boards, Unsorted
+Boards, top to bottom. A board carries `category` and `catStamp`, both read-site
+defaulted (the B21 idiom — no migration, no DB version bump): a record without a
+category *is* Unsorted, so every pre-#58 board and every new board lands there by
+writing nothing. In-category order is `(catStamp ‖ createdAt)` desc with B24's
+immutable comparator as tiebreak. A pointer-drag moves a card between sections —
+pointer-based like the list rows, because native HTML5 DnD fights the cards' button
+semantics and paints its own ghost — and the section under the cursor frames itself in
+`--accent-page`: where the board will land. Release writes `category` +
+`catStamp = Date.now()`, which *is* moved-to-top by the sort key. The drop is a
+completed gesture like a note drag: saved immediately, no B18 window. Whole-record
+puts (B13) make the write site two-headed — the open board mutates `current` +
+`saveNow()` (putting any snapshot would lose live edits); any other board is fetched
+fresh and put directly (the debounced persist can't clobber a record it never holds).
+Overflow **pages** instead of scrolling: each section clips to a per-page card budget
+measured from the rail's height (re-derived on resize), and «‹›» pager buttons —
+muted blue `--accent-page` paired with `--paper`, the sel-btn construction so both
+themes invert ≥ AA, behind a neutral `--ink-shadow` border — turn pages instantly,
+like all navigation (B22: B18 governs consequences, and a page turn commits nothing).
+Page state is per-category, clamped every render, reset to the first page on a drop
+into the section; a single page hides its pager and indicator (§10: no state, no
+statement). B24's "when boards overflow the rail, the bottom edge says so"
+(`#pane-more`'s ellipsis) is **superseded** — pagination states the same truth and
+makes it actionable.
+
+---
+
+## L. The menus: All boards, and Copy (issues #59, #60)
+
+### B43. Every menu says "All boards", and every item offers Copy (issues #59, #60; supersedes A1's item order)
+
+**"Boards" → "All boards".** The menu item is a destination, and beside Complete and Delete the
+bare word read as a category label for the things on the board (issue #60). The rename is the one
+`COPY.boards` key, so every menu site changes together — the item menu and the anchor's
+Export · All boards. The `#list-title` page heading still says "Boards": it is not a menu, it
+names the page you are standing on, and that is the one place the old word was right.
+
+**Copy is an action on the record, not the DOM.** `copyText()` writes the item's `.text` field —
+plain text by construction, the data model has never held anything else (B3) — through
+`navigator.clipboard.writeText`, falling back to a throwaway textarea + `execCommand('copy')`
+where the async API is missing or rejects. The textarea must opt back into `user-select: text`
+(the body forbids selection, so `select()` would otherwise grab nothing), sits off-viewport, and
+is removed in `finally`. Success shows a short "Copied" notice; failure shows "Couldn't copy." for
+longer, because the notice is the only evidence anything went wrong — and `showNotice` already
+refuses to clobber a pending undo. Copying a completed item is allowed: the scratch-out withholds
+the text from the screen and the export (§4.3), but the record still holds it, and Copy reads the
+record.
+
+**The item menu reorders: All boards · Complete/Restore · Copy · Delete.** A1 led with Complete on
+the reading that the likeliest action goes first. With four items the menu now reads navigation
+first, then the item's own actions in rising severity — change state, read out, destroy. That
+supersedes A1's Complete-first placement; UIUX §7's actual law — destructive last, in `--danger`,
+behind the hairline — holds unchanged, and `test/mobile.js` [8] pins the new order. The anchor
+menu stays Export · All boards: two non-destructive items, no separator, same as everywhere else.
+
+**Desktop selection shows Complete · Copy · Delete.** The new `.sel-copy` rests in plain ink — the
+accent fills mark state changes, and Copy changes nothing — and drains on tap like its siblings.
+It runs through `delayAction` like every action (B18 uniform): a clipboard write has no visible
+result of its own, so the drain is the acknowledgment. Lot rows carry the same inline button, and
+all of it routes through the recognizer, not native `click` — setPointerCapture retargets clicks,
+the constraint B22 already records. `.sel-actions` centres its flex row under the note, so the
+third button arrives centred and equally spaced for free; `test/desktop.js` [D15] pins the order,
+the empty B18 window, and the clipboard round-trip.

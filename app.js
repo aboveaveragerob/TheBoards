@@ -24,13 +24,18 @@ let   LOGICAL_W = 900;               // mobile: = vw, the sheet is the viewport 
 let   LOGICAL_H = 1000;              // responsive: recomputed each layout to fill the viewport
 let   LEGACY_H = 1000;               // the LOGICAL_H the pre-B32 build would have produced
                                      // on this device; places notes that predate `rh`.
-const MAX_NOTE_W = 405;              // 45% of the 900 sheet (PRD §6.2); desktop cap — see noteMaxW
+const NOTE_MIN_W = 60;               // narrowest useful note column: ~3 chars at 17px
+                                     // + 28px box chrome (issue #53) — see noteMaxW
 const MIN_SCALE = 0.5, MAX_SCALE = 2.0;
 const MOVE_THRESHOLD = 16;           // px before a drag begins / long-press cancels (B29)
 const LONGPRESS_MS = 500;
 const HIT_FLOOR = 44;                // px physical (PRD §5.3, UIUX §6) — mobile
 const HIT_FLOOR_DESKTOP = 24;        // WCAG 2.5.8 AA; a 44px collar swallows dismiss clicks (issue #12)
 const PANE_W = 300;                  // CSS px; unscaled width of the desktop board rail
+const PANE_CAT_HEAD = 24;            // .pane-cat-head flex-basis (issue #58)
+const PANE_PAGER_H = 32;             // .pane-pager flex-basis (issue #58)
+const PANE_ROW_H = 56;               // .pane-card min-height
+const PANE_ROW_GAP = 8;              // .pane-cat-cards flex gap
 const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
 const SWAP_MS = 150;                 // board-swap crossfade; sequenced by timeout (§8-safe)
 const SAVE_DEBOUNCE = 300;
@@ -39,8 +44,16 @@ const LEAVE_MS = 120;
 const ACTION_DELAY = 400;            // click → action; the window is acknowledged, not idle
 
 const COPY = {
-  complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'Boards',
+  // "All boards" (issue #60): the menu item is a destination, and "Boards"
+  // alone read as a category label. One key renames every menu site at once;
+  // the #list-title page heading is not a menu and keeps its own text.
+  complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'All boards',
+  // Plural labels for a multi-selection (issue #55): the count is visible on
+  // the board itself — every member wears a ring — so the label says "all",
+  // not a number the user would have to reconcile.
+  completeAll: 'Complete all', restoreAll: 'Restore all', deleteAll: 'Delete all',
   deleted: 'Deleted', undo: 'Undo',
+  copy: 'Copy', copied: 'Copied', copyError: 'Couldn’t copy.',
   // One word, no ellipsis, no object noun — the menu's existing grammar. There
   // is exactly one export, so "to what?" has one answer; the day a second
   // format exists this has to become a submenu with PDF as the leaf.
@@ -49,11 +62,20 @@ const COPY = {
   exportLossy: 'Some characters aren’t in the PDF font.',
   saveError: 'Couldn’t save — retrying.',
   untitled: 'What’s up?',
+  // The rail's three categories (issue #58) and its pager's aria-labels.
+  catTodo: 'To-Do Boards', catIdea: 'Idea Boards', catUnsorted: 'Unsorted Boards',
+  pageFirst: 'First page', pagePrev: 'Previous page',
+  pageNext: 'Next page', pageLast: 'Last page',
 };
 // ⇩ is "out of the app, down to the device". Not ↓ (the browser-download
 // convention, borrowed rather than reasoned) and not 📄, which restates the
 // noun and puts a colour emoji against ▦'s geometric weight.
-const GLYPH = { complete: '✓', restore: '↺', boards: '▦', export: '⇩', delete: '🗑' };
+// ⧉ is "this, again, elsewhere" — two frames, one content; the note motif
+// doubled, in the set's geometric weight.
+const GLYPH = { complete: '✓', restore: '↺', boards: '▦', export: '⇩', copy: '⧉', delete: '🗑',
+                // Pager arrows (issue #58): guillemets read as "page" not
+                // "play", and they carry no emoji colour against the rail.
+                pageFirst: '«', pagePrev: '‹', pageNext: '›', pageLast: '»' };
 
 // contenteditable mode: prefer plaintext-only (Chromium/Samsung Internet — the
 // Z Fold target); fall back to "true" where unsupported so text still captures.
@@ -166,7 +188,6 @@ const el = {
   pane: document.getElementById('pane'),
   paneNew: document.getElementById('pane-new'),
   paneCards: document.getElementById('pane-cards'),
-  paneMore: document.getElementById('pane-more'),
 };
 const anchorEls = {
   title: document.getElementById('anchor-title'),
@@ -235,21 +256,28 @@ function applyLayout() {
   el.board.style.setProperty('--rs', renderScale);
   el.board.style.setProperty('--offx', offX + 'px');
   el.board.style.setProperty('--offy', offY + 'px');
-  // Before the loop: setHitInset measures offsetWidth, which the cap changes.
-  el.board.style.setProperty('--note-max-w', noteMaxW() + 'px');
   el.board.style.setProperty('--lot-h', lotH() + 'px');
-  // Re-derive each note's on-sheet x and y (proportional across frames) and its
-  // decoupled hit area (physical size changed).
+  // Re-derive each note's on-sheet x, y AND size (proportional across frames —
+  // the multiplier tracks LOGICAL_W, issue #57) and its decoupled hit area
+  // (physical size changed). Width cap FIRST (issue #53): setHitInset measures
+  // offsetWidth, which the cap changes.
   noteEls.forEach((node, id) => {
     const note = current && current.notes.find(n => n.id === id);
     if (note) {
+      applyNoteWidth(node, note);
       node.style.left = renderX(note) + 'px';
       node.style.top = renderY(note) + 'px';
+      node.style.transform = 'scale(' + effScale(note) + ')';
       setHitInset(node, note);
     }
   });
   if (selected) updateSelectionUI();
-  if (isDesktop && el.paneCards) updatePaneOverflow();
+  // Capacity check (issue #58, replacing the #pane-more overflow check B42
+  // supersedes): the per-page card budget is measured from the rail's height,
+  // so a resize that changes it must re-render — and re-paginate — the rail.
+  // paneCap is 0 until the first renderPane, so boot's renderBoard →
+  // applyLayout chain doesn't render the rail twice back to back.
+  if (isDesktop && el.paneCards && paneCap && panePageCap() !== paneCap) renderPane();
   // No letterbox now: the toast sits 12px above the screen's bottom edge.
   document.documentElement.style.setProperty('--toast-bottom', '12px');
 }
@@ -295,6 +323,17 @@ const toLogical = (clientX, clientY) => ({
    (visually silent: renderX equals the on-screen position at that instant). */
 const renderX = (note) => note.x * (LOGICAL_W / (note.rw || 900));
 
+/* Homothetic size (issue #57, B40): renderX's law, applied to visual scale.
+   Along x, position ×k and width ×k together preserve horizontal overlap
+   exactly for any change of sheet width — resizing the viewport resizes the
+   notes at the same ratio instead of sliding constant-size notes into each
+   other. y stays on renderY's height law, so when the two ratios diverge (an
+   aspect change) vertical clearances can still shift — accepted in B40. The
+   multiplier is never clamped: MIN/MAX_SCALE bound the *authored* scale at
+   gesture time, not this frame mapping. */
+const noteMult = (note) => LOGICAL_W / (note.rw || 900);
+const effScale = (note) => (note.scale || 1) * noteMult(note);   // ‖1: heal a scale-less legacy record
+
 /* Cross-frame y (B32) — the mirror of rw. B21 ruled y needed no counterpart
    because LOGICAL_H ≥ 1000 everywhere; at 1:1 the mobile height is vh, so that
    premise is gone and note.rh records the LOGICAL_H its y was last written
@@ -313,18 +352,35 @@ const renderY = (note) => note.rh
   : clamp(note.y * (LOGICAL_H / LEGACY_H), 0, Math.max(0, LOGICAL_H - HIT_FLOOR));
 
 function rebaseNote(note) {
+  // Fold the homothetic multiplier into the authored scale (issue #57, B40):
+  // effScale before equals note.scale after, so the grab is visually silent —
+  // and with mult ≡ 1 from here on, every gesture (drag footprints, pinch and
+  // resize scaling) runs in current-frame units unmodified. The folded scale
+  // may leave [MIN_SCALE, MAX_SCALE]; the gesture clamps widen to admit it.
+  const m = noteMult(note);
   note.x = renderX(note);
   note.y = renderY(note);
+  note.scale = (note.scale || 1) * m;  // ‖1 mirrors effScale: never fold NaN into storage
   note.rw = LOGICAL_W;
   note.rh = LOGICAL_H;
 }
 
-/* PRD §6.2's cap is "45% of board width"; 405 was that fraction of the fixed
-   900 sheet, and at 1:1 a fixed 405 is ~98% of a phone — no cap at all, and the
-   spatial board collapses into one column. Desktop keeps the literal: its
-   LOGICAL_W is derived per layout (B20), and 45% of it would widen desktop
-   notes to ~570px, which B32 does not license. */
-const noteMaxW = () => isDesktop ? MAX_NOTE_W : Math.round(LOGICAL_W * 0.45);
+/* A note has no predetermined width (issue #53, B39): its text wraps only at
+   the sheet's right edge. The cap is the remaining distance to that edge in
+   the note's own unscaled units — which reduces to (rw − x)/scale in authored
+   units, so it is frame-invariant: wrapping is identical on every device and
+   in the PDF (exportNoteBox restates it against the 900 frame). Floored at
+   NOTE_MIN_W so an edge-adjacent note stays a usable column rather than a
+   zero-width sliver. The old 405/45% cap (PRD §6.2) is superseded. */
+const noteMaxW = (note) =>
+  Math.max(NOTE_MIN_W, (LOGICAL_W - renderX(note)) / effScale(note));
+
+/* The cap lives on the NOTE element (custom properties inherit, so .note-text
+   keeps reading the var). Set it BEFORE anything measures offsetWidth — the
+   cap changes what offsetWidth reports (setHitInset's constraint, B7). */
+function applyNoteWidth(node, note) {
+  node.style.setProperty('--note-max-w', noteMaxW(note) + 'px');
+}
 
 /* The Parking Lot's visible row budget (B37, issue #49). Whole rows only: a row
    is a 44px hit target (§6) and #lot-items clips, so a fraction of the sheet
@@ -338,7 +394,7 @@ const lotH = () => LOT_HEAD + LOT_ROW * (LOGICAL_H >= LOT_3ROW_MIN_H ? 3 : 2);
 
 function setHitInset(node, note) {
   const w = node.offsetWidth, h = node.offsetHeight;   // logical (transform-independent)
-  const k = note.scale * renderScale;
+  const k = effScale(note) * renderScale;              // what the note draws at (issue #57)
   const physW = w * k, physH = h * k;
   const floor = isDesktop ? HIT_FLOOR_DESKTOP : HIT_FLOOR;
   const inset = Math.max(0, (floor - physW) / 2, (floor - physH) / 2) / (k || 1);
@@ -403,9 +459,10 @@ function makeNoteEl(note) {
   node.className = 'note' + (note.state === 'complete' ? ' complete' : '');
   node.dataset.id = note.id;
   node.setAttribute('tabindex', '0');
+  applyNoteWidth(node, note);                               // wrap at the sheet edge (issue #53)
   node.style.left = renderX(note) + 'px';
   node.style.top = renderY(note) + 'px';
-  node.style.transform = 'scale(' + note.scale + ')';
+  node.style.transform = 'scale(' + effScale(note) + ')';   // homothetic (issue #57)
 
   const text = document.createElement('div');
   text.className = 'note-text';
@@ -495,6 +552,14 @@ el.board.addEventListener('pointerdown', onPointerDown);
 
 function onPointerDown(e) {
   if (swallowTap) { swallowTap = false; return; }  // this press only dismissed a menu (B30)
+  // Secondary/middle presses are inert to the recognizer (issue #55): a
+  // right-click must reach the contextmenu listener with no gesture context
+  // armed, or the press underneath the menu would drag/select/create. The
+  // preventDefault stops the press from natively focusing a tabindexed note —
+  // focusin's Tab-selects rule would collapse a multi-selection before the
+  // contextmenu listener could act on it. contextmenu still fires: it is not
+  // a compatibility mouse event, so canceling pointerdown leaves it alone.
+  if (e.button !== 0) { e.preventDefault(); return; }
   if (isEditing(e.target)) return;                 // let text editing receive taps/caret
   // Past that guard the recognizer owns this press outright, so the browser's
   // compatibility mouse events are suppressed at their source (B27). They are
@@ -506,8 +571,11 @@ function onPointerDown(e) {
   e.preventDefault();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY });
 
-  // Second pointer on a note in progress → pinch.
-  if (pointers.size === 2 && g && g.target.type === 'note') {
+  // Second pointer on a note in progress → pinch — but never on a group drag
+  // (issue #55): scaling is single-selection only, and startPinch knows one
+  // note. The extra pointer is simply ignored and the group drag continues
+  // under the first (a touchscreen laptop can be desktop-mode, B19).
+  if (pointers.size === 2 && g && g.target.type === 'note' && !g.group) {
     startPinch();
     return;
   }
@@ -517,10 +585,15 @@ function onPointerDown(e) {
   g = {
     target, pointerId: e.pointerId,
     startX: e.clientX, startY: e.clientY,
+    shift: e.shiftKey,                             // multi-select modifier (issue #55)
     mode: 'pending', longPressed: false, moved: false,
     note: target.type === 'note' ? current.notes.find(n => n.id === target.node.dataset.id) : null,
   };
-  if (isDesktop && target.type === 'sel-frame' && selected && selected.kind === 'note') {
+  // Resize is single-selection only, by design (issue #55): with two or more
+  // selected the CSS hides the grip, and this guard keeps the gesture honest
+  // even if a stray hit reaches the frame.
+  if (isDesktop && target.type === 'sel-frame' && selected && selected.kind === 'note' &&
+      multiSel.size <= 1) {
     startResize(e);
   }
   try { el.board.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
@@ -570,7 +643,7 @@ function onPointerUp(e) {
 
   if (g.mode === 'drag') { endDrag(); }
   else if (g.mode === 'resize') { endResize(); }
-  else if (g.mode === 'pending' && !g.longPressed && !g.moved) { handleTap(g.target, e.clientX, e.clientY); }
+  else if (g.mode === 'pending' && !g.longPressed && !g.moved) { handleTap(g.target, e.clientX, e.clientY, g.shift); }
   g = null;
 }
 
@@ -584,6 +657,19 @@ function onPointerUp(e) {
 function isEditing(node) {
   const ed = node.closest && node.closest('[contenteditable]');
   return !!(ed && document.activeElement === ed);
+}
+
+/* Commit an open editor before a tap acts on an item (issue #54): the
+   recognizer suppressed the native blur (B27), so the commit is explicit.
+   Returns true when the tap is spent — it landed on the edited element's own
+   hit collar, where the click only dismisses (edit and selection are mutually
+   exclusive, B22). One helper, one rule, every item branch. */
+function commitOpenEditor(node) {
+  const a = document.activeElement;
+  if (!isEditing(a)) return false;
+  const own = !!(node && node.contains(a));
+  a.blur();
+  return own;
 }
 
 /* Every click commits ACTION_DELAY after the release, never on the same frame.
@@ -626,55 +712,70 @@ function makeTapGhost(clientX, clientY) {
 /* No blanket pendingAction guard here (issue #13): delayAction carries its own
    drop-guard, so B18(d) holds exactly where an action fires — while inert taps
    (select, deselect) stay live even during an open window. */
-function handleTap(target, x, y) {
+function handleTap(target, x, y, shift) {
   switch (target.type) {
     case 'sel-btn': {
-      // Complete/Restore/Delete — real actions, so B18's window applies.
+      // Complete/Restore/Copy/Delete — every button runs through B18's window,
+      // Copy included: one grammar for the row, and the drain animation is the
+      // acknowledgment a clipboard write otherwise lacks (issue #59). Copy of
+      // a completed item is allowed — the record still holds the text.
       const lotRow = target.node.closest('.lot-item');
       const isDel = target.node.classList.contains('sel-delete');
+      const isCopy = target.node.classList.contains('sel-copy');
       delayAction(target.node, () => {
         if (lotRow) {
           const item = current.parkingLot.find(i => i.id === lotRow.dataset.id);
           if (!item) return;
-          if (isDel) { clearSelection(); deleteLot(lotRow); }
+          if (isCopy) copyText(item.text);
+          else if (isDel) { clearSelection(); deleteLot(lotRow); }
           else {
             if (item.state === 'complete') restoreLot(lotRow); else completeLot(lotRow);
             updateSelectionUI();
           }
         } else if (selected && selected.kind === 'note') {
-          const node = noteEls.get(selected.id);
+          // The note branch acts on the WHOLE selection (issue #55): with one
+          // note selected these are byte-for-byte the old single-note actions.
+          const ids = selectedNoteIds();
           const note = current.notes.find(n => n.id === selected.id);
-          if (!node || !note) return;
-          if (isDel) { clearSelection(); deleteNote(node); }
-          else {
-            if (note.state === 'complete') restoreNote(node); else completeNote(node);
-            updateSelectionUI();
+          if (!note || !ids.length) return;
+          if (isCopy) {
+            // Every selected note's text, primary first, one per line — a
+            // single selection is today's copy unchanged.
+            copyText(ids.map(id => {
+              const n = current.notes.find(m => m.id === id);
+              return n ? n.text : '';
+            }).join('\n'));
           }
+          else if (isDel) deleteNotes(ids);      // one B18 window → one Undo
+          else setSelectedNotesState(note.state === 'complete');  // primary keys the direction
         }
       });
       break;
     }
     case 'sel-frame': break;           // a motionless click on the ring does nothing
     case 'canvas': {
-      // Creation surfaces deselect first (issue #12 desktop / #41 mobile): with
-      // a selection active, or a note mid-edit, a tap only dismisses; capture
-      // is only primary when nothing is selected or being edited.
+      // Click-away while editing commits and only dismisses (issue #54). This
+      // guard is mode-independent and must come BEFORE the selected check:
+      // while editing nothing is selected (edit paths clear selection first),
+      // and the recognizer suppressed the native blur (B27), so without it a
+      // desktop click fell through to the tap-ghost and created a note on top
+      // of the dismissal. The NEXT click creates (ghost + B18 window).
+      if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
+      // Creation surfaces deselect first (issue #12 desktop / #41 mobile):
+      // with a selection active a tap only dismisses; capture is only primary
+      // when nothing is selected or being edited.
       if (isDesktop && selected) { clearSelection(); break; }
-      if (!isDesktop) {
-        if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
-        createNote(x, y); break;                                // capture is instant (B27)
-      }
+      if (!isDesktop) { createNote(x, y); break; }              // capture is instant (B27)
       if (pendingAction) break;        // don't draw a ghost a dropped tap would orphan
       const ghost = makeTapGhost(x, y);
       delayAction(ghost, () => { ghost.remove(); createNote(x, y); });
       break;
     }
     case 'lot': {
+      // Same #54 law as canvas: an open editor commits and the tap is spent.
+      if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
       if (isDesktop && selected) { clearSelection(); break; }   // creation surface too
-      if (!isDesktop) {
-        if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
-        createLotItem(); break;                                 // B27
-      }
+      if (!isDesktop) { createLotItem(); break; }               // B27
       delayAction(el.lot, createLotItem);
       break;
     }
@@ -683,6 +784,16 @@ function handleTap(target, x, y) {
       const note = current.notes.find(n => n.id === node.dataset.id);
       if (!note) break;
       if (isDesktop) {
+        // An open editor commits before the click acts (issue #54); on the
+        // edited note's own collar the click only dismisses.
+        if (commitOpenEditor(node)) break;
+        // Shift-click toggles multi-selection membership (issue #55) and
+        // never pairs into the double-click window.
+        if (shift) {
+          toggleInSelection(note.id);
+          lastTap = { key: null, t: 0 };
+          break;
+        }
         // Click selects (instant, inert); a second click within the pairing
         // window edits with the caret at the end (issue #4). Completed notes
         // never edit — same guard as the mobile tap path.
@@ -710,6 +821,9 @@ function handleTap(target, x, y) {
       const item = current.parkingLot.find(i => i.id === node.dataset.id);
       if (!item) break;
       if (isDesktop) {
+        // Same #54 commit-first guard as the note branch. Lot rows stay
+        // single-select (issue #55) — no shift path here, by design.
+        if (commitOpenEditor(node)) break;
         const key = 'lot:' + item.id, now = Date.now();
         if (selected && selected.kind === 'lot' && selected.id === item.id &&
             lastTap.key === key && now - lastTap.t < DBLCLICK_MS) {
@@ -809,7 +923,15 @@ document.addEventListener('focusin', (e) => {
   } else if (t.classList.contains('note')) {
     const note = current && current.notes.find(n => n.id === t.dataset.id);
     if (!note) return;
-    if (isDesktop) { selectNote(note.id); return; }    // Tab selects; Enter edits (issue #13)
+    if (isDesktop) {
+      // Tab selects; Enter edits (issue #13) — EXCEPT the menu's own focus
+      // return (issue #55): closeMenu hands focus back to the right-clicked
+      // member, and that hand-back must not collapse the multi-selection the
+      // menu just acted on. A real Tab onto a member still selects it, so
+      // keyboard focus and selection never diverge outside that one call.
+      if (!(menuReturnFocus && multiSel.size > 1 && multiSel.has(note.id))) selectNote(note.id);
+      return;
+    }
     if (note.state === 'active') editText(t.querySelector('.note-text'));
   } else if (t.classList.contains('lot-item')) {
     const item = current && current.parkingLot.find(i => i.id === t.dataset.id);
@@ -830,6 +952,8 @@ document.addEventListener('keydown', (e) => {
     else if (selected) clearSelection();
   } else if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !editing) {
     e.preventDefault();
+    // A multi-selection deletes as one batch with one Undo (issue #55).
+    if (selected.kind === 'note' && multiSel.size > 1) { deleteNotes(selectedNoteIds()); return; }
     const s = selected;
     clearSelection();
     if (s.kind === 'note') { const n = noteEls.get(s.id); if (n) deleteNote(n); }
@@ -881,6 +1005,7 @@ function commitNote(node) {
 }
 function removeNoteSilently(note, node) {
   if (selected && selected.kind === 'note' && selected.id === note.id) clearSelection();
+  else dropFromSelection(note.id);     // set hygiene for a non-primary member (issue #55)
   const i = current.notes.indexOf(note);
   if (i >= 0) current.notes.splice(i, 1);
   node.remove(); noteEls.delete(note.id);
@@ -913,30 +1038,147 @@ function startDrag() {
   g.target.node.classList.add('pressed');
   surfaceNote(g.target.node);
   const note = g.note;
+  const startLogical = toLogical(g.startX, g.startY);
+  // Group drag (issue #55): grabbing a MEMBER of a multi-selection moves every
+  // member by the same delta. Only the grabbed note surfaces (above) — the
+  // others keep their z-order; every member wears .pressed. Grabbing a
+  // non-member falls through to the single path, which collapses the set
+  // (selectNote below) — today's behavior.
+  if (isDesktop && multiSel.size > 1 && multiSel.has(note.id)) {
+    g.group = [];
+    for (const id of selectedNoteIds()) {
+      const n = current.notes.find(m => m.id === id);
+      const memberNode = noteEls.get(id);
+      if (!n || !memberNode) continue;
+      // Per-member rebase — the one licensed grab-time write (B21), which
+      // with B40 also folds each member's scale multiplier; visually silent.
+      rebaseNote(n);
+      const fw = memberNode.offsetWidth * n.scale, fh = memberNode.offsetHeight * n.scale;
+      g.group.push({
+        note: n, node: memberNode, x0: n.x, y0: n.y,
+        // Per-member bounds, widened to admit the grab position exactly as
+        // the single path below (B40). Members hitting different clamps can
+        // compress the group's relative geometry at the sheet edge — accepted
+        // (B41): the alternative is a note the group can never park flush.
+        minX: Math.min(0, n.x), maxX: Math.max(n.x, Math.max(0, LOGICAL_W - fw)),
+        minY: Math.min(0, n.y), maxY: Math.max(n.y, Math.max(0, LOGICAL_H - fh)),
+      });
+      memberNode.classList.add('pressed');
+    }
+    g.groupX0 = startLogical.x; g.groupY0 = startLogical.y;
+    setSelectionHidden(true);
+    return;
+  }
   rebaseNote(note);                  // grab math runs in current-frame units (issue #15)
   if (isDesktop) { selectNote(note.id); setSelectionHidden(true); }
-  const startLogical = toLogical(g.startX, g.startY);
   g.grabDX = startLogical.x - note.x;
   g.grabDY = startLogical.y - note.y;
-}
-function updateDrag(e) {
-  const note = g.note, node = g.target.node;
-  const pt = toLogical(e.clientX, e.clientY);
+  // Outer x range, fixed once and widened to include the grab position (B40):
+  // a cross-frame note can arrive bigger than the sheet or past its edge, and
+  // a plain [0, max(0, sheet − foot)] range would teleport it on the first
+  // move — the visually-silent-grab promise broken by its own clamp. Since
+  // issue #53 the footprint can change mid-drag (moving right tightens the
+  // edge cap and the text rewraps narrower and taller), so the x bound admits
+  // the narrowest the note can become — the NOTE_MIN_W floor, or its whole
+  // footprint if that is already narrower — and y takes no fixed upper bound
+  // at all: settleDragFoot derives it per move from the measured height, less
+  // dragOverY, the bottom overhang the grab itself admitted.
+  const node = g.target.node;
   const footW = node.offsetWidth * note.scale, footH = node.offsetHeight * note.scale;
-  note.x = clamp(pt.x - g.grabDX, 0, Math.max(0, LOGICAL_W - footW));
-  note.y = clamp(pt.y - g.grabDY, 0, Math.max(0, LOGICAL_H - footH));
+  g.dragMinX = Math.min(0, note.x);
+  g.dragMaxX = Math.max(note.x,
+    Math.max(0, LOGICAL_W - Math.min(footW, NOTE_MIN_W * note.scale)));
+  g.dragMinY = Math.min(0, note.y);
+  g.dragOverY = Math.max(0, note.y + footH - LOGICAL_H);
+  // Reflow-guard caches (issue #53): the cap the node is wearing right now
+  // (the grab rebase cannot have changed it — (rw−x)/scale is fold-invariant)
+  // and the size measured under it. settleDragFoot skips the layout-forcing
+  // write+read while these prove the cap cannot bind.
+  g.dragCap = noteMaxW(note);
+  g.dragW = node.offsetWidth;
+  g.dragH = node.offsetHeight;
+}
+
+/* Shared tail of every drag move and the drop (issue #53): cap at the current
+   x, measure the rewrapped footprint, keep it on the sheet.
+   - x: a rewrapped foot that still overhangs means the cap was floored at
+     NOTE_MIN_W, so pulling x back to the edge leaves the applied cap exact
+     (max(NOTE_MIN_W, foot/scale) = NOTE_MIN_W) — the narrower-cap → rewrap →
+     smaller-foot loop converges in this one pass, at worst at
+     x = LOGICAL_W − NOTE_MIN_W·scale (the note is rebased: effScale ≡ scale).
+   - y: the rewrap changes the HEIGHT too, so the bottom bound comes from the
+     live measure — plus dragOverY, so an oversized cross-frame arrival (B40)
+     keeps its admitted overhang instead of teleporting; only overhang this
+     drag's own rewrap creates is pulled back onto the sheet.
+   The var write + offsetWidth read force a synchronous layout on a path that
+   runs per pointermove, so both are skipped while the cap provably cannot
+   bind: the note sits at its natural width below the applied cap, and the new
+   cap stays at or above that width. The drop passes force — the committed
+   note must wear the exact cap, never the guard's stale one. */
+function settleDragFoot(note, node, force) {
+  const cap = noteMaxW(note);
+  if (force || g.dragW > g.dragCap - 1 || cap < g.dragW) {
+    applyNoteWidth(node, note);
+    g.dragCap = cap;
+    g.dragW = node.offsetWidth;
+    g.dragH = node.offsetHeight;
+  }
+  const footW = g.dragW * note.scale, footH = g.dragH * note.scale;
+  if (note.x + footW > LOGICAL_W) note.x = Math.max(g.dragMinX, LOGICAL_W - footW);
+  note.y = Math.min(note.y, Math.max(g.dragMinY, LOGICAL_H - footH + g.dragOverY));
   node.style.left = note.x + 'px';
   node.style.top = note.y + 'px';
 }
+
+function updateDrag(e) {
+  const pt = toLogical(e.clientX, e.clientY);
+  if (g.group) {
+    // One delta for the whole group, clamped per member (issue #55).
+    const dx = pt.x - g.groupX0, dy = pt.y - g.groupY0;
+    for (const m of g.group) {
+      m.note.x = clamp(m.x0 + dx, m.minX, m.maxX);
+      m.note.y = clamp(m.y0 + dy, m.minY, m.maxY);
+      m.node.style.left = m.note.x + 'px';
+      m.node.style.top = m.note.y + 'px';
+    }
+    return;
+  }
+  const note = g.note, node = g.target.node;
+  note.x = clamp(pt.x - g.grabDX, g.dragMinX, g.dragMaxX);
+  note.y = Math.max(g.dragMinY, pt.y - g.grabDY);   // upper bound lives in the settle
+  settleDragFoot(note, node, false);
+}
 function endDrag() {
-  g.target.node.classList.remove('pressed');
+  if (g.group) {
+    // One write for the whole group (issue #55). The drag held grab-time
+    // bounds, so no member overhangs; at the drop each settles onto the exact
+    // cap for its resting x (issue #53) — never tighter than what the clamp
+    // admitted, so nothing jumps, and a leftward member may re-widen.
+    for (const m of g.group) {
+      applyNoteWidth(m.node, m.note);
+      setHitInset(m.node, m.note);
+      m.node.classList.remove('pressed');
+    }
+    g.target.node.classList.remove('pressed');
+    saveNow();
+    if (isDesktop) updateSelectionUI();
+    return;
+  }
+  const note = g.note, node = g.target.node;
+  // One final, forced settle at the resting x before the write. Legal under
+  // B17: the re-clamp runs inside the gesture, which owns its writes — B17
+  // forbids viewport re-clamps of committed positions only.
+  settleDragFoot(note, node, true);
+  setHitInset(node, note);           // the drag can have rewrapped the note (issue #53)
+  node.classList.remove('pressed');
   saveNow();
   if (isDesktop) updateSelectionUI();  // reposition + unhide at the drop point
 }
 
-/* Pinch (PRD §6.3 / UIUX §5): transform scale only, clamp 0.5–2.0,
-   transform-origin top-left so stored x,y stays truthful and the note
-   doesn't drift; re-clamp position if the grown footprint exits the page. */
+/* Pinch (PRD §6.3 / UIUX §5): transform scale only, clamp 0.5–2.0 (bounds
+   widen to admit a folded cross-frame scale, B40), transform-origin top-left
+   so stored x,y stays truthful and the note doesn't drift; re-clamp position
+   if the grown footprint exits the page. */
 function startPinch() {
   clearTimeout(g.longPressTimer);
   if (g.mode === 'drag') g.target.node.classList.remove('pressed');
@@ -953,20 +1195,35 @@ function startPinch() {
 function applyNoteScale(note, node, scale) {
   note.scale = scale;
   node.style.transform = 'scale(' + scale + ')';
+  // Scale changes the unscaled cap — (LOGICAL_W − x)/scale — so re-derive the
+  // width var before offsetWidth is read (issue #53): growing a note near the
+  // edge rewraps its text narrower instead of pushing it off the sheet.
+  applyNoteWidth(node, note);
   const footW = node.offsetWidth * scale, footH = node.offsetHeight * scale;
-  note.x = clamp(note.x, 0, Math.max(0, LOGICAL_W - footW));
-  note.y = clamp(note.y, 0, Math.max(0, LOGICAL_H - footH));
+  // A footprint can exceed the sheet only via a folded cross-frame scale
+  // (B40); there the old [0, max(0, sheet − foot)] range degenerates to [0,0]
+  // and pins the note to the corner. Min/max of the same pair inverts the
+  // constraint instead — sheet-inside-note where note-inside-sheet is
+  // impossible. For a fitting note this is the old clamp unchanged.
+  note.x = clamp(note.x, Math.min(0, LOGICAL_W - footW), Math.max(0, LOGICAL_W - footW));
+  note.y = clamp(note.y, Math.min(0, LOGICAL_H - footH), Math.max(0, LOGICAL_H - footH));
   node.style.left = note.x + 'px';
   node.style.top = note.y + 'px';
   setHitInset(node, note);
 }
 
+/* The widened gesture clamp (issue #57, B40): bounds admit the start value, so
+   a folded cross-frame scale outside [MIN_SCALE, MAX_SCALE] never snaps at
+   gesture start — yet it can always be scaled back into the authored range,
+   and never further out. Shared by pinch and frame-drag resize (B22). */
+const gestureScale = (start, f) =>
+  clamp(start * f, Math.min(MIN_SCALE, start), Math.max(MAX_SCALE, start));
+
 function updatePinch() {
   const pts = [...pointers.values()];
   if (pts.length < 2) return;
   const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-  applyNoteScale(g.note, g.target.node,
-    clamp(g.startScale * (dist / g.startDist), MIN_SCALE, MAX_SCALE));
+  applyNoteScale(g.note, g.target.node, gestureScale(g.startScale, dist / g.startDist));
 }
 function endPinch() {
   if (g) { g.target.node.classList.remove('pressed'); saveNow(); }
@@ -999,7 +1256,68 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
    native listeners inside #board are unreliable by construction. */
 let selected = null;                 // { kind: 'note'|'lot', id }
 let lastTap = { key: null, t: 0 };   // double-click pairing across taps
-let selEl = null, selActions = null, selPrimary = null, selDelete = null;
+let selEl = null, selActions = null, selPrimary = null, selCopy = null, selDelete = null;
+
+/* Multi-selection (issue #55, B41): desktop NOTES only — lot rows stay
+   single-select by design (their inline buttons live on the row, and a lot
+   line is a list entry, not a spatial object worth herding). `selected` stays
+   the PRIMARY — every existing `selected &&` guard is untouched — and this set
+   holds the member ids when two or more notes are selected. Invariant: the set
+   is empty (today's single selection, bit-for-bit) or has size ≥ 2 and
+   contains the primary. The primary wears the one #selection overlay; every
+   other member wears .multi-selected, whose CSS outline tracks the node with
+   zero JS positioning. */
+const multiSel = new Set();
+
+// The selection as an id array, primary first — the order bulk actions run in.
+function selectedNoteIds() {
+  if (!selected || selected.kind !== 'note') return [];
+  const ids = [selected.id];
+  for (const id of multiSel) if (id !== selected.id) ids.push(id);
+  return ids;
+}
+
+/* Shift-click semantics (issue #55): toggle membership. Adding makes the
+   clicked note the primary; removing the primary promotes another member;
+   removing the last member clears. A set that would end at size 1 collapses
+   back to a plain single selection, keeping the invariant. */
+function toggleInSelection(id) {
+  if (!noteEls.get(id)) return;
+  if (!selected || selected.kind !== 'note') { selectNote(id); return; }
+  const members = new Set(multiSel.size ? multiSel : [selected.id]);
+  let primary;
+  if (members.has(id)) {
+    members.delete(id);
+    if (!members.size) { clearSelection(); return; }
+    primary = selected.id === id ? members.values().next().value : selected.id;
+  } else {
+    members.add(id);
+    primary = id;                      // the note just added leads
+  }
+  clearSelection();                    // strips rings, overlay, and the set
+  selectNote(primary);                 // the one overlay, on the primary
+  if (members.size > 1) {
+    for (const m of members) {
+      multiSel.add(m);
+      if (m !== primary) {
+        const node = noteEls.get(m);
+        if (node) node.classList.add('multi-selected');
+      }
+    }
+    updateSelectionUI();               // picks up the `multi` class
+  }
+}
+
+/* Note-removal hygiene (issue #55): a non-primary member that leaves the board
+   leaves the set (the primary's removal routes through clearSelection). A set
+   of one collapses back to a plain single selection. */
+function dropFromSelection(id) {
+  if (!multiSel.delete(id)) return;
+  const node = noteEls.get(id);
+  if (node) node.classList.remove('multi-selected');
+  if (multiSel.size === 1) multiSel.clear();
+  if (selEl) selEl.classList.toggle('multi', multiSel.size > 1);
+}
 
 function ensureSelectionEl() {
   if (selEl) return;
@@ -1026,15 +1344,25 @@ function ensureSelectionEl() {
   selActions.className = 'sel-actions';
   selPrimary = document.createElement('button');
   selPrimary.type = 'button'; selPrimary.className = 'sel-btn sel-complete';
+  // Copy sits between them (issue #59): Complete · Copy · Delete — the same
+  // non-destructive-first, destructive-last order as the long-press menu (B43).
+  selCopy = document.createElement('button');
+  selCopy.type = 'button'; selCopy.className = 'sel-btn sel-copy';
+  selCopy.textContent = COPY.copy;
   selDelete = document.createElement('button');
   selDelete.type = 'button'; selDelete.className = 'sel-btn sel-delete';
   selDelete.textContent = COPY.delete;
-  selActions.appendChild(selPrimary); selActions.appendChild(selDelete);
+  selActions.appendChild(selPrimary); selActions.appendChild(selCopy);
+  selActions.appendChild(selDelete);
   selEl.appendChild(selActions);
 }
 
 function selectNote(id) {
-  if (selected && selected.kind === 'note' && selected.id === id) { updateSelectionUI(); return; }
+  // Re-selecting the primary is a no-op only while the selection is single: a
+  // plain click on the primary of a multi-selection collapses it (issue #55).
+  if (selected && selected.kind === 'note' && selected.id === id && multiSel.size === 0) {
+    updateSelectionUI(); return;
+  }
   clearSelection();
   const node = noteEls.get(id);
   if (!node) return;
@@ -1058,15 +1386,27 @@ function selectLot(id) {
   act.className = 'lot-actions';
   const p = document.createElement('button');
   p.type = 'button'; p.className = 'sel-btn sel-complete';
+  const c = document.createElement('button');
+  c.type = 'button'; c.className = 'sel-btn sel-copy';
+  c.textContent = COPY.copy;                     // lot rows copy too (issue #59)
   const d = document.createElement('button');
   d.type = 'button'; d.className = 'sel-btn sel-delete';
   d.textContent = COPY.delete;
-  act.appendChild(p); act.appendChild(d);
+  act.appendChild(p); act.appendChild(c); act.appendChild(d);
   node.appendChild(act);
   updateSelectionUI();
 }
 
 function clearSelection() {
+  // Rings first: the whole set goes when the selection goes (issue #55) —
+  // applyMode's teardown and renderBoard's rebuild both land here.
+  if (multiSel.size) {
+    for (const id of multiSel) {
+      const node = noteEls.get(id);
+      if (node) node.classList.remove('multi-selected');
+    }
+    multiSel.clear();
+  }
   if (!selected) return;
   if (selected.kind === 'note') {
     const node = noteEls.get(selected.id);
@@ -1093,13 +1433,16 @@ function updateSelectionUI() {
     const note = current.notes.find(n => n.id === selected.id);
     const node = noteEls.get(selected.id);
     if (!note || !node || !selEl) return;
-    const w = node.offsetWidth * note.scale, h = node.offsetHeight * note.scale;
+    const w = node.offsetWidth * effScale(note), h = node.offsetHeight * effScale(note);
     selEl.style.left = renderX(note) + 'px';
     const top = renderY(note);
     selEl.style.top = top + 'px';
     selEl.style.width = w + 'px';
     selEl.style.height = h + 'px';
     selPrimary.textContent = note.state === 'complete' ? COPY.restore : COPY.complete;
+    // Two or more selected: the overlay drops its resize grip (edges +
+    // handles, hidden in CSS) — resize is single-selection only (issue #55).
+    selEl.classList.toggle('multi', multiSel.size > 1);
     // Buttons sit under the bottom frame edge; flip above when they'd leave the page.
     selActions.classList.toggle('above', top + h + 64 > LOGICAL_H);
     setSelectionHidden(false);
@@ -1132,8 +1475,7 @@ function startResize(e) {
 function updateResize(e) {
   const pt = toLogical(e.clientX, e.clientY);
   const dist = Math.hypot(pt.x - g.originX, pt.y - g.originY);
-  applyNoteScale(g.note, g.target.node,
-    clamp(g.startScale * (dist / g.grabDist), MIN_SCALE, MAX_SCALE));
+  applyNoteScale(g.note, g.target.node, gestureScale(g.startScale, dist / g.grabDist));
 }
 function endResize() {
   g.target.node.classList.remove('pressed');
@@ -1142,16 +1484,16 @@ function endResize() {
 }
 
 /* --- 9. Complete / restore / delete + Undo toast ------------------------- */
-function completeNote(node) {
+// State + presentation together, no write: the single-note wrappers below add
+// their own saveNow, the bulk path (issue #55) saves once for the whole set.
+function setNoteState(node, complete) {
   const note = current.notes.find(n => n.id === node.dataset.id);
-  note.state = 'complete'; node.classList.add('complete');
-  applyCompleteA11y(node, true); saveNow();
+  note.state = complete ? 'complete' : 'active';
+  node.classList.toggle('complete', complete);
+  applyCompleteA11y(node, complete);
 }
-function restoreNote(node) {
-  const note = current.notes.find(n => n.id === node.dataset.id);
-  note.state = 'active'; node.classList.remove('complete');
-  applyCompleteA11y(node, false); saveNow();
-}
+function completeNote(node) { setNoteState(node, true); saveNow(); }
+function restoreNote(node) { setNoteState(node, false); saveNow(); }
 function completeLot(node) {
   const item = current.parkingLot.find(i => i.id === node.dataset.id);
   item.state = 'complete'; node.classList.add('complete');
@@ -1163,21 +1505,9 @@ function restoreLot(node) {
   applyCompleteA11y(node, false); saveNow();
 }
 
-function deleteNote(node) {
-  if (selected && selected.kind === 'note' && selected.id === node.dataset.id) clearSelection();
-  const note = current.notes.find(n => n.id === node.dataset.id);
-  const index = current.notes.indexOf(note);
-  const snapshot = JSON.parse(JSON.stringify(note));
-  current.notes.splice(index, 1);
-  leave(node, () => { node.remove(); noteEls.delete(note.id); });
-  saveNow();
-  showUndo(() => {
-    current.notes.splice(index, 0, snapshot);          // exact z-order
-    el.board.appendChild(makeNoteEl(snapshot));
-    reorderNotesDOM();
-    saveNow();
-  });
-}
+// One id through the batch path (issue #55): same snapshot, same splice, same
+// index-restoring Undo — one implementation to keep honest.
+function deleteNote(node) { deleteNotes([node.dataset.id]); }
 function deleteLot(node) {
   if (selected && selected.kind === 'lot' && selected.id === node.dataset.id) clearSelection();
   const item = current.parkingLot.find(i => i.id === node.dataset.id);
@@ -1194,6 +1524,51 @@ function deleteLot(node) {
     saveNow();
   });
 }
+/* Bulk delete with ONE Undo (issue #55): the whole selection leaves in one
+   B18 window, one save, one toast — and the Undo re-inserts every note at its
+   original index and restores DOM order, so a delete-all + undo is a no-op.
+   Snapshots are taken ascending so re-inserting ascending lands each index
+   exactly. deleteNote is a one-id call through this same path, so single and
+   batch deletes cannot diverge. */
+function deleteNotes(ids) {
+  const wanted = new Set(ids);
+  const snap = [];
+  current.notes.forEach((n, i) => {
+    if (wanted.has(n.id)) snap.push({ note: JSON.parse(JSON.stringify(n)), index: i });
+  });
+  if (!snap.length) return;
+  clearSelection();
+  for (let i = snap.length - 1; i >= 0; i--) {       // descending: indices stay valid
+    const s = snap[i];
+    current.notes.splice(s.index, 1);
+    const node = noteEls.get(s.note.id);
+    if (node) leave(node, () => { node.remove(); noteEls.delete(s.note.id); });
+  }
+  saveNow();
+  showUndo(() => {
+    for (const s of snap) {                          // ascending: exact z-order back
+      current.notes.splice(s.index, 0, s.note);
+      el.board.appendChild(makeNoteEl(s.note));
+    }
+    reorderNotesDOM();
+    saveNow();
+  });
+}
+
+/* Complete or restore every selected note in one pass (issue #55). The caller
+   picks the direction — the sel-btn keys off the PRIMARY's state, the context
+   menu off the whole set — and each member is SET, not toggled, so a mixed
+   selection lands uniform. One save for the whole action, like endDrag and
+   deleteNotes. */
+function setSelectedNotesState(restore) {
+  for (const id of selectedNoteIds()) {
+    const node = noteEls.get(id);
+    if (node) setNoteState(node, !restore);
+  }
+  saveNow();
+  updateSelectionUI();
+}
+
 // Rebuild note DOM order to match array order (used after undo-insert).
 function reorderNotesDOM() {
   for (const note of current.notes) {
@@ -1229,21 +1604,30 @@ function showUndo(undoFn, scope) {
 function hideToast() {
   delete el.toast.dataset.mode;
   delete el.toast.dataset.scope;
+  delete el.toast.dataset.seq;
   el.toast.classList.remove('show');
   setTimeout(() => { if (!el.toast.classList.contains('show')) el.toast.hidden = true; }, 160);
 }
 /* A message with no action. `save` is persistent (hideSaveError clears it when
-   the write lands); `export` carries a ttl, because nothing later will come
-   along to retract it. */
+   the write lands); `export` and `copy` carry a ttl, because nothing later will
+   come along to retract them. */
+let noticeSeq = 0;
 function showNotice(text, mode, ttl) {
   if (el.toast.dataset.mode === 'undo') return;        // never clobber a pending undo
+  // Each notice stamps the toast; the ttl timer only hides its own stamp. A
+  // mode check alone let a stale timer hide a newer same-mode notice early —
+  // copying two items inside 1.5s (issue #59) is how that became observable.
+  const seq = String(++noticeSeq);
   el.toast.dataset.mode = mode;
+  el.toast.dataset.seq = seq;
   el.toast.textContent = '';
   const msg = document.createElement('span'); msg.className = 'msg'; msg.textContent = text;
   el.toast.appendChild(msg);
   el.toast.hidden = false;
   requestAnimationFrame(() => el.toast.classList.add('show'));
-  if (ttl) setTimeout(() => { if (el.toast.dataset.mode === mode) hideToast(); }, ttl);
+  if (ttl) setTimeout(() => {
+    if (el.toast.dataset.mode === mode && el.toast.dataset.seq === seq) hideToast();
+  }, ttl);
 }
 function showSaveError() {
   // A retrying save re-announces itself on every attempt, so it can afford to
@@ -1255,9 +1639,40 @@ function hideSaveError() {
   if (el.toast.dataset.mode === 'save') { delete el.toast.dataset.mode; hideToast(); }
 }
 
+/* Copy an item's plain text — the record field, never the DOM (issue #59).
+   clipboard.writeText is the real API; where it's missing or rejects (insecure
+   origin, permission policy) fall back to the execCommand route through a
+   throwaway textarea. Success gets a short notice; failure gets a longer one,
+   because it is the only evidence anything went wrong. */
+function copyText(text) {
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    // The body forbids selection, so the textarea must opt back in or select()
+    // grabs nothing and execCommand copies nothing. Off-viewport, not hidden:
+    // a display:none control cannot hold a selection either.
+    ta.style.cssText =
+      'position:fixed;top:0;left:-9999px;user-select:text;-webkit-user-select:text;';
+    let done = false;
+    try {
+      document.body.appendChild(ta);
+      ta.select();
+      done = document.execCommand('copy');
+    } catch (err) { /* done stays false */ }
+    finally { ta.remove(); }
+    if (done) showNotice(COPY.copied, 'copy', 1500);
+    else showNotice(COPY.copyError, 'copy', UNDO_MS);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showNotice(COPY.copied, 'copy', 1500), fallback);
+  } else fallback();
+}
+
 /* --- 10. Long-press menu ------------------------------------------------- */
 let menuOpen = false, menuKeyHandler = null, menuOutsideHandler = null;
 let menuInvoker = null;              // desktop contextmenu: focus returns here on close
+let menuReturnFocus = false;         // true only inside closeMenu's synchronous focus return
 
 function openMenuFor(target, clientX, clientY) {
   let items = [];
@@ -1276,18 +1691,73 @@ function openMenuFor(target, clientX, clientY) {
                        : current.parkingLot.find(i => i.id === node.dataset.id);
     if (!rec) return;                // a menu over nothing has nothing to offer
     const completed = rec.state === 'complete';
-    // Order (UIUX §7): Complete/Restore · Boards · Delete (destructive last).
+    // Order (B43, issues #59/#60): All boards · Complete/Restore · Copy ·
+    // Delete. A1's Complete-first placement is superseded; UIUX §7's law —
+    // destructive last, in --danger, behind a hairline — still holds.
+    items.push({ label: COPY.boards, glyph: GLYPH.boards, action: goToList });
     if (completed) items.push({ label: COPY.restore, glyph: GLYPH.restore,
         action: () => (isNote ? restoreNote(node) : restoreLot(node)) });
     else items.push({ label: COPY.complete, glyph: GLYPH.complete,
         action: () => (isNote ? completeNote(node) : completeLot(node)) });
-    items.push({ label: COPY.boards, glyph: GLYPH.boards, action: goToList });
+    // Copy reads the live record, not a snapshot — an edit between open and
+    // act (impossible by gesture, cheap to honour) still copies the truth.
+    items.push({ label: COPY.copy, glyph: GLYPH.copy, action: () => copyText(rec.text) });
     items.push({ sep: true });
     items.push({ label: COPY.delete, glyph: GLYPH.delete, danger: true,
         action: () => (isNote ? deleteNote(node) : deleteLot(node)) });
   }
   buildMenu(items, clientX, clientY);
 }
+
+/* Desktop right-click on a note (issue #55): the selection's own menu, ONE
+   delegated listener. Right-click on empty canvas or the lot keeps the
+   BROWSER's native menu, and an active editor keeps its own (paste, spelling);
+   lot rows stay single-select with inline buttons, so they are not routed
+   here either. The recognizer never sees the press (button !== 0 guard), so
+   nothing underneath drags or creates. */
+el.board.addEventListener('contextmenu', (e) => {
+  if (!isDesktop) return;
+  if (isEditing(e.target)) return;     // the editor's own menu is the useful one
+  const target = classifyTarget(e.target);
+  if (target.type !== 'note') return;
+  const note = current.notes.find(n => n.id === target.node.dataset.id);
+  if (!note) return;                   // no record (a mid-leave husk): the native menu stands
+  e.preventDefault();
+  // #54's law holds here too: an editor open elsewhere commits before the
+  // menu acts on committed state.
+  commitOpenEditor(target.node);
+  // Outside the current multi-selection the right-click acts on the clicked
+  // note alone — select it (single) first, exactly like a plain click.
+  if (!(selected && selected.kind === 'note' &&
+        (selected.id === note.id || multiSel.has(note.id)))) selectNote(note.id);
+  const ids = selectedNoteIds();
+  if (!ids.length) return;
+  const many = ids.length > 1;
+  // The primary action flips to Restore only when EVERY selected note is
+  // complete — a mixed selection still reads Complete, which is the state it
+  // will make true. Singular labels when one note is selected (B43's grammar).
+  const allComplete = ids.every(id => {
+    const n = current.notes.find(m => m.id === id);
+    return n && n.state === 'complete';
+  });
+  const items = [
+    allComplete
+      ? { label: many ? COPY.restoreAll : COPY.restore, glyph: GLYPH.restore,
+          action: () => setSelectedNotesState(true) }
+      : { label: many ? COPY.completeAll : COPY.complete, glyph: GLYPH.complete,
+          action: () => setSelectedNotesState(false) },
+    { sep: true },                     // destructive last, behind the hairline (UIUX §7)
+    { label: many ? COPY.deleteAll : COPY.delete, glyph: GLYPH.delete, danger: true,
+      action: () => deleteNotes(selectedNoteIds()) },
+  ];
+  menuInvoker = target.node;           // focus returns to the note on close
+  let x = e.clientX, y = e.clientY;
+  if (!x && !y) {                      // Shift+F10 fires contextmenu at 0,0
+    const r = target.node.getBoundingClientRect();
+    x = r.left + r.width / 2; y = r.top + r.height / 2;
+  }
+  buildMenu(items, x, y);
+});
 
 function buildMenu(items, clientX, clientY) {
   closeMenu();
@@ -1359,7 +1829,12 @@ function closeMenu() {
   if (menuKeyHandler) document.removeEventListener('keydown', menuKeyHandler, true);
   if (menuOutsideHandler) document.removeEventListener('pointerdown', menuOutsideHandler, true);
   menuKeyHandler = menuOutsideHandler = null;
-  if (menuInvoker) { const m = menuInvoker; menuInvoker = null; m.focus(); }
+  if (menuInvoker) {
+    const m = menuInvoker; menuInvoker = null;
+    // focus() dispatches focusin synchronously; the flag scopes the multi-
+    // selection exemption to exactly this call (issue #55).
+    menuReturnFocus = true; m.focus(); menuReturnFocus = false;
+  }
 }
 
 /* --- 10.5 PDF export (issue #43) -----------------------------------------
@@ -1474,7 +1949,8 @@ function pdfNum(n) {
 
 /* `white-space: pre-wrap` + `overflow-wrap: break-word`, measured in Helvetica.
    Hard breaks are honoured; a word wider than the box breaks mid-word rather
-   than overflowing it, which is what the note frames rely on to stay 405 wide. */
+   than overflowing it, which is what keeps a note frame inside its edge cap
+   (issue #53). */
 function pdfWrap(str, bold, size, maxW) {
   const lines = [];
   if (!(maxW > 0)) return [String(str)];
@@ -1685,7 +2161,7 @@ const EXPORT_GEO = {
   labelSize: 12, labelLH: 15.6,        // the band's nomenclature (12 x 1.3, B38)
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
   noteSize: 17, noteLH: 23.8,          // 17px / 1.4
-  border: 2, radius: 2, notePadX: 12, notePadY: 10, noteMaxW: 405,
+  border: 2, radius: 2, notePadX: 12, notePadY: 10,
 };
 
 // The same proportional law as renderX/renderY (issue #15, B32), resolved
@@ -1695,13 +2171,24 @@ const exportX = (n) => n.x * (EXPORT_W / (n.rw || 900));
 const exportY = (n) => n.rh
   ? n.y * (EXPORT_H / n.rh)
   : clamp(n.y * (EXPORT_H / LEGACY_H), 0, Math.max(0, EXPORT_H - HIT_FLOOR));
+// exportX's law applied to visual scale — noteMult with EXPORT_W standing in
+// for LOGICAL_W. One law shared with the screen (issue #57, B40): the PDF
+// draws the proportions the board shows, instead of drifting whenever a note
+// was authored on a frame other than 900.
+const exportMult = (n) => EXPORT_W / (n.rw || 900);
 
 // Border box of a note, before its own scale — `width: max-content` capped at
-// the 405 max-width, height from however many lines that width produces.
+// the export sheet's right edge, height from however many lines that width
+// produces. The cap is noteMaxW's law with the 900 frame standing in for the
+// viewport (issue #53, B39): both reduce to (rw − x)/scale in authored units,
+// floored at NOTE_MIN_W, so the screen's wrap width and the PDF's are the same
+// number by construction — a cap-hitting note cannot disagree between the two.
 function exportNoteBox(note) {
   const g = EXPORT_GEO;
   const chrome = 2 * g.notePadX + 2 * g.border;
-  const maxContent = g.noteMaxW - chrome;
+  const s = (note.scale || 1) * exportMult(note);
+  const cap = Math.max(NOTE_MIN_W, (EXPORT_W - exportX(note)) / s);
+  const maxContent = cap - chrome;
   const content = Math.min(pdfNaturalW(note.text, false, g.noteSize), maxContent);
   const lines = pdfWrap(note.text, false, g.noteSize, content);
   return {
@@ -1797,7 +2284,7 @@ function exportBoardPage(rec) {
   // Notes last: array order is z-order, and DOM order mirrors it.
   for (const note of rec.notes || []) {
     const box = exportNoteBox(note);
-    const s = note.scale || 1;
+    const s = (note.scale || 1) * exportMult(note);   // homothetic (issue #57)
     // transform-origin: top left — translate to the note, then scale in place.
     p.q().cm(s, 0, 0, s, exportX(note), exportY(note));
     p.frame(0, 0, box.w, box.h, g.radius, g.border, PDF_PAPER);
@@ -2082,56 +2569,259 @@ async function swapBoard(id) {
   }, SWAP_MS);
 }
 
-async function renderPane() {
-  if (!isDesktop || !el.paneCards) return;
-  const all = await idbGetAll();
-  all.sort(boardOrder);
-  el.paneCards.textContent = '';
-  for (const b of all) {
-    const row = document.createElement('div');
-    row.className = 'pane-row'; row.setAttribute('role', 'listitem');
-    const card = document.createElement('button');
-    card.type = 'button'; card.className = 'pane-card'; card.dataset.id = b.id;
-    fillRowContent(card, b);
-    row.appendChild(card);
-    if (current && b.id === current.id) {
-      card.classList.add('active');
-      // Deletion path (a), issue #10: a permanent control on the open board's
-      // card only — deleting keeps the board's contents in front of you.
-      const del = document.createElement('button');
-      del.type = 'button'; del.className = 'pane-del';
-      del.setAttribute('aria-label', 'Delete board');
-      del.textContent = GLYPH.delete;
-      del.addEventListener('click', () => delayAction(del, () => deleteBoard(b.id, row)));
-      row.appendChild(del);
-    } else {
-      // `click` never fires for the secondary button, so this cannot collide
-      // with the contextmenu path below.
-      card.addEventListener('click', () => delayAction(card, () => swapBoard(b.id)));
-    }
-    // Deletion path (b), issue #10: right-click any card → the board menu
-    // (Export, then Delete). The one summoning gesture "remove click-and-hold"
-    // doesn't touch, and it collides with nothing else in the app.
-    card.addEventListener('contextmenu', (ev) => {
-      ev.preventDefault();            // scoped to the card; elsewhere stays native
-      let x = ev.clientX, y = ev.clientY;
-      if (!x && !y) {                 // Shift+F10 fires contextmenu at 0,0
-        const r = card.getBoundingClientRect();
-        x = r.left + r.width / 2; y = r.top + r.height / 2;
-      }
-      menuInvoker = card;             // focus returns to the card on close
-      openBoardRowMenu(row, b, x, y);
-    });
-    el.paneCards.appendChild(row);
-  }
-  updatePaneOverflow();
+/* The rail's three categories (issue #58 / B42): To-Do, Idea, Unsorted — one
+   third each, top to bottom. Category is read-site defaulted, the B21 idiom:
+   a record without one IS Unsorted, so pre-#58 boards and new boards land
+   there by writing nothing — no migration, no DB version bump. In-category
+   order is catStamp (written on drop, = moved-to-top) falling back to
+   createdAt, with B24's immutable comparator as tiebreak. */
+const PANE_CATS = ['todo', 'idea', 'unsorted'];
+const PANE_CAT_COPY = { todo: 'catTodo', idea: 'catIdea', unsorted: 'catUnsorted' };
+const catOf = (b) =>
+  (b.category === 'todo' || b.category === 'idea') ? b.category : 'unsorted';
+const catOrder = (a, b) =>
+  ((b.catStamp || b.createdAt) - (a.catStamp || a.createdAt)) || boardOrder(a, b);
+
+/* Pagination (issue #58): overflow turns pages, never scrolls. Page state is
+   per-category and module-level so a re-render keeps the reader's place;
+   renderPane clamps it so deletes can't strand a page past the end. paneCap
+   is the budget the last render used — applyLayout compares against it. */
+let panePage = { todo: 0, idea: 0, unsorted: 0 };
+let paneCap = 0;                       // 0 = never rendered; the capacity check waits
+let paneDragCancel = null;             // the live card-drag's teardown, if one is mid-flight
+
+function panePageCap() {
+  // A third of the rail, minus the section's fixed furniture, in whole rows.
+  // The pager's slot is reserved even when a single page hides it, so the
+  // budget cannot flap between one-page and many-page states.
+  const catH = el.paneCards.clientHeight / 3;
+  return Math.max(1, Math.floor((catH - PANE_CAT_HEAD - PANE_PAGER_H) /
+                                (PANE_ROW_H + PANE_ROW_GAP)));
 }
 
-/* §10's truncation law at list level (issue #9): when boards overflow the
-   rail, the bottom edge says so; when they don't, it says nothing. */
-function updatePaneOverflow() {
-  if (!el.paneCards || !el.paneMore) return;
-  el.paneMore.hidden = el.paneCards.scrollHeight <= el.paneCards.clientHeight + 1;
+async function renderPane() {
+  if (!isDesktop || !el.paneCards) return;
+  // A re-render tears the captured card out from under a live drag — pointerup
+  // would never arrive, stranding the fixed ghost on screen. Cancel it first.
+  if (paneDragCancel) paneDragCancel();
+  const all = await idbGetAll();
+  const buckets = { todo: [], idea: [], unsorted: [] };
+  // The open board buckets from memory, not the snapshot: `current` is
+  // authoritative for it (the export takes the same stance), and a drop's
+  // write can still be behind the debounced persist when this getAll runs.
+  for (const b of all) {
+    const rec = (current && b.id === current.id) ? current : b;
+    buckets[catOf(rec)].push(rec);
+  }
+  paneCap = panePageCap();
+  el.paneCards.textContent = '';
+  for (const cat of PANE_CATS) {
+    const boards = buckets[cat].sort(catOrder);
+    const pages = Math.max(1, Math.ceil(boards.length / paneCap));
+    panePage[cat] = Math.max(0, Math.min(panePage[cat], pages - 1));
+    const page = panePage[cat];
+
+    const sec = document.createElement('div');
+    sec.className = 'pane-cat'; sec.dataset.cat = cat;
+    sec.setAttribute('role', 'group');
+    // Page state rides the group label — the visual indicator is aria-hidden
+    // and a rebuilt node can't announce, so this is where AT hears the page.
+    const name = COPY[PANE_CAT_COPY[cat]];
+    sec.setAttribute('aria-label',
+      pages > 1 ? name + ', page ' + (page + 1) + ' of ' + pages : name);
+
+    // Visual head only — the group's aria-label already says it (the
+    // band-label pattern), so AT doesn't hear every section twice.
+    const head = document.createElement('div');
+    head.className = 'pane-cat-head'; head.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span');
+    label.textContent = COPY[PANE_CAT_COPY[cat]];
+    head.appendChild(label);
+    if (pages > 1) {
+      const ind = document.createElement('span');
+      ind.className = 'pane-cat-pages';
+      ind.textContent = (page + 1) + '/' + pages;
+      head.appendChild(ind);
+    }
+    sec.appendChild(head);
+
+    const cards = document.createElement('div');
+    cards.className = 'pane-cat-cards'; cards.setAttribute('role', 'list');
+    for (const b of boards.slice(page * paneCap, (page + 1) * paneCap))
+      cards.appendChild(makePaneRow(b));
+    sec.appendChild(cards);
+
+    const pager = document.createElement('div');
+    pager.className = 'pane-pager';
+    pager.hidden = pages === 1;        // one page says nothing (§10's law)
+    pager.appendChild(makePagerBtn('pageFirst', page === 0, () => goPanePage(cat, 0, 'pageFirst')));
+    pager.appendChild(makePagerBtn('pagePrev', page === 0, () => goPanePage(cat, page - 1, 'pagePrev')));
+    pager.appendChild(makePagerBtn('pageNext', page === pages - 1, () => goPanePage(cat, page + 1, 'pageNext')));
+    pager.appendChild(makePagerBtn('pageLast', page === pages - 1, () => goPanePage(cat, pages - 1, 'pageLast')));
+    sec.appendChild(pager);
+
+    el.paneCards.appendChild(sec);
+  }
+}
+
+/* Inert navigation, like selection (B22): a page turn commits nothing, so
+   B18's window does not apply — the pager responds on the click. The render
+   replaces the clicked button, so focus is put back on its successor (or the
+   nearest enabled sibling) — a keyboard reader pages without re-tabbing. */
+async function goPanePage(cat, p, key) {
+  panePage[cat] = p;
+  await renderPane();
+  const sec = el.paneCards.querySelector('.pane-cat[data-cat="' + cat + '"]');
+  if (!sec) return;
+  let b = sec.querySelector('.pager-btn[aria-label="' + COPY[key] + '"]');
+  if (b && b.disabled) b = sec.querySelector('.pager-btn:enabled');
+  if (b) b.focus();
+}
+
+function makePagerBtn(key, disabled, go) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'pager-btn';
+  b.setAttribute('aria-label', COPY[key]);
+  b.disabled = disabled;
+  const g = document.createElement('span');
+  g.setAttribute('aria-hidden', 'true'); g.textContent = GLYPH[key];
+  b.appendChild(g);
+  b.addEventListener('click', go);
+  return b;
+}
+
+function makePaneRow(b) {
+  const row = document.createElement('div');
+  row.className = 'pane-row'; row.setAttribute('role', 'listitem');
+  const card = document.createElement('button');
+  card.type = 'button'; card.className = 'pane-card'; card.dataset.id = b.id;
+  fillRowContent(card, b);
+  row.appendChild(card);
+  const isActive = current && b.id === current.id;
+  if (isActive) {
+    card.classList.add('active');
+    // Deletion path (a), issue #10: a permanent control on the open board's
+    // card only — deleting keeps the board's contents in front of you.
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'pane-del';
+    del.setAttribute('aria-label', 'Delete board');
+    del.textContent = GLYPH.delete;
+    del.addEventListener('click', () => delayAction(del, () => deleteBoard(b.id, row)));
+    row.appendChild(del);
+  }
+  // Pointer path (issue #58): press-and-move past MOVE_THRESHOLD drags the
+  // card between categories; a motionless release keeps the old click
+  // behavior (inactive → B18 window → swap). Replaces the bare `click`
+  // listener so a drag's release can't also swap boards.
+  attachPaneCardDrag(card, row, b);
+  // Keyboard activation still arrives as a `click` with no pointer sequence
+  // (detail 0) — the swap stays reachable without a mouse.
+  if (!isActive) card.addEventListener('click', (ev) => {
+    if (ev.detail === 0) delayAction(card, () => swapBoard(b.id));
+  });
+  // Deletion path (b), issue #10: right-click any card → the board menu
+  // (Export, then Delete). The one summoning gesture "remove click-and-hold"
+  // doesn't touch, and it collides with nothing else in the app.
+  card.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault();              // scoped to the card; elsewhere stays native
+    let x = ev.clientX, y = ev.clientY;
+    if (!x && !y) {                   // Shift+F10 fires contextmenu at 0,0
+      const r = card.getBoundingClientRect();
+      x = r.left + r.width / 2; y = r.top + r.height / 2;
+    }
+    menuInvoker = card;               // focus returns to the card on close
+    openBoardRowMenu(row, b, x, y);
+  });
+  return row;
+}
+
+/* Card drag (issue #58): pointer-based, mirroring attachRowGestures — native
+   HTML5 DnD fights the cards' button semantics and paints its own ghost.
+   Movement past MOVE_THRESHOLD turns the press into a drag: the origin row
+   dims in place, a fixed clone rides the pointer, and the category under the
+   cursor frames itself in --accent-page — where the board will land. The
+   active card drags like any other. */
+function attachPaneCardDrag(card, row, b) {
+  let down = false, dragging = false, sx = 0, sy = 0, gx = 0, gy = 0;
+  let ghost = null, over = null;
+  const clearDrag = () => {
+    if (ghost) { ghost.remove(); ghost = null; }
+    row.classList.remove('pane-dragging');
+    if (over) { over.classList.remove('drop-target'); over = null; }
+    paneDragCancel = null;
+  };
+  card.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;        // right-click stays the contextmenu path
+    down = true; dragging = false;
+    sx = e.clientX; sy = e.clientY;
+    const r = card.getBoundingClientRect();
+    gx = sx - r.left; gy = sy - r.top; // grab point, so the ghost doesn't jump
+    card.setPointerCapture(e.pointerId);
+  });
+  card.addEventListener('pointermove', (e) => {
+    if (!down) return;
+    if (!dragging) {
+      if (Math.hypot(e.clientX - sx, e.clientY - sy) < MOVE_THRESHOLD) return;
+      dragging = true;
+      // Register the teardown: a renderPane mid-drag destroys this card and
+      // its capture, so the render must be able to cancel the gesture.
+      paneDragCancel = () => { down = false; dragging = false; clearDrag(); };
+      row.classList.add('pane-dragging');
+      ghost = card.cloneNode(true);
+      ghost.classList.add('pane-drag-ghost');
+      const r = card.getBoundingClientRect();
+      ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
+      document.body.appendChild(ghost);
+    }
+    ghost.style.left = (e.clientX - gx) + 'px';
+    ghost.style.top = (e.clientY - gy) + 'px';
+    let hit = null;
+    for (const c of el.paneCards.querySelectorAll('.pane-cat')) {
+      const r = c.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right &&
+          e.clientY >= r.top && e.clientY <= r.bottom) { hit = c; break; }
+    }
+    if (over !== hit) {
+      if (over) over.classList.remove('drop-target');
+      over = hit;
+      if (over) over.classList.add('drop-target');
+    }
+  });
+  card.addEventListener('pointerup', () => {
+    if (!down) return;
+    down = false;
+    const target = dragging && over ? over.dataset.cat : null;
+    const dragged = dragging;
+    dragging = false;
+    clearDrag();
+    // A drop is a completed gesture like endDrag — saved immediately, no
+    // delayAction (B18 governs actions-from-taps, not gesture commits).
+    // Releasing over the section the card already lives in is a change of
+    // mind, not a move: no write, no reorder-to-top, no page reset.
+    if (target && target !== catOf(b)) dropPaneCard(b, target);
+    else if (!dragged && !(current && b.id === current.id))
+      delayAction(card, () => swapBoard(b.id));
+  });
+  card.addEventListener('pointercancel', () => { down = false; dragging = false; clearDrag(); });
+}
+
+/* The drop writes category + catStamp = Date.now() — which IS moved-to-top,
+   by the sort key. Whole-record puts (B13) make the write site two-headed:
+   the open board mutates `current` and saves now (putting any snapshot would
+   lose live edits); any other board is fetched fresh and put directly — the
+   debounced persist can't clobber a record it never holds, and a fresh get
+   can't resurrect a board deleted mid-drag. */
+async function dropPaneCard(b, cat) {
+  panePage[cat] = 0;                   // the dropped card lands first — show it
+  if (current && current.id === b.id) {
+    current.category = cat;
+    current.catStamp = Date.now();
+    saveNow();
+  } else {
+    const rec = await idbGet(b.id);
+    if (rec) { rec.category = cat; rec.catStamp = Date.now(); await idbPut(rec); }
+  }
+  renderPane();
 }
 
 /* Live title (issue #14): the active card updates in place per keystroke; a
