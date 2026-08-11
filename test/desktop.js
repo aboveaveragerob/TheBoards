@@ -448,6 +448,129 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
+  console.log('\n[D12] Notes shrink with the frame they were written in — no overlap (issue #57)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    // Two notes side by side on an 1800-unit frame, wide enough that at this
+    // window's LOGICAL_W (~1267) constant-size rendering would slide the first
+    // across the second — the reported bug. Homothetic rendering scales width
+    // by the same ratio as x, so what was adjacent stays adjacent.
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Homothetic fixture';
+      rec.notes = [
+        { id: 'h1', text: 'W'.repeat(30), x: 0,   y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
+        { id: 'h2', text: 'W'.repeat(30), x: 500, y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
+      ];
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    const m = await page.evaluate(() => {
+      const n1 = document.querySelector('[data-id="h1"]');
+      const n2 = document.querySelector('[data-id="h2"]');
+      const r1 = n1.getBoundingClientRect(), r2 = n2.getBoundingClientRect();
+      return { right1: r1.right, left1: r1.left, left2: r2.left, w1: n1.offsetWidth,
+               rs: Number(getComputedStyle(document.querySelector('#board'))
+                     .getPropertyValue('--rs')) };
+    });
+    ok('authored side-by-side stays side-by-side', m.right1 <= m.left2 + 0.5,
+      JSON.stringify(m));
+    // Prove the fixture is the regression case: at constant visual size the
+    // first note's right edge would cross the second's left.
+    ok('the old constant-size law would have overlapped',
+      m.left1 + m.w1 * 1 * m.rs > m.left2, JSON.stringify(m));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  console.log('\n[D13] A cross-frame grab is visually silent and folds the multiplier (issue #57)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Grab fixture';
+      // Authored on a 384-unit phone frame: mult here is ~3.3.
+      rec.notes = [{ id: 'g1', text: 'grab', x: 50, y: 380, rw: 384, rh: 846,
+                     scale: 1, state: 'active' }];
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    const before = await page.evaluate(() => {
+      const r = document.querySelector('[data-id="g1"]').getBoundingClientRect();
+      return { w: r.width, x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await page.mouse.move(before.x, before.y);
+    await page.mouse.down();
+    await page.mouse.move(before.x + 20, before.y, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() =>
+      document.querySelector('[data-id="g1"]').getBoundingClientRect().width);
+    ok('visual width unchanged across the grab (<1px)',
+      Math.abs(after - before.w) < 1, before.w + ' -> ' + after);
+    // rebaseNote folded the multiplier: scale becomes old·mult, rw the current
+    // frame. At 1440x900, LOGICAL_W = (1440-300)/0.9 = 1266.67.
+    const lw = (1440 - 300) / 0.9;
+    const stored = await page.evaluate(() => new Promise(res => {
+      const rq = indexedDB.open('boards-db');
+      rq.onsuccess = () => {
+        const all = rq.result.transaction('boards', 'readonly').objectStore('boards').getAll();
+        all.onsuccess = () => res(all.result.flatMap(b => b.notes).find(n => n.id === 'g1'));
+      };
+    }));
+    ok('stored scale ≈ old·mult after the grab',
+      !!stored && Math.abs(stored.scale - lw / 384) < 0.001, stored && String(stored.scale));
+    ok('rw rebased to the current frame',
+      !!stored && Math.abs(stored.rw - lw) < 0.01, stored && String(stored.rw));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  console.log('\n[D14] A folded scale past MAX does not snap at resize grab (issue #57)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Fold fixture';
+      // scale 3 on a 900 frame folds to ~4.2 here — legitimately past
+      // MAX_SCALE. The gesture clamps widen to include the start value, so a
+      // grab must not snap it back to 2.
+      rec.notes = [{ id: 'f1', text: 'big', x: 600, y: 300, rw: 900, rh: 1000,
+                     scale: 3, state: 'active' }];
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    const c = await page.evaluate(() => {
+      const r = document.querySelector('[data-id="f1"]').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width };
+    });
+    await page.mouse.click(c.x, c.y);          // select (B22: instant)
+    await page.waitForTimeout(120);
+    const edge = await page.evaluate(() => {
+      const e = document.querySelector('#selection .sel-edge.e');
+      if (!e) return null;
+      const r = e.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    ok('selection frame is up', !!edge);
+    if (edge) {
+      await page.mouse.move(edge.x, edge.y);
+      await page.mouse.down();
+      await page.mouse.move(edge.x + 1, edge.y);
+      await page.mouse.up();
+      await page.waitForTimeout(300);
+      const w2 = await page.evaluate(() =>
+        document.querySelector('[data-id="f1"]').getBoundingClientRect().width);
+      ok('1px edge drag does not snap the folded scale (<3px)',
+        Math.abs(w2 - c.w) < 3, c.w + ' -> ' + w2);
+    }
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== desktop: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);

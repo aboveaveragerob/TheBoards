@@ -575,6 +575,42 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
+  // ---- 12b. note size is frame-relative too (issue #57, B39) ----------------
+  // renderX's law applied to visual scale: shrinking the sheet shrinks the
+  // note at the same ratio, so relative geometry survives the resize. Reading
+  // is not writing (B21): with no grab there is no rebase, and the stored
+  // scale stays exactly what the author set.
+  console.log('\n[12b] Note size scales with the sheet width (homothetic, B39)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 150, 400);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('hi');           // short: never meets --note-max-w
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(300);
+    const before = await page.evaluate(() =>
+      document.querySelector('.note').getBoundingClientRect().width);
+    await page.setViewportSize({ width: 300, height: 846 });
+    await page.waitForTimeout(200);
+    const after = await page.evaluate(() =>
+      document.querySelector('.note').getBoundingClientRect().width);
+    ok('rendered width shrank by ~300/384',
+      Math.abs(after / before - 300 / 384) < 0.02, before + ' -> ' + after);
+    ok('stored scale unchanged — no grab, no write (B21)',
+      await page.evaluate(() => new Promise(res => {
+        const rq = indexedDB.open('boards-db');
+        rq.onsuccess = () => {
+          const all = rq.result.transaction('boards', 'readonly').objectStore('boards').getAll();
+          all.onsuccess = () => {
+            const n = all.result.flatMap(b => b.notes).find(n => n.text === 'hi');
+            res(!!n && n.scale === 1 && n.rw === 384);
+          };
+        };
+      })));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   // ---- 13. pre-B32 notes stay reachable, and are not rewritten -------------
   console.log('\n[13] Legacy note (no rh) is rescued, not mutated');
   {

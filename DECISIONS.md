@@ -874,3 +874,70 @@ all of it routes through the recognizer, not native `click` — setPointerCaptur
 the constraint B22 already records. `.sel-actions` centres its flex row under the note, so the
 third button arrives centred and equally spaced for free; `test/desktop.js` [D15] pins the order,
 the empty B18 window, and the clipboard round-trip.
+
+---
+
+## H. Homothetic note rendering (issue #57)
+
+### B39. Notes render homothetically: position's law applied to size (extends B21/B32)
+
+The bug: resizing a desktop window slid constant-size notes into each other, and the PDF —
+a fixed 900×1000 frame — showed the same collisions. B21 maps `x` proportionally
+(`renderX = x · LOGICAL_W/rw`) and B32 gave `y` the mirror law against `rh`, but a note's
+*visual* size stayed constant in logical px, so positions tracked the frame while sizes did
+not, and relative geometry was not preserved across viewport changes.
+
+**Ruling.** The law the position already obeys is applied to the scale: `noteMult =
+LOGICAL_W / (rw ‖ 900)` — renderX's own ratio — and a note draws at `effScale = scale ·
+noteMult`. Along x, position ×k and width ×k together preserve horizontal overlap *exactly*
+for any change of sheet width: the viewport resizes and the notes resize at the same ratio,
+which is issue #57's instruction verbatim. Desktop's geometry (B20) has two regimes and both
+cooperate: width-limited windows pin `LOGICAL_W ≡ 900` (the multiplier never moves), and
+height-limited windows pin `LOGICAL_H ≡ 1000` so *only* width varies — the reported case,
+where preservation is exact.
+
+At grab, `rebaseNote` folds the multiplier into the stored scale (`scale *= mult`, alongside
+the existing `x`/`y`/`rw`/`rh` rebase). Visually silent by construction — `effScale` before
+equals `scale` after — and mult ≡ 1 from then on, so every gesture (drag footprints, pinch,
+frame-drag resize) runs in current-frame units unmodified. A folded scale may legitimately
+leave [0.5, 2.0], so the pinch/resize clamps widen to include the start value
+(`gestureScale`: `clamp(start·f, min(MIN_SCALE, start), max(MAX_SCALE, start))`, one helper
+shared by both per B22): an out-of-range note never jumps at gesture start, and can always be
+scaled back into the authored range but never further out. The footprint clamps get the same
+treatment, because a folded note can be bigger than the sheet and the old
+`[0, max(0, sheet − foot)]` range then degenerates to `[0, 0]` — a corner pin. The drag range
+is fixed at grab and widened to admit the grab position (silence again), and
+`applyNoteScale`'s re-clamp becomes `min`/`max` of the same pair — sheet-inside-note where
+note-inside-sheet is impossible; for any fitting note both are byte-for-byte the old bounds.
+The multiplier itself is never clamped — MIN/MAX_SCALE bound the *authored* scale at gesture
+time, not the frame mapping. The export applies the same law against its own sheet
+(`exportMult = EXPORT_W / (rw ‖ 900)`), which is the downstream fix: screen and PDF now share
+one law, where before the PDF drew every note at authored size regardless of the frame it was
+written in. `exportNoteBox` wraps at the *authoring* frame's width cap
+(`min(405, 0.45·rw)` — 45% of a mobile sheet, the literal 405 on desktop, selected without a
+mode flag because B20 pins desktop `rw ≥ 900`): wrapped at the literal 405, a phone-authored
+note would re-wrap wide and, under `exportMult`, run off the export sheet. `effScale` and the
+fold guard a missing legacy `scale` with `‖ 1`, as the exporter always has — a drag must not
+write `NaN` into storage.
+
+Costs. A note authored on a wide desktop frame arrives small on a phone (and a phone note
+large on desktop) — that is the point, but cross-device notes no longer land at "their" size;
+the decoupled hit floor (B7) is what keeps a shrunken note tappable. Stored `scale` is no
+longer confined to [0.5, 2.0] after a cross-frame grab; every read site outside the widened
+clamps was checked and none assumes the range.
+
+*Known, not fixed.* Size rides the x-ratio while y rides the height ratio (B32), so when the
+two diverge — an aspect-ratio change — vertical clearances can still shift: a note may close
+on or open from the one below it even though horizontal geometry holds. Accepted: mapping y
+by the x-ratio instead would push notes off the bottom of a shorter sheet and demand exactly
+the re-clamps B17/B21 forbid. And the *screen's* width cap is still frame-blind — a note
+holding `--note-max-w` loses width twice on a narrowing phone (once as the cap tightens, once
+from the multiplier), and a phone note re-wraps at desktop's 405 and can overhang the sheet
+there, which is why the footprint clamps above had to learn the oversized case. The cap is a
+later unit's subject and is untouched here; until it lands, a cap-hitting cross-frame note is
+the one place the desktop screen and the PDF still disagree — the PDF draws the authored
+proportions.
+
+B21's grab-time rebase (`x = renderX; rw = LOGICAL_W`) now folds scale as well; B22's
+"frame-drag resize shares pinch's scale/clamp/hit math" still holds — the two clamps widened
+together.

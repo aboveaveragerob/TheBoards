@@ -246,13 +246,15 @@ function applyLayout() {
   el.board.style.setProperty('--lot-h', lotH() + 'px');
   // After --logical-w: the card's width sets how many lines the title takes.
   syncCardHeight();
-  // Re-derive each note's on-sheet x and y (proportional across frames) and its
-  // decoupled hit area (physical size changed).
+  // Re-derive each note's on-sheet x, y AND size (proportional across frames —
+  // the multiplier tracks LOGICAL_W, issue #57) and its decoupled hit area
+  // (physical size changed).
   noteEls.forEach((node, id) => {
     const note = current && current.notes.find(n => n.id === id);
     if (note) {
       node.style.left = renderX(note) + 'px';
       node.style.top = renderY(note) + 'px';
+      node.style.transform = 'scale(' + effScale(note) + ')';
       setHitInset(node, note);
     }
   });
@@ -303,6 +305,17 @@ const toLogical = (clientX, clientY) => ({
    (visually silent: renderX equals the on-screen position at that instant). */
 const renderX = (note) => note.x * (LOGICAL_W / (note.rw || 900));
 
+/* Homothetic size (issue #57, B39): renderX's law, applied to visual scale.
+   Along x, position ×k and width ×k together preserve horizontal overlap
+   exactly for any change of sheet width — resizing the viewport resizes the
+   notes at the same ratio instead of sliding constant-size notes into each
+   other. y stays on renderY's height law, so when the two ratios diverge (an
+   aspect change) vertical clearances can still shift — accepted in B39. The
+   multiplier is never clamped: MIN/MAX_SCALE bound the *authored* scale at
+   gesture time, not this frame mapping. */
+const noteMult = (note) => LOGICAL_W / (note.rw || 900);
+const effScale = (note) => (note.scale || 1) * noteMult(note);   // ‖1: heal a scale-less legacy record
+
 /* Cross-frame y (B32) — the mirror of rw. B21 ruled y needed no counterpart
    because LOGICAL_H ≥ 1000 everywhere; at 1:1 the mobile height is vh, so that
    premise is gone and note.rh records the LOGICAL_H its y was last written
@@ -321,8 +334,15 @@ const renderY = (note) => note.rh
   : clamp(note.y * (LOGICAL_H / LEGACY_H), 0, Math.max(0, LOGICAL_H - HIT_FLOOR));
 
 function rebaseNote(note) {
+  // Fold the homothetic multiplier into the authored scale (issue #57, B39):
+  // effScale before equals note.scale after, so the grab is visually silent —
+  // and with mult ≡ 1 from here on, every gesture (drag footprints, pinch and
+  // resize scaling) runs in current-frame units unmodified. The folded scale
+  // may leave [MIN_SCALE, MAX_SCALE]; the gesture clamps widen to admit it.
+  const m = noteMult(note);
   note.x = renderX(note);
   note.y = renderY(note);
+  note.scale = (note.scale || 1) * m;  // ‖1 mirrors effScale: never fold NaN into storage
   note.rw = LOGICAL_W;
   note.rh = LOGICAL_H;
 }
@@ -356,7 +376,7 @@ function syncCardHeight() {
 
 function setHitInset(node, note) {
   const w = node.offsetWidth, h = node.offsetHeight;   // logical (transform-independent)
-  const k = note.scale * renderScale;
+  const k = effScale(note) * renderScale;              // what the note draws at (issue #57)
   const physW = w * k, physH = h * k;
   const floor = isDesktop ? HIT_FLOOR_DESKTOP : HIT_FLOOR;
   const inset = Math.max(0, (floor - physW) / 2, (floor - physH) / 2) / (k || 1);
@@ -423,7 +443,7 @@ function makeNoteEl(note) {
   node.setAttribute('tabindex', '0');
   node.style.left = renderX(note) + 'px';
   node.style.top = renderY(note) + 'px';
-  node.style.transform = 'scale(' + note.scale + ')';
+  node.style.transform = 'scale(' + effScale(note) + ')';   // homothetic (issue #57)
 
   const text = document.createElement('div');
   text.className = 'note-text';
@@ -943,13 +963,24 @@ function startDrag() {
   const startLogical = toLogical(g.startX, g.startY);
   g.grabDX = startLogical.x - note.x;
   g.grabDY = startLogical.y - note.y;
+  // Page bounds for the drag, fixed once (the footprint cannot change mid-
+  // drag) and widened to include the grab position (B39): a cross-frame note
+  // can arrive bigger than the sheet or past its edge, and the plain
+  // [0, max(0, sheet − foot)] range would teleport it on the first move —
+  // the visually-silent-grab promise broken by its own clamp. For a note
+  // already in range these are exactly the old bounds.
+  const node = g.target.node;
+  const footW = node.offsetWidth * note.scale, footH = node.offsetHeight * note.scale;
+  g.dragMinX = Math.min(0, note.x);
+  g.dragMaxX = Math.max(note.x, Math.max(0, LOGICAL_W - footW));
+  g.dragMinY = Math.min(0, note.y);
+  g.dragMaxY = Math.max(note.y, Math.max(0, LOGICAL_H - footH));
 }
 function updateDrag(e) {
   const note = g.note, node = g.target.node;
   const pt = toLogical(e.clientX, e.clientY);
-  const footW = node.offsetWidth * note.scale, footH = node.offsetHeight * note.scale;
-  note.x = clamp(pt.x - g.grabDX, 0, Math.max(0, LOGICAL_W - footW));
-  note.y = clamp(pt.y - g.grabDY, 0, Math.max(0, LOGICAL_H - footH));
+  note.x = clamp(pt.x - g.grabDX, g.dragMinX, g.dragMaxX);
+  note.y = clamp(pt.y - g.grabDY, g.dragMinY, g.dragMaxY);
   node.style.left = note.x + 'px';
   node.style.top = note.y + 'px';
 }
@@ -959,9 +990,10 @@ function endDrag() {
   if (isDesktop) updateSelectionUI();  // reposition + unhide at the drop point
 }
 
-/* Pinch (PRD §6.3 / UIUX §5): transform scale only, clamp 0.5–2.0,
-   transform-origin top-left so stored x,y stays truthful and the note
-   doesn't drift; re-clamp position if the grown footprint exits the page. */
+/* Pinch (PRD §6.3 / UIUX §5): transform scale only, clamp 0.5–2.0 (bounds
+   widen to admit a folded cross-frame scale, B39), transform-origin top-left
+   so stored x,y stays truthful and the note doesn't drift; re-clamp position
+   if the grown footprint exits the page. */
 function startPinch() {
   clearTimeout(g.longPressTimer);
   if (g.mode === 'drag') g.target.node.classList.remove('pressed');
@@ -979,19 +1011,30 @@ function applyNoteScale(note, node, scale) {
   note.scale = scale;
   node.style.transform = 'scale(' + scale + ')';
   const footW = node.offsetWidth * scale, footH = node.offsetHeight * scale;
-  note.x = clamp(note.x, 0, Math.max(0, LOGICAL_W - footW));
-  note.y = clamp(note.y, 0, Math.max(0, LOGICAL_H - footH));
+  // A footprint can exceed the sheet only via a folded cross-frame scale
+  // (B39); there the old [0, max(0, sheet − foot)] range degenerates to [0,0]
+  // and pins the note to the corner. Min/max of the same pair inverts the
+  // constraint instead — sheet-inside-note where note-inside-sheet is
+  // impossible. For a fitting note this is the old clamp unchanged.
+  note.x = clamp(note.x, Math.min(0, LOGICAL_W - footW), Math.max(0, LOGICAL_W - footW));
+  note.y = clamp(note.y, Math.min(0, LOGICAL_H - footH), Math.max(0, LOGICAL_H - footH));
   node.style.left = note.x + 'px';
   node.style.top = note.y + 'px';
   setHitInset(node, note);
 }
 
+/* The widened gesture clamp (issue #57, B39): bounds admit the start value, so
+   a folded cross-frame scale outside [MIN_SCALE, MAX_SCALE] never snaps at
+   gesture start — yet it can always be scaled back into the authored range,
+   and never further out. Shared by pinch and frame-drag resize (B22). */
+const gestureScale = (start, f) =>
+  clamp(start * f, Math.min(MIN_SCALE, start), Math.max(MAX_SCALE, start));
+
 function updatePinch() {
   const pts = [...pointers.values()];
   if (pts.length < 2) return;
   const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-  applyNoteScale(g.note, g.target.node,
-    clamp(g.startScale * (dist / g.startDist), MIN_SCALE, MAX_SCALE));
+  applyNoteScale(g.note, g.target.node, gestureScale(g.startScale, dist / g.startDist));
 }
 function endPinch() {
   if (g) { g.target.node.classList.remove('pressed'); saveNow(); }
@@ -1127,7 +1170,7 @@ function updateSelectionUI() {
     const note = current.notes.find(n => n.id === selected.id);
     const node = noteEls.get(selected.id);
     if (!note || !node || !selEl) return;
-    const w = node.offsetWidth * note.scale, h = node.offsetHeight * note.scale;
+    const w = node.offsetWidth * effScale(note), h = node.offsetHeight * effScale(note);
     selEl.style.left = renderX(note) + 'px';
     const top = renderY(note);
     selEl.style.top = top + 'px';
@@ -1166,8 +1209,7 @@ function startResize(e) {
 function updateResize(e) {
   const pt = toLogical(e.clientX, e.clientY);
   const dist = Math.hypot(pt.x - g.originX, pt.y - g.originY);
-  applyNoteScale(g.note, g.target.node,
-    clamp(g.startScale * (dist / g.grabDist), MIN_SCALE, MAX_SCALE));
+  applyNoteScale(g.note, g.target.node, gestureScale(g.startScale, dist / g.grabDist));
 }
 function endResize() {
   g.target.node.classList.remove('pressed');
@@ -1755,13 +1797,24 @@ const exportX = (n) => n.x * (EXPORT_W / (n.rw || 900));
 const exportY = (n) => n.rh
   ? n.y * (EXPORT_H / n.rh)
   : clamp(n.y * (EXPORT_H / LEGACY_H), 0, Math.max(0, EXPORT_H - HIT_FLOOR));
+// exportX's law applied to visual scale — noteMult with EXPORT_W standing in
+// for LOGICAL_W. One law shared with the screen (issue #57, B39): the PDF
+// draws the proportions the board shows, instead of drifting whenever a note
+// was authored on a frame other than 900.
+const exportMult = (n) => EXPORT_W / (n.rw || 900);
 
 // Border box of a note, before its own scale — `width: max-content` capped at
-// the 405 max-width, height from however many lines that width produces.
+// the width cap of the frame it was authored in, height from however many
+// lines that width produces. The cap restates noteMaxW against `rw` (B39):
+// 45% of a mobile sheet, the literal 405 on desktop — and since desktop pins
+// rw ≥ 900 (B20), min() of the two selects the right law without a mode flag.
+// The literal 405 alone would re-wrap a phone note at desktop width and, under
+// exportMult, run it off the export sheet.
 function exportNoteBox(note) {
   const g = EXPORT_GEO;
   const chrome = 2 * g.notePadX + 2 * g.border;
-  const maxContent = g.noteMaxW - chrome;
+  const cap = Math.min(g.noteMaxW, Math.round((note.rw || 900) * 0.45));
+  const maxContent = cap - chrome;
   const content = Math.min(pdfNaturalW(note.text, false, g.noteSize), maxContent);
   const lines = pdfWrap(note.text, false, g.noteSize, content);
   return {
@@ -1857,7 +1910,7 @@ function exportBoardPage(rec) {
   // Notes last: array order is z-order, and DOM order mirrors it.
   for (const note of rec.notes || []) {
     const box = exportNoteBox(note);
-    const s = note.scale || 1;
+    const s = (note.scale || 1) * exportMult(note);   // homothetic (issue #57)
     // transform-origin: top left — translate to the note, then scale in place.
     p.q().cm(s, 0, 0, s, exportX(note), exportY(note));
     p.frame(0, 0, box.w, box.h, g.radius, g.border, PDF_PAPER);
