@@ -209,7 +209,8 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return {
         title: w('#anchor-title').width, comp: w('#anchor-components').width,
         req: w('#anchor-requirements').width,
-        titleBorder: w('#anchor-title').borderTopWidth,
+        titleBorderTop: w('#anchor-title').borderTopWidth,
+        titleBorderLeft: w('#anchor-title').borderLeftWidth,
         ruleL: w('#band-rule').left, ruleT: w('#band-rule').top,
         zoneGap: (() => {
           const r = s => document.querySelector(s).getBoundingClientRect();
@@ -224,7 +225,11 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     // B33 / issue #38 as widened by B35: the card is a 340px box, and the two
     // side zones fill the sheet either side of it with an 8px gap.
     ok('title card is 340px', geo.title === '340px', geo.title);
-    ok('title card is framed', geo.titleBorder === '2px', geo.titleBorder);
+    // B38 (issue #52): the compartment is bounded by the sheet's own top edge,
+    // so its top border is no longer drawn — the other three sides still are.
+    ok('title card top is open', geo.titleBorderTop === '0px', geo.titleBorderTop);
+    ok('title card is framed on the other three sides',
+      geo.titleBorderLeft === '2px', geo.titleBorderLeft);
     ok('band rule keeps the 24px gutter', geo.ruleL === '24px', geo.ruleL);
     ok('band rule sits at y=48', geo.ruleT === '48px', geo.ruleT);
     // Screen space, so the 8px logical gap arrives scaled — assert the ordering.

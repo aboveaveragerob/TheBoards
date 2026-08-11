@@ -108,11 +108,23 @@ body {
      So the card is its content box and everything else follows from it. The
      rule crosses the card at its *midpoint*, which is how the reference board
      draws it — B33's 1.26 overhang put 76% of the card above the rule and
-     called the remainder an overhang, which is the gap issue #49 names. */
-  --band-top: 14px;                    /* card + zone top edge */
-  /* Two lines of title (15px x 1.3 = 39) + 12px padding x2 + 2px border x2.
-     Two, not one: a phone card is ~145 units wide and most titles wrap. A
-     longer one grows the card downward from here (min-height, not height). */
+     called the remainder an overhang, which is the gap issue #49 names.
+
+     B38 (issues #51/#52) keeps this vertical geometry — the rule stays at 48,
+     the compartment's content still sits at the same pixel — but redraws the
+     compartment from the sheet's own top edge instead of 14px below it, and
+     moves the band's header from below the compartment to between the rule
+     and the content it names. --band-top is now pure spacing: the compartment's
+     min-height and top padding both add it in, so the type lands unmoved. */
+  --band-top: 14px;
+  /* Legacy sizing constant, value unchanged: two lines of title (15px x 1.3 =
+     39) + 12px padding x2 + 2px border x2 summed to 68 when the card was its
+     own box at top: band-top. B38 folds --band-top into the compartment's top
+     padding instead of its position, so --card-h no longer decomposes on its
+     own — band-top + card-h = 82 is what matters now, and stays the
+     compartment's min-height so the type lands on the same pixel. Two lines,
+     not one: a phone card is ~145 units wide and most titles wrap. A longer
+     one grows the compartment downward from here (min-height, not height). */
   --card-h:   68px;
   --rule-y:   calc(var(--band-top) + var(--card-h) / 2);
 }
@@ -139,11 +151,13 @@ body {
 }
 .anchor:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-/* ---- §3 The top band (B33, issue #38) ----------------------------------
+/* ---- §3 The top band (B33, issue #38; reworked B38, issues #51/#52) -----
    Drawn furniture, not a by-product of content: one rule across the sheet, a
-   permanent header per side zone, and a title card that crosses the rule at its
-   own midpoint and occludes it (B37). Replaces the old content-gated `.anchor.filled` border-bottom,
-   which made a blank board draw nothing and a filled board lose its headers.
+   compartment bounded by the sheet's own top edge, and a header per side zone.
+   The band reads rule → header → content, the same three-part split #lot has
+   always used (B38). Replaces the old content-gated `.anchor.filled`
+   border-bottom, which made a blank board draw nothing and a filled board
+   lose its headers.
 
    Every edge here is derived from #board: --gutter / --card-w / --card-l
    across, --band-top / --card-h / --rule-y down. Across is a fraction of the
@@ -161,42 +175,31 @@ body {
    in the rest of the band, where the reference puts notes). */
 .band-zone {
   position: absolute;
-  /* The zone is the card's own box: it starts where the card starts and ends
-     where the card ends, so the rule crosses it rather than closing it, and
-     .band-label's 100% *is* the card's bottom edge (B37). --card-actual-h is
-     the card's rendered height, republished from applyLayout — a title that
-     wraps past two lines grows the card, and the labels have to go with it or
-     "Requirements" spills under the frame. --card-h is the pre-script value. */
-  top: var(--band-top); height: var(--card-actual-h, var(--card-h));
+  /* The zone begins at its rule and reads rule → header → content, the same
+     three-part split #lot has always used (B38). It was the card's own box
+     until B37, which put the header *below* the text it names (issue #51).
+     Height 0: the children are absolutely positioned off this top edge, and
+     nothing measures the zone itself any more. */
+  top: var(--rule-y); height: 0;
   pointer-events: none;
 }
 .band-zone .anchor {
-  left: 0; right: 0; top: 0; width: auto;
+  left: 0; right: 0; top: 34px;   /* #lot-items' own offset: below the header */
+  width: auto;
   pointer-events: auto;
   font-size: 15px; font-weight: 600;
 }
-/* Below the rule and clear of the card, pinned to the sheet's outer
-   gutters — the label never moves and never disappears, whatever the anchor
-   holds. It sat above the rule hugging the card until B35 widened the card:
-   "Components" and "Requirements" are single words that cannot wrap, and beside
-   a 340-wide card a phone sheet leaves ~101px per column against a word that
-   needs up to ~118px in the widest system-ui. The card was the priority, so the
-   labels took the space that was actually free. Any overflow now runs inward,
-   under the card's bottom edge, where the canvas is empty. */
+/* Below the rule, above the content — #lot-header's own idiom (B38). Pinned to
+   the sheet's outer gutters so it never moves and never disappears, whatever
+   the anchor holds. */
 .band-label {
   position: absolute;
-  /* The zone is the card's box, so 100% *is* the card's bottom edge and the
-     label keeps 6px under it — the same 6px it used to keep above the rule.
-     Resolves to y=88 on every sheet (B37): 14 + 68 + 6. */
-  top: calc(100% + 6px);
-  /* Sized to the word, then pinned to the sheet's outer gutter below. A column
-     is ~101px on a phone and "Requirements" can want ~118px, and text-align
-     cannot rescue that: CSS puts overflow at the *end* edge whatever the
-     alignment, so a right-aligned label would still run off the sheet. The box
-     grows to the word instead and spills inward, under the card, where the
-     canvas is empty. */
-  width: max-content;
-  font-size: 15px; font-weight: 600;
+  top: 8px;                    /* #lot-header's own offset under its rule */
+  width: max-content;          /* the box is the ink; alignment rules below */
+  /* Nomenclature of the section, not a claim about its size — and the largest
+     whole px at which the widest measured "Requirements" (~118px at 15px)
+     fits the 100px column --card-w's floor guarantees (B38). */
+  font-size: 12px; font-weight: 600;
   color: var(--ink);
   line-height: 1.3;
 }
@@ -209,24 +212,28 @@ body {
                      right: var(--gutter); }
 #zone-requirements .band-label { right: 0; }
 
-/* The card. Always framed, empty or not — the one deliberate exception to §6.2
-   "no empty frames", which protects the free canvas; the card is permanent
-   furniture and the reference draws it on a blank board. Opaque, so it occludes
-   the rule rather than the rule crossing it. min-height, so a long title grows
-   the card downward, and .band-zone follows it (B37). */
+/* The card is a compartment, not a card (B38, issue #52): the sheet's own top
+   edge is its fourth side, so only three are drawn and the box starts at 0 —
+   no orphan strip of paper above a second top edge, and a tap on the
+   compartment's shoulders reaches the title it belongs to instead of dropping
+   a note behind the frame. Always framed, empty or not — the one deliberate
+   exception to §6.2 "no empty frames", which protects the free canvas; the
+   compartment is permanent furniture and the reference draws it on a blank
+   board. Opaque, so it occludes the rule. min-height, so a long title grows
+   it downward. */
 #anchor-title {
   left: var(--card-l); width: var(--card-w);   /* centred by construction */
-  /* 14 → 82, with the rule through the middle at 48 (B37). min-height, so a
-     three-line title grows the card down past the labels — where the reference
-     draws them anyway, beside the card's lower half. */
-  top: var(--band-top); min-height: var(--card-h);
+  top: 0; min-height: calc(var(--band-top) + var(--card-h));   /* 82 */
   /* Column, not row: a contenteditable's line breaks arrive as sibling nodes,
      and row flex would lay a wrapped title out sideways. */
   display: flex;
   flex-direction: column; justify-content: center;
-  padding: 12px;
+  /* --band-top + the 2px border-top no longer drawn + the 12px it always had:
+     the type sits exactly where it did, centred on the rule at 48. */
+  padding: calc(var(--band-top) + 14px) 12px 12px;
   border: 2px solid var(--ink);
-  border-radius: 2px;                  /* near-square, as everywhere */
+  border-top: 0;
+  border-radius: 0 0 2px 2px;                  /* only the corners that exist */
   background: var(--paper);
   text-align: center;
   /* The card is the hierarchy, not the type — so the title sets at the section
@@ -700,8 +707,8 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
   padding-bottom: 1px;                 /* 3 + 1 = the base 4px; no reflow */
 }
 #anchor-title.tapped {
-  border-width: 3px;
-  padding: 11px;                       /* 3 + 11 = the base 2 + 12; no reflow */
+  border-width: 0 3px 3px;             /* the top stays undrawn (B38, issue #52) */
+  padding: calc(var(--band-top) + 14px) 11px 11px;   /* 3 + 11 = the base 2 + 12; no reflow */
 }
 .lot-item.tapped .lot-text {
   border-bottom: 2px solid var(--ink);

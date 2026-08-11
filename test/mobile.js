@@ -220,7 +220,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     const n0 = await noteCount(page);
     // Bare canvas: above the note, clear of the menu it opened (which hangs
     // below the press point), of the lot band (y 708-830) and of the top band,
-    // whose labels end at y=107.5 (B37).
+    // whose anchors end at y=126 (B38).
     await tap(page, 60, 200);
     await page.waitForTimeout(150);
     ok('menu dismissal creates no note (B30)', (await noteCount(page)) === n0, 'before=' + n0 + ' after=' + await noteCount(page));
@@ -297,14 +297,16 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
-  // ---- 9c. A title that outgrows the card takes the headers with it (B37) ---
+  // ---- 9c. Headers no longer chase a grown title (B38, issue #51) ----------
   // The card is sized for two lines, and a phone card is ~145 units wide, so a
   // real title regularly takes three — "LinkedIn Learnings To Do" does, which
-  // is the board in issue #49. At the min-height alone the labels stayed where
-  // a two-line card left them and "Requirements" (width: max-content, spilling
-  // inward by design since B35) ran under the card's frame. The labels have to
-  // follow the card down.
-  console.log('\n[9c] A three-line title pushes the headers down, not under the card');
+  // is the board in issue #49. B37 had the labels follow the card down so
+  // "Requirements" (width: max-content, spilling inward by design since B35)
+  // would not run under the card's frame — but that meant the band read
+  // content → rule → header, which is both of #51's complaints. B38 pins the
+  // labels under the rule instead, so a grown title must leave them exactly
+  // where they were.
+  console.log('\n[9c] A three-line title grows the card, not the headers');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     const p = await page.evaluate(() => {
@@ -318,22 +320,26 @@ const activeIsNoteText = page => page.evaluate(() =>
     const g = await page.evaluate(() => {
       const b = document.querySelector('#board').getBoundingClientRect();
       const q = s => { const r = document.querySelector(s).getBoundingClientRect();
-                       return { top: r.top - b.top, bottom: r.bottom - b.top, height: r.height }; };
-      return { sheetH: b.height, card: q('#anchor-title'), lot: q('#lot'),
-               labels: [...document.querySelectorAll('.band-label')].map(n => {
-                 const r = n.getBoundingClientRect();
-                 return { text: n.textContent, top: r.top - b.top, bottom: r.bottom - b.top };
-               }) };
+                       return { top: r.top - b.top, bottom: r.bottom - b.top, height: r.height,
+                                left: r.left - b.left, right: r.right - b.left }; };
+      const anchorBottom = Math.max(...[...document.querySelectorAll('.band-zone .anchor')]
+        .map(n => n.getBoundingClientRect().bottom - b.top));
+      return { sheetH: b.height, card: q('#anchor-title'), lot: q('#lot'), anchorBottom,
+               compLabel: q('#zone-components .band-label'),
+               reqLabel: q('#zone-requirements .band-label') };
     });
-    ok('the title grew the card past its two-line minimum', g.card.height > 68,
+    ok('the title grew the card past its two-line minimum', g.card.height > 82,
       String(g.card.height));
-    ok('the headers moved down with it — while still typing',
-      g.labels.every(l => l.top >= g.card.bottom),
-      JSON.stringify([g.card.bottom, ...g.labels.map(l => [l.text, l.top])]));
-    ok('the headers are still clear of the lot',
-      g.labels.every(l => l.bottom <= g.lot.top), JSON.stringify([g.lot.top, g.labels]));
-    // The grown card must not eat the board it sits on.
-    const free = (g.lot.top - Math.max(...g.labels.map(l => l.bottom))) / g.sheetH;
+    ok('the headers stay at rule + 8, not chasing the grown card',
+      Math.abs(g.compLabel.top - 56) < 1 && Math.abs(g.reqLabel.top - 56) < 1,
+      JSON.stringify([g.compLabel.top, g.reqLabel.top]));
+    ok('the headers still clear the compartment horizontally',
+      g.compLabel.right <= g.card.left + 0.5 && g.reqLabel.left >= g.card.right - 0.5,
+      JSON.stringify([g.compLabel.right, g.card.left, g.card.right, g.reqLabel.left]));
+    // The grown card must not eat the board it sits on. The labels no longer
+    // trail the lowest furniture (B38), so the floor is measured off the card
+    // and the side anchors — whichever reaches further down.
+    const free = (g.lot.top - Math.max(g.card.bottom, g.anchorBottom)) / g.sheetH;
     ok('free canvas is still >=64% of the sheet', free >= 0.64, (free * 100).toFixed(1) + '%');
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
@@ -345,7 +351,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     const { ctx, page, errors } = await newMobilePage(browser);
     // Rows 120 apart so no tap lands on the ~42px note above it (at 1:1 a note
     // is its real size, not 43% of it), clear of the top furniture and of the
-    // lot band (y 708-830, B37). The top band ends at the header labels' y=107.5,
+    // lot band (y 708-830, B37). The top band ends at the anchors' y=126 (B38),
     // so every row here is on bare canvas.
     const pts = [[80,180],[300,180],[80,300],[300,300],[80,420],[300,420],[80,540],[300,540],[190,360],[190,480]];
     for (let i = 0; i < pts.length; i++) {
@@ -373,17 +379,20 @@ const activeIsNoteText = page => page.evaluate(() =>
     const geo = await page.evaluate(() => {
       const cs = getComputedStyle(document.querySelector('#board'));
       const r = s => document.querySelector(s).getBoundingClientRect();
+      const titleStyle = getComputedStyle(document.querySelector('#anchor-title'));
       return {
         rs: cs.getPropertyValue('--rs').trim(),
         lw: cs.getPropertyValue('--logical-w').trim(),
         lh: cs.getPropertyValue('--logical-h').trim(),
         maxW: cs.getPropertyValue('--note-max-w').trim(),
-        titleFont: getComputedStyle(document.querySelector('#anchor-title')).fontSize,
+        titleFont: titleStyle.fontSize,
         compFont: getComputedStyle(document.querySelector('#anchor-components')).fontSize,
         title: r('#anchor-title'), comp: r('#anchor-components'),
-        req: r('#anchor-requirements'), lot: r('#lot'),
+        req: r('#anchor-requirements'), lot: r('#lot'), board: r('#board'),
         rule: r('#band-rule'),
-        titleBorder: getComputedStyle(document.querySelector('#anchor-title')).borderTopWidth,
+        titleBorderTop: titleStyle.borderTopWidth, titleBorderLeft: titleStyle.borderLeftWidth,
+        anchorBottom: Math.max(...[...document.querySelectorAll('.band-zone .anchor')]
+          .map(n => n.getBoundingClientRect().bottom)),
       };
     });
     ok('renderScale is 1', geo.rs === '1', 'rs=' + geo.rs);
@@ -397,9 +406,9 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('three-across header preserved',
       geo.comp.right <= geo.title.left && geo.title.right <= geo.req.left,
       JSON.stringify([geo.comp.right, geo.title.left, geo.title.right, geo.req.left]));
-    // B35 moved the headers below the card: beside a 340-wide card a phone
-    // sheet cannot hold "Requirements", which is one word and cannot
-    // wrap. They must clear the card vertically and stay inside the gutters.
+    // B38 (issue #51) reads the band rule → header → content, the same
+    // three-part split #lot has always used: the label sits a fixed 8px under
+    // the rule and clears the compartment horizontally, on its own zone's side.
     // width:max-content means the box is the ink, so the rect is the true bound.
     const labels = await page.evaluate(() => {
       const sheet = document.querySelector('#board').getBoundingClientRect();
@@ -409,20 +418,36 @@ const activeIsNoteText = page => page.evaluate(() =>
         const r = n.getBoundingClientRect();
         return { text: n.textContent, top: r.top, bottom: r.bottom,
                  left: r.left, right: r.right,
-                 cardBottom: card.bottom, gutL: gut.left, gutR: gut.right,
-                 sheetR: sheet.right, clipped: n.scrollWidth > Math.ceil(r.width) };
+                 zone: n.closest('.band-zone').id,
+                 cardLeft: card.left, cardRight: card.right,
+                 ruleTop: gut.top, gutL: gut.left, gutR: gut.right,
+                 sheetR: sheet.right, clipped: n.scrollWidth > Math.ceil(r.width),
+                 fontSize: getComputedStyle(n).fontSize };
       });
     });
-    ok('band labels clear the card', labels.every(l => l.top >= l.cardBottom),
-      JSON.stringify(labels.map(l => [l.text, l.top, l.cardBottom])));
+    ok('label top is 8px under the rule',
+      labels.every(l => Math.abs((l.top - l.ruleTop) - 8) < 1),
+      JSON.stringify(labels.map(l => [l.text, l.top, l.ruleTop])));
+    ok('labels clear the compartment horizontally',
+      labels.every(l => l.zone === 'zone-components'
+        ? l.right <= l.cardLeft + 0.5 : l.left >= l.cardRight - 0.5),
+      JSON.stringify(labels.map(l => [l.text, l.zone, l.left, l.right, l.cardLeft, l.cardRight])));
+    ok('labels render at 12px', labels.every(l => l.fontSize === '12px'),
+      JSON.stringify(labels.map(l => [l.text, l.fontSize])));
     ok('band labels are not clipped', labels.every(l => !l.clipped),
       JSON.stringify(labels.map(l => [l.text, l.clipped])));
     ok('band labels stay inside the gutters',
       labels.every(l => l.left >= l.gutL - 0.5 && l.right <= l.gutR + 0.5),
       JSON.stringify(labels.map(l => [l.text, l.left, l.right, l.gutL, l.gutR])));
-    // B33 / issue #38: the band is drawn furniture. The card is framed on a
-    // blank board, and it overhangs the rule so it occludes it.
-    ok('title card is framed when empty', geo.titleBorder === '2px', geo.titleBorder);
+    // B38 / issue #52: the band is drawn furniture. The compartment is framed
+    // on three sides on a blank board — the sheet's own top edge is its
+    // fourth — and it overhangs the rule so it occludes it.
+    ok('title card is framed on three sides when empty',
+      geo.titleBorderTop === '0px' && geo.titleBorderLeft === '2px',
+      JSON.stringify([geo.titleBorderTop, geo.titleBorderLeft]));
+    ok('the compartment reaches the sheets top edge',
+      Math.abs(geo.title.top - geo.board.top) < 0.5,
+      JSON.stringify([geo.title.top, geo.board.top]));
     ok('band rule is drawn on a blank board', geo.rule.width > 0 && geo.rule.height >= 1,
       JSON.stringify([geo.rule.width, geo.rule.height]));
     ok('card crosses the band rule', geo.title.bottom > geo.rule.top + 1,
@@ -431,20 +456,20 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('lot sits above the bottom edge', Math.round(geo.lot.bottom) === 830, String(geo.lot.bottom));
     ok('note cap is 45% of the sheet', geo.maxW === '173px', geo.maxW);
     // B37 (issue #49): the band is sized by the type it holds, not by the sheet,
-    // so the rule is at 14 + 68/2 = 48 on every sheet — and it crosses the card
-    // at its *middle*, which is how the reference board draws it. B36 had it at
-    // 0.2 * the sheet with 76% of the card above it: 147 and a 185-deep card on
-    // a phone, which is the "giant gap at the top" the issue names.
-    ok('band rule is at the card midpoint, not a fraction of the sheet',
+    // so the rule is at 14 + 68/2 = 48 on every sheet, unchanged by B38.
+    ok('band rule is at 48, not a fraction of the sheet',
       Math.abs(geo.rule.top - 48) < 1, String(geo.rule.top));
-    ok('the rule crosses the card at its middle',
-      Math.abs((geo.rule.top - geo.title.top) - (geo.title.bottom - geo.rule.top)) < 1,
-      JSON.stringify([geo.title.top, geo.rule.top, geo.title.bottom]));
+    // B38 (issue #52): the compartment is bounded by the sheet's own top edge,
+    // not centred on the rule any more — its box runs 0..82 while the rule
+    // stays at 48. The box is no longer symmetric about the rule; the type it
+    // holds still is (the padding math in styles.css keeps that pixel fixed).
+    ok('the compartment bottom is at 82',
+      Math.abs(geo.title.bottom - 82) < 1, String(geo.title.bottom));
     // The headline number, and the thing issue #49 was actually about. Between
-    // the header labels and the lot: 107.5 -> 708 of an 846 sheet.
+    // the band furniture and the lot — the lower of the compartment and the
+    // side anchors, since B38 no longer trails the labels below both.
     {
-      const labelBottom = Math.max(...labels.map(l => l.bottom));
-      const free = (geo.lot.top - labelBottom) / 846;
+      const free = (geo.lot.top - Math.max(geo.title.bottom, geo.anchorBottom)) / 846;
       ok('free canvas is >=68% of the sheet', free >= 0.68, (free * 100).toFixed(1) + '%');
     }
     ok('no page errors', errors.length === 0, errors.join(' | '));
@@ -479,18 +504,18 @@ const activeIsNoteText = page => page.evaluate(() =>
       // The clearances the band could break.
       ok(`${tag} card still crosses the rule`, g.card.bottom > g.rule.top + 1,
         JSON.stringify([g.card.bottom, g.rule.top]));
-      ok(`${tag} label clears the card and the lot`,
-        g.label.top >= g.card.bottom && g.label.bottom <= g.lot.top,
-        JSON.stringify([g.card.bottom, g.label.top, g.label.bottom, g.lot.top]));
+      ok(`${tag} label sits 8px under the rule and clears the lot`,
+        Math.abs((g.label.top - g.rule.top) - 8) < 1 && g.label.bottom <= g.lot.top,
+        JSON.stringify([g.rule.top, g.label.top, g.label.bottom, g.lot.top]));
       ok(`${tag} no page errors`, errors.length === 0, errors.join(' | '));
       await ctx.close();
     }
   }
 
-  // ---- 11c. EXPORT_GEO still draws what the board draws (B37) ---------------
+  // ---- 11c. EXPORT_GEO still draws what the board draws (B37, reworked B38) --
   // The exporter cannot read computed CSS, so it restates the band a second
-  // time and the two can drift. Since B37 the band is fixed units, identical at
-  // every sheet size, so the comparison is direct: measure the live board and
+  // time and the two can drift. The band is fixed units, identical at every
+  // sheet size, so the comparison is direct: measure the live board and
   // require EXPORT_GEO to agree. The B36 form of this test resolved a *copy* of
   // the clamp in a throwaway probe, so it could only catch EXPORT_GEO drifting
   // from that hand-copied string — never from the stylesheet itself.
@@ -502,26 +527,36 @@ const activeIsNoteText = page => page.evaluate(() =>
       const q = s => { const r = document.querySelector(s).getBoundingClientRect();
                        return { top: r.top - b.top, bottom: r.bottom - b.top }; };
       return { rule: q('#band-rule'), card: q('#anchor-title'),
-               label: q('#zone-components .band-label') };
+               label: q('#zone-components .band-label'),
+               anchor: q('#zone-components .anchor'),
+               labelFontSize: getComputedStyle(
+                 document.querySelector('#zone-components .band-label')).fontSize };
     });
     const src = fs.readFileSync(__dirname + '/../app.js', 'utf8');
     const num = k => Number((src.match(new RegExp(k + ':\\s*(\\d+)')) || [])[1]);
-    const [bandTop, ruleY, cardTop, cardMinH] =
-      ['bandTop', 'ruleY', 'cardTop', 'cardMinH'].map(num);
+    const [ruleY, cardTop, cardMinH, zoneHeaderY, zoneItemsY, labelSize] =
+      ['ruleY', 'cardTop', 'cardMinH', 'zoneHeaderY', 'zoneItemsY', 'labelSize'].map(num);
     ok('EXPORT_GEO ruleY is where the board draws the rule',
       ruleY === Math.round(m.rule.top), JSON.stringify([ruleY, m.rule.top]));
     ok('EXPORT_GEO cardTop is where the board draws the card',
       cardTop === Math.round(m.card.top), JSON.stringify([cardTop, m.card.top]));
-    ok('EXPORT_GEO bandTop is the same top — zone and card start together',
-      bandTop === cardTop, JSON.stringify([bandTop, cardTop]));
     ok('EXPORT_GEO card bottom is the boards card bottom',
       cardTop + cardMinH === Math.round(m.card.bottom),
       JSON.stringify([cardTop + cardMinH, m.card.bottom]));
-    // app.js:1708 computes the exported label as cardTop + cardMinH + 6; the
-    // stylesheet says card bottom + 6. Same number or the PDF drifts.
-    ok('EXPORT_GEO label offset is the stylesheets 6px',
-      cardTop + cardMinH + 6 === Math.round(m.label.top),
-      JSON.stringify([cardTop + cardMinH + 6, m.label.top]));
+    // app.js computes the exported label as ruleY + zoneHeaderY; the
+    // stylesheet says the same (.band-label's own top: 8px under the rule).
+    // Same number or the PDF drifts.
+    ok('EXPORT_GEO label offset is the stylesheets rule + 8px',
+      ruleY + zoneHeaderY === Math.round(m.label.top),
+      JSON.stringify([ruleY + zoneHeaderY, m.label.top]));
+    // app.js computes the exported anchor text off ruleY + zoneItemsY; the
+    // stylesheet says the same (.band-zone .anchor's own top: 34px under the
+    // rule, mirroring #lot-items).
+    ok('EXPORT_GEO zoneItemsY agrees with the rendered anchor top',
+      ruleY + zoneItemsY === Math.round(m.anchor.top),
+      JSON.stringify([ruleY + zoneItemsY, m.anchor.top]));
+    ok('EXPORT_GEO labelSize agrees with the rendered labels font-size',
+      labelSize + 'px' === m.labelFontSize, JSON.stringify([labelSize, m.labelFontSize]));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

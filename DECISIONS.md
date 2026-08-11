@@ -839,3 +839,82 @@ horizontal geometry is doing its job.
 *Impermanent, still.* `EXPORT_GEO` remains a second copy of this geometry. [11c] now pins it to the
 rendered board rather than to a literal, which is as close to one source as two files get without
 a shared module.
+
+### B38. The band reads rule → header → content, and the card is a compartment (issues #51, #52)
+
+Two complaints, one cause each, both in the top band. **#52 — the title card's frame.**
+`#anchor-title` drew a 4-sided 2px border at `top: 14px`: a second top edge 14 px below the sheet's
+own, orphaning a strip of paper between them. **#51 — the section headers.** The band read
+content → rule → header: the anchor text sat at `y=14..82`, *above* the rule at `y=48`, and the
+label at `y=88`, below it — the exact inverse of `#lot-rule` / `#lot-header` / `#lot-items`, which
+has read rule → header → content since day one. B35 claimed to have fixed this — "the band now
+reads rule-then-header, the same way `#lot-rule` / `#lot-header` always has" — and delivered half
+of it: it moved the label below the card and left the anchor exactly where it always was, above
+the rule. The order stayed inverted, and that inversion is both of #51's symptoms. The three
+screenshots on the two issues, unread when PR #62 proposed this plan (the environment's proxy
+blocked `user-attachments`), were fetched and read this session before implementing: the visible
+gap between the rule and the header labels, and a reference photo of a physical note card with no
+top edge and its side lines run past where the text starts, both confirm the plan's reading. No
+contradiction — the pictures agree with the text.
+
+**Ruling: the card is a compartment, and the band adopts the lot's own grammar.**
+
+```
+compartment top:     14 -> 0    (the sheet's own edge is the fourth side)
+band rule:            48 -> 48   (unchanged)
+compartment bottom:   82 -> 82   (unchanged)
+header label top:     88 -> 56   (= rule + 8, #lot-header's own offset)
+header label size:  15px -> 12px
+anchor text top:      14 -> 82   (= rule + 34, #lot-items' own offset)
+```
+
+`#anchor-title` draws three sides, not four (`border-top: 0`), starting at the sheet's own top
+edge; its top padding absorbs `--band-top` plus the 2px border no longer drawn, so the type lands
+on the same pixel it always did (content box 28..68, centred on the rule at 48). Consequence worth
+naming: the compartment's shoulders — the strip that used to be orphaned paper above the frame —
+are now part of the title's hit area, so a tap there focuses the title instead of dropping a note
+behind the frame: a misfire nobody had filed, fixed by the same geometry that fixes #52. The tapped
+state (`#anchor-title.tapped`) sets `border-width: 0 3px 3px` rather than a flat `3px`, so pressing
+the compartment does not resurrect the top border this ruling just removed — no test catches that
+one; it only shows up during the 400 ms action window.
+
+`.band-zone` moves from being the card's own box to being the rule's: `top: var(--rule-y); height:
+0`, its children absolutely positioned off that edge rather than the zone measuring anything.
+`.band-label` is `top: 8px` and `.band-zone .anchor` is `top: 34px` — `#lot-header` and
+`#lot-items`'s own offsets, read literally rather than approximated. Mirrored alignment (`left: 0`
+/ `right: 0`) is untouched, per the owner's ruling that it was already correct.
+
+**The header shrinks to fit its column; the label is nomenclature, not a size claim.** The owner's
+words, verbatim: *"Header is nomenclature of function, not definitive of size requirements. Reduce
+the font size of requirements and components so they fit within their quadrant, on either side of
+the title box, anchored horizontally to the border line of their quadrants."* 12 px is not a taste
+— it is the largest whole pixel size that clears `--card-w`'s existing 100 px floor: B35 measured
+the widest system-ui "Requirements" at ~118 px at 15 px/600, which scales to 94.4 px at 12 px
+(5.6 % slack) and 102.3 px at 13 px (fails). Consequence: the 100 px floor is now load-bearing in a
+second way, and the two — floor and label size — must move together if either changes again.
+
+**`--card-actual-h` and `syncCardHeight()` are deleted.** B37 added them for one job: republishing
+the card's rendered height so `.band-zone`'s labels would grow with a wrapped title. The labels no
+longer hang off the card, so there is nothing left to synchronise — a CSS var, a JS function and a
+per-keystroke `offsetHeight` read removed because the geometry got simpler, not because it stopped
+mattering.
+
+**The exporter draws the same three sides.** `frameOpenTop` fills a plain rect, then strokes a
+single path — down the left, across the bottom, back up the right — inset by half the border width
+on the three drawn sides only, the same half-width correction `frame` already makes for a CSS
+border drawn inside its box. The compartment's 2 px corner radius is dropped in the export: at the
+page's 0.581 A4 scale it is ~1 pt, and a three-segment path is more honest about which sides exist
+than rounding a corner that is not drawn. `EXPORT_GEO`'s `cardTop`/`cardMinH`/`cardPadTop` restate
+the compartment and `zoneHeaderY`/`zoneItemsY` restate the band's new offsets — [11c] measures the
+live board and requires all of them to agree.
+
+**`sw.js` is `v7`.** Non-optional, per B36: a correct stylesheet that never reaches an installed
+device is not a fix.
+
+*Known, not fixed.* `#lot-header` stays at 15 px, so the board now names its sections at two
+different sizes. The lot header has the full sheet width and is under no pressure to shrink;
+unifying the two sizes is a hierarchy call nobody has made.
+
+*Impermanent, still.* `EXPORT_GEO` remains a second copy of this geometry. [11c] pins it to the
+rendered board rather than to a literal, which is as close to one source as two files get without
+a shared module.
