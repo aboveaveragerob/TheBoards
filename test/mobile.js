@@ -211,7 +211,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     await page.waitForTimeout(150);
     const menuVisible = await page.evaluate(() => document.querySelector('#menu').hidden === false);
     ok('menu opened on note long-press', menuVisible);
-    // B42 (issues #59/#60): All boards · Complete · Copy · Delete, top to
+    // B43 (issues #59/#60): All boards · Complete · Copy · Delete, top to
     // bottom — danger last, behind the one separator.
     const shape = await page.evaluate(() => {
       const b = [...document.querySelectorAll('#menu button')];
@@ -458,7 +458,7 @@ const activeIsNoteText = page => page.evaluate(() =>
       const free = (geo.lot.top - labelBottom) / 846;
       ok('free canvas is >=68% of the sheet', free >= 0.68, (free * 100).toFixed(1) + '%');
     }
-    // Issue #53 (B38): no 45% cap — a long line wraps only at the sheet's
+    // Issue #53 (B39): no 45% cap — a long line wraps only at the sheet's
     // right edge, spanning most of the viewport where 173px used to stop it.
     await tap(page, 24, 250);
     await page.waitForTimeout(60);
@@ -588,12 +588,12 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
-  // ---- 12b. note size is frame-relative too (issue #57, B39) ----------------
+  // ---- 12b. note size is frame-relative too (issue #57, B40) ----------------
   // renderX's law applied to visual scale: shrinking the sheet shrinks the
   // note at the same ratio, so relative geometry survives the resize. Reading
   // is not writing (B21): with no grab there is no rebase, and the stored
   // scale stays exactly what the author set.
-  console.log('\n[12b] Note size scales with the sheet width (homothetic, B39)');
+  console.log('\n[12b] Note size scales with the sheet width (homothetic, B40)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await tap(page, 150, 400);
@@ -831,11 +831,11 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
-  // ---- 18. screen wrap ≡ export wrap, in authored units (issue #53, B38) ---
+  // ---- 18. screen wrap ≡ export wrap, in authored units (issue #53, B39) ---
   // One law, two resolutions: the screen caps at (LOGICAL_W − renderX)/eff,
   // exportNoteBox at (EXPORT_W − exportX)/(scale·exportMult) — both reduce to
   // (rw − x)/scale, so a cap-hitting note wraps at the same width on a phone
-  // sheet and on the 900 export frame. This is the cross-frame agreement B39
+  // sheet and on the 900 export frame. This is the cross-frame agreement B40
   // left as "known, not fixed".
   console.log('\n[18] Screen and export share one wrap law (issue #53)');
   {

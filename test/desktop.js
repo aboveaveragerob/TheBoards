@@ -234,7 +234,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     // and B37's budget only drops to two below 900.
     ok('lot is 166px tall — three rows (B37)', geo.lotH === '166px', geo.lotH);
     ok('lot gutter still 24px', geo.lotL === '24px', geo.lotL);
-    // Issue #53 (B38): no predetermined cap — a long sentence wraps only at
+    // Issue #53 (B39): no predetermined cap — a long sentence wraps only at
     // the sheet's right edge, past the 405 the old cap would have held it to.
     await page.mouse.click(900, 500);
     await page.waitForTimeout(500);
@@ -738,7 +738,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     });
     await page.reload();
     await page.waitForTimeout(600);
-    // The invariant B38 asserts: screen wrap width ≡ export wrap width, both
+    // The invariant B39 asserts: screen wrap width ≡ export wrap width, both
     // (rw − x)/scale in authored units. e1 is cap-bound, so min(natural, cap)
     // is the cap itself on both sides and the two must agree exactly.
     const m = await page.evaluate(() => {

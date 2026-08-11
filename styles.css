@@ -311,7 +311,7 @@ body {
   display: block;
   box-sizing: border-box;
   width: max-content;
-  /* No predetermined width (issue #53, B38): the var is set per note in JS —
+  /* No predetermined width (issue #53, B39): the var is set per note in JS —
      the distance from the note's left edge to the sheet's right edge. */
   max-width: var(--note-max-w, none);
   padding: 10px 12px;
@@ -540,7 +540,7 @@ html.desktop #pane {
   gap: 8px;
 }
 
-/* ---- Rail categories (issue #58 / B41): three equal thirds — To-Do, Idea,
+/* ---- Rail categories (issue #58 / B42): three equal thirds — To-Do, Idea,
    Unsorted. Overflow turns pages, never scrolls: .pane-cat-cards clips, the
    pager below navigates. The fixed heights here are shared law with app.js —
    head = PANE_CAT_HEAD (24), pager = PANE_PAGER_H (32), row = 56 + 8 gap —

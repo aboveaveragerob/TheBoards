@@ -274,7 +274,7 @@ function applyLayout() {
     }
   });
   if (selected) updateSelectionUI();
-  // Capacity check (issue #58, replacing the #pane-more overflow check B41
+  // Capacity check (issue #58, replacing the #pane-more overflow check B42
   // supersedes): the per-page card budget is measured from the rail's height,
   // so a resize that changes it must re-render — and re-paginate — the rail.
   // paneCap is 0 until the first renderPane, so boot's renderBoard →
@@ -325,12 +325,12 @@ const toLogical = (clientX, clientY) => ({
    (visually silent: renderX equals the on-screen position at that instant). */
 const renderX = (note) => note.x * (LOGICAL_W / (note.rw || 900));
 
-/* Homothetic size (issue #57, B39): renderX's law, applied to visual scale.
+/* Homothetic size (issue #57, B40): renderX's law, applied to visual scale.
    Along x, position ×k and width ×k together preserve horizontal overlap
    exactly for any change of sheet width — resizing the viewport resizes the
    notes at the same ratio instead of sliding constant-size notes into each
    other. y stays on renderY's height law, so when the two ratios diverge (an
-   aspect change) vertical clearances can still shift — accepted in B39. The
+   aspect change) vertical clearances can still shift — accepted in B40. The
    multiplier is never clamped: MIN/MAX_SCALE bound the *authored* scale at
    gesture time, not this frame mapping. */
 const noteMult = (note) => LOGICAL_W / (note.rw || 900);
@@ -354,7 +354,7 @@ const renderY = (note) => note.rh
   : clamp(note.y * (LOGICAL_H / LEGACY_H), 0, Math.max(0, LOGICAL_H - HIT_FLOOR));
 
 function rebaseNote(note) {
-  // Fold the homothetic multiplier into the authored scale (issue #57, B39):
+  // Fold the homothetic multiplier into the authored scale (issue #57, B40):
   // effScale before equals note.scale after, so the grab is visually silent —
   // and with mult ≡ 1 from here on, every gesture (drag footprints, pinch and
   // resize scaling) runs in current-frame units unmodified. The folded scale
@@ -367,7 +367,7 @@ function rebaseNote(note) {
   note.rh = LOGICAL_H;
 }
 
-/* A note has no predetermined width (issue #53, B38): its text wraps only at
+/* A note has no predetermined width (issue #53, B39): its text wraps only at
    the sheet's right edge. The cap is the remaining distance to that edge in
    the note's own unscaled units — which reduces to (rw − x)/scale in authored
    units, so it is frame-invariant: wrapping is identical on every device and
@@ -1064,15 +1064,15 @@ function startDrag() {
       const memberNode = noteEls.get(id);
       if (!n || !memberNode) continue;
       // Per-member rebase — the one licensed grab-time write (B21), which
-      // with B39 also folds each member's scale multiplier; visually silent.
+      // with B40 also folds each member's scale multiplier; visually silent.
       rebaseNote(n);
       const fw = memberNode.offsetWidth * n.scale, fh = memberNode.offsetHeight * n.scale;
       g.group.push({
         note: n, node: memberNode, x0: n.x, y0: n.y,
         // Per-member bounds, widened to admit the grab position exactly as
-        // the single path below (B39). Members hitting different clamps can
+        // the single path below (B40). Members hitting different clamps can
         // compress the group's relative geometry at the sheet edge — accepted
-        // (B40): the alternative is a note the group can never park flush.
+        // (B41): the alternative is a note the group can never park flush.
         minX: Math.min(0, n.x), maxX: Math.max(n.x, Math.max(0, LOGICAL_W - fw)),
         minY: Math.min(0, n.y), maxY: Math.max(n.y, Math.max(0, LOGICAL_H - fh)),
       });
@@ -1086,7 +1086,7 @@ function startDrag() {
   if (isDesktop) { selectNote(note.id); setSelectionHidden(true); }
   g.grabDX = startLogical.x - note.x;
   g.grabDY = startLogical.y - note.y;
-  // Outer x range, fixed once and widened to include the grab position (B39):
+  // Outer x range, fixed once and widened to include the grab position (B40):
   // a cross-frame note can arrive bigger than the sheet or past its edge, and
   // a plain [0, max(0, sheet − foot)] range would teleport it on the first
   // move — the visually-silent-grab promise broken by its own clamp. Since
@@ -1120,7 +1120,7 @@ function startDrag() {
      smaller-foot loop converges in this one pass, at worst at
      x = LOGICAL_W − NOTE_MIN_W·scale (the note is rebased: effScale ≡ scale).
    - y: the rewrap changes the HEIGHT too, so the bottom bound comes from the
-     live measure — plus dragOverY, so an oversized cross-frame arrival (B39)
+     live measure — plus dragOverY, so an oversized cross-frame arrival (B40)
      keeps its admitted overhang instead of teleporting; only overhang this
      drag's own rewrap creates is pulled back onto the sheet.
    The var write + offsetWidth read force a synchronous layout on a path that
@@ -1189,7 +1189,7 @@ function endDrag() {
 }
 
 /* Pinch (PRD §6.3 / UIUX §5): transform scale only, clamp 0.5–2.0 (bounds
-   widen to admit a folded cross-frame scale, B39), transform-origin top-left
+   widen to admit a folded cross-frame scale, B40), transform-origin top-left
    so stored x,y stays truthful and the note doesn't drift; re-clamp position
    if the grown footprint exits the page. */
 function startPinch() {
@@ -1214,7 +1214,7 @@ function applyNoteScale(note, node, scale) {
   applyNoteWidth(node, note);
   const footW = node.offsetWidth * scale, footH = node.offsetHeight * scale;
   // A footprint can exceed the sheet only via a folded cross-frame scale
-  // (B39); there the old [0, max(0, sheet − foot)] range degenerates to [0,0]
+  // (B40); there the old [0, max(0, sheet − foot)] range degenerates to [0,0]
   // and pins the note to the corner. Min/max of the same pair inverts the
   // constraint instead — sheet-inside-note where note-inside-sheet is
   // impossible. For a fitting note this is the old clamp unchanged.
@@ -1225,7 +1225,7 @@ function applyNoteScale(note, node, scale) {
   setHitInset(node, note);
 }
 
-/* The widened gesture clamp (issue #57, B39): bounds admit the start value, so
+/* The widened gesture clamp (issue #57, B40): bounds admit the start value, so
    a folded cross-frame scale outside [MIN_SCALE, MAX_SCALE] never snaps at
    gesture start — yet it can always be scaled back into the authored range,
    and never further out. Shared by pinch and frame-drag resize (B22). */
@@ -1271,7 +1271,7 @@ let selected = null;                 // { kind: 'note'|'lot', id }
 let lastTap = { key: null, t: 0 };   // double-click pairing across taps
 let selEl = null, selActions = null, selPrimary = null, selCopy = null, selDelete = null;
 
-/* Multi-selection (issue #55, B40): desktop NOTES only — lot rows stay
+/* Multi-selection (issue #55, B41): desktop NOTES only — lot rows stay
    single-select by design (their inline buttons live on the row, and a lot
    line is a list entry, not a spatial object worth herding). `selected` stays
    the PRIMARY — every existing `selected &&` guard is untouched — and this set
@@ -1358,7 +1358,7 @@ function ensureSelectionEl() {
   selPrimary = document.createElement('button');
   selPrimary.type = 'button'; selPrimary.className = 'sel-btn sel-complete';
   // Copy sits between them (issue #59): Complete · Copy · Delete — the same
-  // non-destructive-first, destructive-last order as the long-press menu (B42).
+  // non-destructive-first, destructive-last order as the long-press menu (B43).
   selCopy = document.createElement('button');
   selCopy.type = 'button'; selCopy.className = 'sel-btn sel-copy';
   selCopy.textContent = COPY.copy;
@@ -1704,7 +1704,7 @@ function openMenuFor(target, clientX, clientY) {
                        : current.parkingLot.find(i => i.id === node.dataset.id);
     if (!rec) return;                // a menu over nothing has nothing to offer
     const completed = rec.state === 'complete';
-    // Order (B42, issues #59/#60): All boards · Complete/Restore · Copy ·
+    // Order (B43, issues #59/#60): All boards · Complete/Restore · Copy ·
     // Delete. A1's Complete-first placement is superseded; UIUX §7's law —
     // destructive last, in --danger, behind a hairline — still holds.
     items.push({ label: COPY.boards, glyph: GLYPH.boards, action: goToList });
@@ -1748,7 +1748,7 @@ el.board.addEventListener('contextmenu', (e) => {
   const many = ids.length > 1;
   // The primary action flips to Restore only when EVERY selected note is
   // complete — a mixed selection still reads Complete, which is the state it
-  // will make true. Singular labels when one note is selected (B42's grammar).
+  // will make true. Singular labels when one note is selected (B43's grammar).
   const allComplete = ids.every(id => {
     const n = current.notes.find(m => m.id === id);
     return n && n.state === 'complete';
@@ -2167,7 +2167,7 @@ const exportY = (n) => n.rh
   ? n.y * (EXPORT_H / n.rh)
   : clamp(n.y * (EXPORT_H / LEGACY_H), 0, Math.max(0, EXPORT_H - HIT_FLOOR));
 // exportX's law applied to visual scale — noteMult with EXPORT_W standing in
-// for LOGICAL_W. One law shared with the screen (issue #57, B39): the PDF
+// for LOGICAL_W. One law shared with the screen (issue #57, B40): the PDF
 // draws the proportions the board shows, instead of drifting whenever a note
 // was authored on a frame other than 900.
 const exportMult = (n) => EXPORT_W / (n.rw || 900);
@@ -2175,7 +2175,7 @@ const exportMult = (n) => EXPORT_W / (n.rw || 900);
 // Border box of a note, before its own scale — `width: max-content` capped at
 // the export sheet's right edge, height from however many lines that width
 // produces. The cap is noteMaxW's law with the 900 frame standing in for the
-// viewport (issue #53, B38): both reduce to (rw − x)/scale in authored units,
+// viewport (issue #53, B39): both reduce to (rw − x)/scale in authored units,
 // floored at NOTE_MIN_W, so the screen's wrap width and the PDF's are the same
 // number by construction — a cap-hitting note cannot disagree between the two.
 function exportNoteBox(note) {
@@ -2564,7 +2564,7 @@ async function swapBoard(id) {
   }, SWAP_MS);
 }
 
-/* The rail's three categories (issue #58 / B41): To-Do, Idea, Unsorted — one
+/* The rail's three categories (issue #58 / B42): To-Do, Idea, Unsorted — one
    third each, top to bottom. Category is read-site defaulted, the B21 idiom:
    a record without one IS Unsorted, so pre-#58 boards and new boards land
    there by writing nothing — no migration, no DB version bump. In-category
