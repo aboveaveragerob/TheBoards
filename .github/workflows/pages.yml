@@ -16,6 +16,11 @@ name: Deploy to Pages
 on:
   push:
     branches: [main]
+    # Docs and the (unshipped-behavior) test suite don't change the served
+    # app; skip the redeploy + sw.js verification cycle for edits to them.
+    paths-ignore:
+      - '*.md'
+      - 'test/**'
   workflow_dispatch:          # force a deploy without inventing a commit
 
 permissions:
@@ -31,6 +36,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}

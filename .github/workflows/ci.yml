@@ -1,0 +1,61 @@
+# Run the existing regression suite before merge.
+#
+# test/mobile.js, test/desktop.js, and test/sw-update.js exist specifically to
+# catch the class of bugs this project has been bitten by before (touch-gesture
+# handling, stale service-worker caching — see test/README.md), but until now
+# nothing ran them automatically: only a human remembering to, locally, after
+# the fact. This runs them on every PR and on push to main, before a bad change
+# can reach the Pages deploy in pages.yml.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Superseding a PR push mid-run is fine to cancel — unlike a Pages deploy,
+# there is nothing here that needs to finish once started.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # No committed package.json/lockfile — the app itself stays
+      # dependency-free (see test/README.md). Install fresh into this
+      # ephemeral container instead of keeping a lockfile in sync.
+      - name: Install Playwright
+        run: |
+          npm install -D playwright@latest
+          npx playwright install --with-deps chromium
+
+      - name: Serve the app
+        run: |
+          python3 -m http.server 8000 &
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8000/index.html > /dev/null && break
+            sleep 0.5
+          done
+
+      # sw-update.js serves its own throwaway copy on SW_TEST_PORT; it doesn't
+      # use the server above.
+      - name: mobile.js
+        run: node test/mobile.js
+
+      - name: desktop.js
+        run: node test/desktop.js
+
+      - name: sw-update.js
+        run: node test/sw-update.js
