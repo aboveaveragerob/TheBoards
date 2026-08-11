@@ -249,9 +249,10 @@ body {
   /* A whole-row budget: 34 header + n·44, three rows on a tall sheet and two on
      a phone (B37). Not a fraction of the sheet — rows have a 44px hit floor
      (§6) and #lot-items is overflow:hidden, so a proportional height would draw
-     a row cut off at the knees. n is chosen in applyLayout, the same place
-     --note-max-w is; the fallback is the three-row sheet. A row past the budget
-     still exists, still saves and still exports — it is simply not drawn (B35). */
+     a row cut off at the knees. n is chosen in applyLayout because CSS cannot
+     step a length by whole rows; the fallback is the three-row sheet. A row
+     past the budget still exists, still saves and still exports — it is simply
+     not drawn (B35). */
   height: var(--lot-h, 166px);
 }
 #lot-rule {                            /* the single drawn 1px ink rule */
@@ -310,7 +311,9 @@ body {
   display: block;
   box-sizing: border-box;
   width: max-content;
-  max-width: var(--note-max-w, 405px); /* 45% of the sheet (PRD §6.2, B32) */
+  /* No predetermined width (issue #53, B38): the var is set per note in JS —
+     the distance from the note's left edge to the sheet's right edge. */
+  max-width: var(--note-max-w, none);
   padding: 10px 12px;
   border: 2px solid var(--ink);
   border-radius: 2px;                  /* near-square: reads as drawn, not card */

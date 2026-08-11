@@ -217,8 +217,6 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
                   r('#anchor-title').right, r('#zone-requirements').left];
         })(),
         lotH: w('#lot').height, lotL: w('#lot').left,
-        maxW: getComputedStyle(document.querySelector('#board'))
-          .getPropertyValue('--note-max-w').trim(),
       };
     });
     // B33 / issue #38 as widened by B35: the card is a 340px box, and the two
@@ -236,7 +234,24 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     // and B37's budget only drops to two below 900.
     ok('lot is 166px tall — three rows (B37)', geo.lotH === '166px', geo.lotH);
     ok('lot gutter still 24px', geo.lotL === '24px', geo.lotL);
-    ok('note cap still 405px', geo.maxW === '405px', geo.maxW);
+    // Issue #53 (B38): no predetermined cap — a long sentence wraps only at
+    // the sheet's right edge, past the 405 the old cap would have held it to.
+    await page.mouse.click(900, 500);
+    await page.waitForTimeout(500);
+    await page.keyboard.type('The quick brown fox jumps over the lazy dog while the '
+      + 'cat watches from the window and the dog barks at the mailman who hurries '
+      + 'past the gate before the rain starts falling on the quiet grey street');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(300);
+    const wrap = await page.evaluate(() => {
+      const n = document.querySelector('.note');
+      return { right: n.getBoundingClientRect().right,
+               boardRight: document.querySelector('#board').getBoundingClientRect().right,
+               w: n.offsetWidth };
+    });
+    ok('long note wraps at the board right edge (issue #53)',
+       wrap.right <= wrap.boardRight + 1, JSON.stringify(wrap));
+    ok('and is wider than the old 405 cap', wrap.w > 405, String(wrap.w));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
@@ -454,13 +469,16 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     // Two notes side by side on an 1800-unit frame, wide enough that at this
     // window's LOGICAL_W (~1267) constant-size rendering would slide the first
     // across the second — the reported bug. Homothetic rendering scales width
-    // by the same ratio as x, so what was adjacent stays adjacent.
+    // by the same ratio as x, so what was adjacent stays adjacent. 25 W's, not
+    // 30: since issue #53 removed the 405 cap, the first note renders at its
+    // natural width, and the fixture itself must stay clear of h2 in authored
+    // units (≈450 < 500) for "adjacent" to be true at all.
     await page.evaluate(async () => {
       const rec = newBoardRecord();
       rec.title = 'Homothetic fixture';
       rec.notes = [
-        { id: 'h1', text: 'W'.repeat(30), x: 0,   y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
-        { id: 'h2', text: 'W'.repeat(30), x: 500, y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
+        { id: 'h1', text: 'W'.repeat(25), x: 0,   y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
+        { id: 'h2', text: 'W'.repeat(25), x: 500, y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
       ];
       await idbPut(rec);
     });
@@ -695,6 +713,66 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     s = await unState();
     ok('first returns to page 1', s.ind === '1/' + pages && s.first === p0.first, s.ind);
 
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  console.log('\n[D17] The wrap cap is one law, on screen and in the PDF (issue #53)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Edge fixture';
+      rec.notes = [
+        // e1 hits the cap: (900-300)/1 = 600 authored units, on screen and out.
+        { id: 'e1', text: 'The quick brown fox jumps over the lazy dog while the '
+            + 'cat watches from the window and the dog barks at the mailman who '
+            + 'hurries past the gate before the rain starts falling',
+          x: 300, y: 300, rw: 900, rh: 1000, scale: 1, state: 'active' },
+        // e2 has 300 units to the edge: far too narrow for one line of this.
+        { id: 'e2', text: 'WRAPHEAD alpha beta gamma delta epsilon zeta eta theta '
+            + 'iota kappa lambda WRAPTAIL',
+          x: 600, y: 600, rw: 900, rh: 1000, scale: 1, state: 'active' },
+      ];
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    // The invariant B38 asserts: screen wrap width ≡ export wrap width, both
+    // (rw − x)/scale in authored units. e1 is cap-bound, so min(natural, cap)
+    // is the cap itself on both sides and the two must agree exactly.
+    const m = await page.evaluate(() => {
+      const note = current.notes.find(n => n.id === 'e1');
+      const node = document.querySelector('[data-id="e1"]');
+      const box = exportNoteBox(note);
+      return { screenW: node.offsetWidth, exportW: box.w,
+               cap: (note.rw - note.x) / (note.scale || 1) };
+    });
+    ok('screen wrap width is the authored-unit cap (±1)',
+       Math.abs(m.screenW - m.cap) <= 1, JSON.stringify(m));
+    ok('export wrap width agrees with the screen (±1)',
+       Math.abs(m.exportW - m.screenW) <= 1, JSON.stringify(m));
+    // And in the file itself: the x=600 note cannot fit one Tj line.
+    await page.evaluate(() => {
+      document.querySelector('#pane-cards .pane-card.active')
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 300 }));
+    });
+    await page.waitForTimeout(150);
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.evaluate(() => [...document.querySelectorAll('#menu button')]
+        .find(b => /Export/.test(b.textContent)).click()),
+    ]);
+    const s = fs.readFileSync(await dl.path()).toString('latin1');
+    // First stream in the file = page 1, the board (page 2 re-sets the text
+    // at page width, which would fit it on one line and prove nothing).
+    const board = /stream\n([\s\S]*?)\nendstream/.exec(s)[1];
+    const tjs = board.match(/\([^)]*\) Tj/g) || [];
+    const head = tjs.find(t => t.includes('WRAPHEAD'));
+    const tail = tjs.find(t => t.includes('WRAPTAIL'));
+    ok('the x=600 note spans more than one Tj line',
+       !!head && !!tail && head !== tail,
+       JSON.stringify({ head, tail }));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

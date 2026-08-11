@@ -938,6 +938,9 @@ later unit's subject and is untouched here; until it lands, a cap-hitting cross-
 the one place the desktop screen and the PDF still disagree — the PDF draws the authored
 proportions.
 
+*[The width-cap clauses above are resolved by B38 (issue #53): the cap is now per-note and
+frame-invariant — `(rw − x)/scale` — and the export shares it. The y/aspect clause stands.]*
+
 B21's grab-time rebase (`x = renderX; rw = LOGICAL_W`) now folds scale as well; B22's
 "frame-drag resize shares pinch's scale/clamp/hit math" still holds — the two clamps widened
 together.
@@ -971,3 +974,70 @@ into the section; a single page hides its pager and indicator (§10: no state, n
 statement). B24's "when boards overflow the rail, the bottom edge says so"
 (`#pane-more`'s ellipsis) is **superseded** — pagination states the same truth and
 makes it actionable.
+
+---
+
+## J. Note width (issue #53)
+
+### B38. A note wraps at the sheet's right edge, not at a predetermined width (resolves B39's cap residue)
+
+The bug report: neither desktop nor mobile text frames should have predefined widths — the
+max width is the width of the entire board, and only a line that would exceed the board's
+right edge wraps. The cap in force was a number: 405 on desktop, 45% of the sheet on mobile
+(`noteMaxW()`, published once per layout on `#board`). Both were readings of PRD §6.2's "45%
+of board width" against frames that no longer exist for every note — the cap was frame-blind,
+which is B39's *known, not fixed* paragraph.
+
+**Ruling.** A note's max-width is the remaining distance to the sheet's right edge, in the
+note's own unscaled units, floored so an edge-adjacent note stays a usable column:
+
+```
+noteMaxW(note) = max(NOTE_MIN_W, (LOGICAL_W − renderX(note)) / effScale(note))
+NOTE_MIN_W = 60          /* ~3 chars at 17px + 28px of padding and border */
+```
+
+which reduces to `(rw − x)/scale` in authored units — **frame-invariant**: the same note
+wraps at the same point on every device, and a grab's rebase (B21/B39) cannot rewrap it,
+because the fold leaves that ratio unchanged. The var moves from `#board` to each `.note`
+(custom properties inherit; `.note-text` reads it as before, fallback `none`), set by
+`applyNoteWidth` in `makeNoteEl`, in `applyLayout`'s per-note loop (before `setHitInset`,
+which measures the offsetWidth the cap changes), in `applyNoteScale` (scale changes the
+unscaled cap), and live in `updateDrag`.
+
+**The cap is live during a drag.** Dragging a note rightward tightens its cap and the text
+rewraps narrower as it goes; the smaller footprint frees more x, and the loop converges in a
+single pass per move — an overhanging rewrapped foot means the cap was floored, and pulling
+x back to the edge leaves the applied cap exact — at worst at `x = LOGICAL_W −
+NOTE_MIN_W·scale`. The rewrap changes the *height* too, so the drag's bottom bound is live
+as well (`settleDragFoot`): derived per move from the measured foot, plus the overhang the
+grab itself admitted — B39's oversized cross-frame arrival never teleports, and only
+overhang the drag's own rewrap creates is pulled back onto the sheet. The per-move measure
+is reflow-guarded: the width write and `offsetWidth` read are skipped while the cap provably
+cannot bind (the note at natural width, the cap at or above it), and the drop forces one
+exact settle before `saveNow`. Legal under B17/B21: the re-clamp runs inside the gesture,
+which owns its writes; outside a gesture stored x/y are untouched, and a note that used to
+wrap at 405/45% simply rewraps wider and flatter where it stands — intended, shipped.
+
+**The export mirrors the law, mandatorily.** `exportNoteBox` wraps at `max(NOTE_MIN_W,
+(EXPORT_W − exportX)/((scale ‖ 1)·exportMult))` — the same `(rw − x)/scale`, resolved
+against the 900 frame — replacing B39's authoring-frame cap (`min(405, 0.45·rw)`), and
+`EXPORT_GEO.noteMaxW` is gone. Screen wrap width ≡ export wrap width in authored units,
+which resolves B39's known-not-fixed cap paragraph outright: no double-shrink on a
+narrowing phone, and a cap-hitting cross-frame note can no longer disagree between the
+desktop screen and the PDF. `test/desktop.js` [D17] and `test/mobile.js` [18] pin the
+equality; [D8] and mobile [11] now assert edge-wrap where they asserted the numbers.
+
+**Costs.** A note created at the right edge is born a NOTE_MIN_W column — the floor is the
+price of never refusing capture there. A note's wrap width now depends on where it sits, so
+dragging changes its shape; that is the feature. And the one-column collapse the 45% cap
+existed to prevent (B32) is now the author's own choice to make — a note only spans the
+sheet if its text is long and its x is 0.
+
+*Known, not fixed.* The law binds x. Vertically, typing can still grow a note past the
+sheet's bottom (the input path has never clamped position, and B17 wants it that way), and
+a cross-frame arrival keeps whatever bottom overhang it arrived with — only a drag's own
+rewrap is pulled back. `NOTE_MIN_W` is a felt value — re-interrogate it on the device, like
+B18's 400ms.
+
+Supersedes PRD §6.2's 45% cap as read by B32 ("--note-max-w set in applyLayout" — the
+per-note var is the pattern now) and B39's exportNoteBox cap; B39 is annotated in place.

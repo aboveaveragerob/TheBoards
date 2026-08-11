@@ -24,7 +24,8 @@ let   LOGICAL_W = 900;               // mobile: = vw, the sheet is the viewport 
 let   LOGICAL_H = 1000;              // responsive: recomputed each layout to fill the viewport
 let   LEGACY_H = 1000;               // the LOGICAL_H the pre-B32 build would have produced
                                      // on this device; places notes that predate `rh`.
-const MAX_NOTE_W = 405;              // 45% of the 900 sheet (PRD §6.2); desktop cap — see noteMaxW
+const NOTE_MIN_W = 60;               // narrowest useful note column: ~3 chars at 17px
+                                     // + 28px box chrome (issue #53) — see noteMaxW
 const MIN_SCALE = 0.5, MAX_SCALE = 2.0;
 const MOVE_THRESHOLD = 16;           // px before a drag begins / long-press cancels (B29)
 const LONGPRESS_MS = 500;
@@ -251,17 +252,17 @@ function applyLayout() {
   el.board.style.setProperty('--rs', renderScale);
   el.board.style.setProperty('--offx', offX + 'px');
   el.board.style.setProperty('--offy', offY + 'px');
-  // Before the loop: setHitInset measures offsetWidth, which the cap changes.
-  el.board.style.setProperty('--note-max-w', noteMaxW() + 'px');
   el.board.style.setProperty('--lot-h', lotH() + 'px');
   // After --logical-w: the card's width sets how many lines the title takes.
   syncCardHeight();
   // Re-derive each note's on-sheet x, y AND size (proportional across frames —
   // the multiplier tracks LOGICAL_W, issue #57) and its decoupled hit area
-  // (physical size changed).
+  // (physical size changed). Width cap FIRST (issue #53): setHitInset measures
+  // offsetWidth, which the cap changes.
   noteEls.forEach((node, id) => {
     const note = current && current.notes.find(n => n.id === id);
     if (note) {
+      applyNoteWidth(node, note);
       node.style.left = renderX(note) + 'px';
       node.style.top = renderY(note) + 'px';
       node.style.transform = 'scale(' + effScale(note) + ')';
@@ -362,12 +363,22 @@ function rebaseNote(note) {
   note.rh = LOGICAL_H;
 }
 
-/* PRD §6.2's cap is "45% of board width"; 405 was that fraction of the fixed
-   900 sheet, and at 1:1 a fixed 405 is ~98% of a phone — no cap at all, and the
-   spatial board collapses into one column. Desktop keeps the literal: its
-   LOGICAL_W is derived per layout (B20), and 45% of it would widen desktop
-   notes to ~570px, which B32 does not license. */
-const noteMaxW = () => isDesktop ? MAX_NOTE_W : Math.round(LOGICAL_W * 0.45);
+/* A note has no predetermined width (issue #53, B38): its text wraps only at
+   the sheet's right edge. The cap is the remaining distance to that edge in
+   the note's own unscaled units — which reduces to (rw − x)/scale in authored
+   units, so it is frame-invariant: wrapping is identical on every device and
+   in the PDF (exportNoteBox restates it against the 900 frame). Floored at
+   NOTE_MIN_W so an edge-adjacent note stays a usable column rather than a
+   zero-width sliver. The old 405/45% cap (PRD §6.2) is superseded. */
+const noteMaxW = (note) =>
+  Math.max(NOTE_MIN_W, (LOGICAL_W - renderX(note)) / effScale(note));
+
+/* The cap lives on the NOTE element (custom properties inherit, so .note-text
+   keeps reading the var). Set it BEFORE anything measures offsetWidth — the
+   cap changes what offsetWidth reports (setHitInset's constraint, B7). */
+function applyNoteWidth(node, note) {
+  node.style.setProperty('--note-max-w', noteMaxW(note) + 'px');
+}
 
 /* The Parking Lot's visible row budget (B37, issue #49). Whole rows only: a row
    is a 44px hit target (§6) and #lot-items clips, so a fraction of the sheet
@@ -456,6 +467,7 @@ function makeNoteEl(note) {
   node.className = 'note' + (note.state === 'complete' ? ' complete' : '');
   node.dataset.id = note.id;
   node.setAttribute('tabindex', '0');
+  applyNoteWidth(node, note);                               // wrap at the sheet edge (issue #53)
   node.style.left = renderX(note) + 'px';
   node.style.top = renderY(note) + 'px';
   node.style.transform = 'scale(' + effScale(note) + ')';   // homothetic (issue #57)
@@ -978,29 +990,78 @@ function startDrag() {
   const startLogical = toLogical(g.startX, g.startY);
   g.grabDX = startLogical.x - note.x;
   g.grabDY = startLogical.y - note.y;
-  // Page bounds for the drag, fixed once (the footprint cannot change mid-
-  // drag) and widened to include the grab position (B39): a cross-frame note
-  // can arrive bigger than the sheet or past its edge, and the plain
-  // [0, max(0, sheet − foot)] range would teleport it on the first move —
-  // the visually-silent-grab promise broken by its own clamp. For a note
-  // already in range these are exactly the old bounds.
+  // Outer x range, fixed once and widened to include the grab position (B39):
+  // a cross-frame note can arrive bigger than the sheet or past its edge, and
+  // a plain [0, max(0, sheet − foot)] range would teleport it on the first
+  // move — the visually-silent-grab promise broken by its own clamp. Since
+  // issue #53 the footprint can change mid-drag (moving right tightens the
+  // edge cap and the text rewraps narrower and taller), so the x bound admits
+  // the narrowest the note can become — the NOTE_MIN_W floor, or its whole
+  // footprint if that is already narrower — and y takes no fixed upper bound
+  // at all: settleDragFoot derives it per move from the measured height, less
+  // dragOverY, the bottom overhang the grab itself admitted.
   const node = g.target.node;
   const footW = node.offsetWidth * note.scale, footH = node.offsetHeight * note.scale;
   g.dragMinX = Math.min(0, note.x);
-  g.dragMaxX = Math.max(note.x, Math.max(0, LOGICAL_W - footW));
+  g.dragMaxX = Math.max(note.x,
+    Math.max(0, LOGICAL_W - Math.min(footW, NOTE_MIN_W * note.scale)));
   g.dragMinY = Math.min(0, note.y);
-  g.dragMaxY = Math.max(note.y, Math.max(0, LOGICAL_H - footH));
+  g.dragOverY = Math.max(0, note.y + footH - LOGICAL_H);
+  // Reflow-guard caches (issue #53): the cap the node is wearing right now
+  // (the grab rebase cannot have changed it — (rw−x)/scale is fold-invariant)
+  // and the size measured under it. settleDragFoot skips the layout-forcing
+  // write+read while these prove the cap cannot bind.
+  g.dragCap = noteMaxW(note);
+  g.dragW = node.offsetWidth;
+  g.dragH = node.offsetHeight;
 }
+
+/* Shared tail of every drag move and the drop (issue #53): cap at the current
+   x, measure the rewrapped footprint, keep it on the sheet.
+   - x: a rewrapped foot that still overhangs means the cap was floored at
+     NOTE_MIN_W, so pulling x back to the edge leaves the applied cap exact
+     (max(NOTE_MIN_W, foot/scale) = NOTE_MIN_W) — the narrower-cap → rewrap →
+     smaller-foot loop converges in this one pass, at worst at
+     x = LOGICAL_W − NOTE_MIN_W·scale (the note is rebased: effScale ≡ scale).
+   - y: the rewrap changes the HEIGHT too, so the bottom bound comes from the
+     live measure — plus dragOverY, so an oversized cross-frame arrival (B39)
+     keeps its admitted overhang instead of teleporting; only overhang this
+     drag's own rewrap creates is pulled back onto the sheet.
+   The var write + offsetWidth read force a synchronous layout on a path that
+   runs per pointermove, so both are skipped while the cap provably cannot
+   bind: the note sits at its natural width below the applied cap, and the new
+   cap stays at or above that width. The drop passes force — the committed
+   note must wear the exact cap, never the guard's stale one. */
+function settleDragFoot(note, node, force) {
+  const cap = noteMaxW(note);
+  if (force || g.dragW > g.dragCap - 1 || cap < g.dragW) {
+    applyNoteWidth(node, note);
+    g.dragCap = cap;
+    g.dragW = node.offsetWidth;
+    g.dragH = node.offsetHeight;
+  }
+  const footW = g.dragW * note.scale, footH = g.dragH * note.scale;
+  if (note.x + footW > LOGICAL_W) note.x = Math.max(g.dragMinX, LOGICAL_W - footW);
+  note.y = Math.min(note.y, Math.max(g.dragMinY, LOGICAL_H - footH + g.dragOverY));
+  node.style.left = note.x + 'px';
+  node.style.top = note.y + 'px';
+}
+
 function updateDrag(e) {
   const note = g.note, node = g.target.node;
   const pt = toLogical(e.clientX, e.clientY);
   note.x = clamp(pt.x - g.grabDX, g.dragMinX, g.dragMaxX);
-  note.y = clamp(pt.y - g.grabDY, g.dragMinY, g.dragMaxY);
-  node.style.left = note.x + 'px';
-  node.style.top = note.y + 'px';
+  note.y = Math.max(g.dragMinY, pt.y - g.grabDY);   // upper bound lives in the settle
+  settleDragFoot(note, node, false);
 }
 function endDrag() {
-  g.target.node.classList.remove('pressed');
+  const note = g.note, node = g.target.node;
+  // One final, forced settle at the resting x before the write. Legal under
+  // B17: the re-clamp runs inside the gesture, which owns its writes — B17
+  // forbids viewport re-clamps of committed positions only.
+  settleDragFoot(note, node, true);
+  setHitInset(node, note);           // the drag can have rewrapped the note (issue #53)
+  node.classList.remove('pressed');
   saveNow();
   if (isDesktop) updateSelectionUI();  // reposition + unhide at the drop point
 }
@@ -1025,6 +1086,10 @@ function startPinch() {
 function applyNoteScale(note, node, scale) {
   note.scale = scale;
   node.style.transform = 'scale(' + scale + ')';
+  // Scale changes the unscaled cap — (LOGICAL_W − x)/scale — so re-derive the
+  // width var before offsetWidth is read (issue #53): growing a note near the
+  // edge rewraps its text narrower instead of pushing it off the sheet.
+  applyNoteWidth(node, note);
   const footW = node.offsetWidth * scale, footH = node.offsetHeight * scale;
   // A footprint can exceed the sheet only via a folded cross-frame scale
   // (B39); there the old [0, max(0, sheet − foot)] range degenerates to [0,0]
@@ -1609,7 +1674,8 @@ function pdfNum(n) {
 
 /* `white-space: pre-wrap` + `overflow-wrap: break-word`, measured in Helvetica.
    Hard breaks are honoured; a word wider than the box breaks mid-word rather
-   than overflowing it, which is what the note frames rely on to stay 405 wide. */
+   than overflowing it, which is what keeps a note frame inside its edge cap
+   (issue #53). */
 function pdfWrap(str, bold, size, maxW) {
   const lines = [];
   if (!(maxW > 0)) return [String(str)];
@@ -1802,7 +1868,7 @@ const EXPORT_GEO = {
   headSize: 15, headLH: 19.5,          // 15px / 1.3, the band + card + lot header
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
   noteSize: 17, noteLH: 23.8,          // 17px / 1.4
-  border: 2, radius: 2, notePadX: 12, notePadY: 10, noteMaxW: 405,
+  border: 2, radius: 2, notePadX: 12, notePadY: 10,
 };
 
 // The same proportional law as renderX/renderY (issue #15, B32), resolved
@@ -1819,16 +1885,16 @@ const exportY = (n) => n.rh
 const exportMult = (n) => EXPORT_W / (n.rw || 900);
 
 // Border box of a note, before its own scale — `width: max-content` capped at
-// the width cap of the frame it was authored in, height from however many
-// lines that width produces. The cap restates noteMaxW against `rw` (B39):
-// 45% of a mobile sheet, the literal 405 on desktop — and since desktop pins
-// rw ≥ 900 (B20), min() of the two selects the right law without a mode flag.
-// The literal 405 alone would re-wrap a phone note at desktop width and, under
-// exportMult, run it off the export sheet.
+// the export sheet's right edge, height from however many lines that width
+// produces. The cap is noteMaxW's law with the 900 frame standing in for the
+// viewport (issue #53, B38): both reduce to (rw − x)/scale in authored units,
+// floored at NOTE_MIN_W, so the screen's wrap width and the PDF's are the same
+// number by construction — a cap-hitting note cannot disagree between the two.
 function exportNoteBox(note) {
   const g = EXPORT_GEO;
   const chrome = 2 * g.notePadX + 2 * g.border;
-  const cap = Math.min(g.noteMaxW, Math.round((note.rw || 900) * 0.45));
+  const s = (note.scale || 1) * exportMult(note);
+  const cap = Math.max(NOTE_MIN_W, (EXPORT_W - exportX(note)) / s);
   const maxContent = cap - chrome;
   const content = Math.min(pdfNaturalW(note.text, false, g.noteSize), maxContent);
   const lines = pdfWrap(note.text, false, g.noteSize, content);

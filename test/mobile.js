@@ -390,7 +390,6 @@ const activeIsNoteText = page => page.evaluate(() =>
         rs: cs.getPropertyValue('--rs').trim(),
         lw: cs.getPropertyValue('--logical-w').trim(),
         lh: cs.getPropertyValue('--logical-h').trim(),
-        maxW: cs.getPropertyValue('--note-max-w').trim(),
         titleFont: getComputedStyle(document.querySelector('#anchor-title')).fontSize,
         compFont: getComputedStyle(document.querySelector('#anchor-components')).fontSize,
         title: r('#anchor-title'), comp: r('#anchor-components'),
@@ -442,7 +441,6 @@ const activeIsNoteText = page => page.evaluate(() =>
       JSON.stringify([geo.title.bottom, geo.rule.top]));
     ok('lot is 122px — two rows on a phone', Math.round(geo.lot.height) === 122, String(geo.lot.height));
     ok('lot sits above the bottom edge', Math.round(geo.lot.bottom) === 830, String(geo.lot.bottom));
-    ok('note cap is 45% of the sheet', geo.maxW === '173px', geo.maxW);
     // B37 (issue #49): the band is sized by the type it holds, not by the sheet,
     // so the rule is at 14 + 68/2 = 48 on every sheet — and it crosses the card
     // at its *middle*, which is how the reference board draws it. B36 had it at
@@ -460,6 +458,21 @@ const activeIsNoteText = page => page.evaluate(() =>
       const free = (geo.lot.top - labelBottom) / 846;
       ok('free canvas is >=68% of the sheet', free >= 0.68, (free * 100).toFixed(1) + '%');
     }
+    // Issue #53 (B38): no 45% cap — a long line wraps only at the sheet's
+    // right edge, spanning most of the viewport where 173px used to stop it.
+    await tap(page, 24, 250);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('The quick brown fox jumps over the lazy dog while the '
+      + 'cat watches from the window and the dog barks at the mailman going past');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(300);
+    const wrap = await page.evaluate(() => {
+      const n = document.querySelector('.note');
+      return { right: n.getBoundingClientRect().right, w: n.offsetWidth };
+    });
+    ok('long note wraps at the sheet right edge (issue #53)',
+       wrap.right <= 384 + 1, JSON.stringify(wrap));
+    ok('and spans past the old 45% cap', wrap.w > 173, String(wrap.w));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
@@ -814,6 +827,39 @@ const activeIsNoteText = page => page.evaluate(() =>
         navigator.clipboard.readText().then(t => t === 'pocket text', () => false)));
       ok('copying deleted nothing', (await noteCount(page)) === 1);
     }
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 18. screen wrap ≡ export wrap, in authored units (issue #53, B38) ---
+  // One law, two resolutions: the screen caps at (LOGICAL_W − renderX)/eff,
+  // exportNoteBox at (EXPORT_W − exportX)/(scale·exportMult) — both reduce to
+  // (rw − x)/scale, so a cap-hitting note wraps at the same width on a phone
+  // sheet and on the 900 export frame. This is the cross-frame agreement B39
+  // left as "known, not fixed".
+  console.log('\n[18] Screen and export share one wrap law (issue #53)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 100, 300);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('a long line of perfectly ordinary words that has to wrap '
+      + 'well before the right edge arrives because it just keeps going and going');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(300);
+    const m = await page.evaluate(() => {
+      const note = current.notes[current.notes.length - 1];
+      const node = document.querySelector('[data-id="' + note.id + '"]');
+      const box = exportNoteBox(note);
+      return { screenW: node.offsetWidth, exportW: box.w,
+               cap: (note.rw - note.x) / (note.scale || 1),
+               x: note.x, rw: note.rw, lines: box.lines.length };
+    });
+    // Authored at x=100 on this 384 sheet: the cap is 284 authored units.
+    ok('screen wrap width is the authored-unit cap (±1)',
+       Math.abs(m.screenW - m.cap) <= 1, JSON.stringify(m));
+    ok('export wrap width agrees with the screen (±1)',
+       Math.abs(m.exportW - m.screenW) <= 1, JSON.stringify(m));
+    ok('the exported note wraps to more than one line', m.lines > 1, String(m.lines));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
