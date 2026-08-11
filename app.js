@@ -48,6 +48,10 @@ const COPY = {
   // alone read as a category label. One key renames every menu site at once;
   // the #list-title page heading is not a menu and keeps its own text.
   complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'All boards',
+  // Plural labels for a multi-selection (issue #55): the count is visible on
+  // the board itself — every member wears a ring — so the label says "all",
+  // not a number the user would have to reconcile.
+  completeAll: 'Complete all', restoreAll: 'Restore all', deleteAll: 'Delete all',
   deleted: 'Deleted', undo: 'Undo',
   copy: 'Copy', copied: 'Copied', copyError: 'Couldn’t copy.',
   // One word, no ellipsis, no object noun — the menu's existing grammar. There
@@ -560,6 +564,14 @@ el.board.addEventListener('pointerdown', onPointerDown);
 
 function onPointerDown(e) {
   if (swallowTap) { swallowTap = false; return; }  // this press only dismissed a menu (B30)
+  // Secondary/middle presses are inert to the recognizer (issue #55): a
+  // right-click must reach the contextmenu listener with no gesture context
+  // armed, or the press underneath the menu would drag/select/create. The
+  // preventDefault stops the press from natively focusing a tabindexed note —
+  // focusin's Tab-selects rule would collapse a multi-selection before the
+  // contextmenu listener could act on it. contextmenu still fires: it is not
+  // a compatibility mouse event, so canceling pointerdown leaves it alone.
+  if (e.button !== 0) { e.preventDefault(); return; }
   if (isEditing(e.target)) return;                 // let text editing receive taps/caret
   // Past that guard the recognizer owns this press outright, so the browser's
   // compatibility mouse events are suppressed at their source (B27). They are
@@ -571,8 +583,11 @@ function onPointerDown(e) {
   e.preventDefault();
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY });
 
-  // Second pointer on a note in progress → pinch.
-  if (pointers.size === 2 && g && g.target.type === 'note') {
+  // Second pointer on a note in progress → pinch — but never on a group drag
+  // (issue #55): scaling is single-selection only, and startPinch knows one
+  // note. The extra pointer is simply ignored and the group drag continues
+  // under the first (a touchscreen laptop can be desktop-mode, B19).
+  if (pointers.size === 2 && g && g.target.type === 'note' && !g.group) {
     startPinch();
     return;
   }
@@ -582,10 +597,15 @@ function onPointerDown(e) {
   g = {
     target, pointerId: e.pointerId,
     startX: e.clientX, startY: e.clientY,
+    shift: e.shiftKey,                             // multi-select modifier (issue #55)
     mode: 'pending', longPressed: false, moved: false,
     note: target.type === 'note' ? current.notes.find(n => n.id === target.node.dataset.id) : null,
   };
-  if (isDesktop && target.type === 'sel-frame' && selected && selected.kind === 'note') {
+  // Resize is single-selection only, by design (issue #55): with two or more
+  // selected the CSS hides the grip, and this guard keeps the gesture honest
+  // even if a stray hit reaches the frame.
+  if (isDesktop && target.type === 'sel-frame' && selected && selected.kind === 'note' &&
+      multiSel.size <= 1) {
     startResize(e);
   }
   try { el.board.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ }
@@ -635,7 +655,7 @@ function onPointerUp(e) {
 
   if (g.mode === 'drag') { endDrag(); }
   else if (g.mode === 'resize') { endResize(); }
-  else if (g.mode === 'pending' && !g.longPressed && !g.moved) { handleTap(g.target, e.clientX, e.clientY); }
+  else if (g.mode === 'pending' && !g.longPressed && !g.moved) { handleTap(g.target, e.clientX, e.clientY, g.shift); }
   g = null;
 }
 
@@ -649,6 +669,19 @@ function onPointerUp(e) {
 function isEditing(node) {
   const ed = node.closest && node.closest('[contenteditable]');
   return !!(ed && document.activeElement === ed);
+}
+
+/* Commit an open editor before a tap acts on an item (issue #54): the
+   recognizer suppressed the native blur (B27), so the commit is explicit.
+   Returns true when the tap is spent — it landed on the edited element's own
+   hit collar, where the click only dismisses (edit and selection are mutually
+   exclusive, B22). One helper, one rule, every item branch. */
+function commitOpenEditor(node) {
+  const a = document.activeElement;
+  if (!isEditing(a)) return false;
+  const own = !!(node && node.contains(a));
+  a.blur();
+  return own;
 }
 
 /* Every click commits ACTION_DELAY after the release, never on the same frame.
@@ -691,7 +724,7 @@ function makeTapGhost(clientX, clientY) {
 /* No blanket pendingAction guard here (issue #13): delayAction carries its own
    drop-guard, so B18(d) holds exactly where an action fires — while inert taps
    (select, deselect) stay live even during an open window. */
-function handleTap(target, x, y) {
+function handleTap(target, x, y, shift) {
   switch (target.type) {
     case 'sel-btn': {
       // Complete/Restore/Copy/Delete — every button runs through B18's window,
@@ -712,40 +745,49 @@ function handleTap(target, x, y) {
             updateSelectionUI();
           }
         } else if (selected && selected.kind === 'note') {
-          const node = noteEls.get(selected.id);
+          // The note branch acts on the WHOLE selection (issue #55): with one
+          // note selected these are byte-for-byte the old single-note actions.
+          const ids = selectedNoteIds();
           const note = current.notes.find(n => n.id === selected.id);
-          if (!node || !note) return;
-          if (isCopy) copyText(note.text);
-          else if (isDel) { clearSelection(); deleteNote(node); }
-          else {
-            if (note.state === 'complete') restoreNote(node); else completeNote(node);
-            updateSelectionUI();
+          if (!note || !ids.length) return;
+          if (isCopy) {
+            // Every selected note's text, primary first, one per line — a
+            // single selection is today's copy unchanged.
+            copyText(ids.map(id => {
+              const n = current.notes.find(m => m.id === id);
+              return n ? n.text : '';
+            }).join('\n'));
           }
+          else if (isDel) deleteNotes(ids);      // one B18 window → one Undo
+          else setSelectedNotesState(note.state === 'complete');  // primary keys the direction
         }
       });
       break;
     }
     case 'sel-frame': break;           // a motionless click on the ring does nothing
     case 'canvas': {
-      // Creation surfaces deselect first (issue #12 desktop / #41 mobile): with
-      // a selection active, or a note mid-edit, a tap only dismisses; capture
-      // is only primary when nothing is selected or being edited.
+      // Click-away while editing commits and only dismisses (issue #54). This
+      // guard is mode-independent and must come BEFORE the selected check:
+      // while editing nothing is selected (edit paths clear selection first),
+      // and the recognizer suppressed the native blur (B27), so without it a
+      // desktop click fell through to the tap-ghost and created a note on top
+      // of the dismissal. The NEXT click creates (ghost + B18 window).
+      if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
+      // Creation surfaces deselect first (issue #12 desktop / #41 mobile):
+      // with a selection active a tap only dismisses; capture is only primary
+      // when nothing is selected or being edited.
       if (isDesktop && selected) { clearSelection(); break; }
-      if (!isDesktop) {
-        if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
-        createNote(x, y); break;                                // capture is instant (B27)
-      }
+      if (!isDesktop) { createNote(x, y); break; }              // capture is instant (B27)
       if (pendingAction) break;        // don't draw a ghost a dropped tap would orphan
       const ghost = makeTapGhost(x, y);
       delayAction(ghost, () => { ghost.remove(); createNote(x, y); });
       break;
     }
     case 'lot': {
+      // Same #54 law as canvas: an open editor commits and the tap is spent.
+      if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
       if (isDesktop && selected) { clearSelection(); break; }   // creation surface too
-      if (!isDesktop) {
-        if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
-        createLotItem(); break;                                 // B27
-      }
+      if (!isDesktop) { createLotItem(); break; }               // B27
       delayAction(el.lot, createLotItem);
       break;
     }
@@ -754,6 +796,16 @@ function handleTap(target, x, y) {
       const note = current.notes.find(n => n.id === node.dataset.id);
       if (!note) break;
       if (isDesktop) {
+        // An open editor commits before the click acts (issue #54); on the
+        // edited note's own collar the click only dismisses.
+        if (commitOpenEditor(node)) break;
+        // Shift-click toggles multi-selection membership (issue #55) and
+        // never pairs into the double-click window.
+        if (shift) {
+          toggleInSelection(note.id);
+          lastTap = { key: null, t: 0 };
+          break;
+        }
         // Click selects (instant, inert); a second click within the pairing
         // window edits with the caret at the end (issue #4). Completed notes
         // never edit — same guard as the mobile tap path.
@@ -781,6 +833,9 @@ function handleTap(target, x, y) {
       const item = current.parkingLot.find(i => i.id === node.dataset.id);
       if (!item) break;
       if (isDesktop) {
+        // Same #54 commit-first guard as the note branch. Lot rows stay
+        // single-select (issue #55) — no shift path here, by design.
+        if (commitOpenEditor(node)) break;
         const key = 'lot:' + item.id, now = Date.now();
         if (selected && selected.kind === 'lot' && selected.id === item.id &&
             lastTap.key === key && now - lastTap.t < DBLCLICK_MS) {
@@ -880,7 +935,15 @@ document.addEventListener('focusin', (e) => {
   } else if (t.classList.contains('note')) {
     const note = current && current.notes.find(n => n.id === t.dataset.id);
     if (!note) return;
-    if (isDesktop) { selectNote(note.id); return; }    // Tab selects; Enter edits (issue #13)
+    if (isDesktop) {
+      // Tab selects; Enter edits (issue #13) — EXCEPT the menu's own focus
+      // return (issue #55): closeMenu hands focus back to the right-clicked
+      // member, and that hand-back must not collapse the multi-selection the
+      // menu just acted on. A real Tab onto a member still selects it, so
+      // keyboard focus and selection never diverge outside that one call.
+      if (!(menuReturnFocus && multiSel.size > 1 && multiSel.has(note.id))) selectNote(note.id);
+      return;
+    }
     if (note.state === 'active') editText(t.querySelector('.note-text'));
   } else if (t.classList.contains('lot-item')) {
     const item = current && current.parkingLot.find(i => i.id === t.dataset.id);
@@ -901,6 +964,8 @@ document.addEventListener('keydown', (e) => {
     else if (selected) clearSelection();
   } else if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !editing) {
     e.preventDefault();
+    // A multi-selection deletes as one batch with one Undo (issue #55).
+    if (selected.kind === 'note' && multiSel.size > 1) { deleteNotes(selectedNoteIds()); return; }
     const s = selected;
     clearSelection();
     if (s.kind === 'note') { const n = noteEls.get(s.id); if (n) deleteNote(n); }
@@ -953,6 +1018,7 @@ function commitNote(node) {
 }
 function removeNoteSilently(note, node) {
   if (selected && selected.kind === 'note' && selected.id === note.id) clearSelection();
+  else dropFromSelection(note.id);     // set hygiene for a non-primary member (issue #55)
   const i = current.notes.indexOf(note);
   if (i >= 0) current.notes.splice(i, 1);
   node.remove(); noteEls.delete(note.id);
@@ -985,9 +1051,39 @@ function startDrag() {
   g.target.node.classList.add('pressed');
   surfaceNote(g.target.node);
   const note = g.note;
+  const startLogical = toLogical(g.startX, g.startY);
+  // Group drag (issue #55): grabbing a MEMBER of a multi-selection moves every
+  // member by the same delta. Only the grabbed note surfaces (above) — the
+  // others keep their z-order; every member wears .pressed. Grabbing a
+  // non-member falls through to the single path, which collapses the set
+  // (selectNote below) — today's behavior.
+  if (isDesktop && multiSel.size > 1 && multiSel.has(note.id)) {
+    g.group = [];
+    for (const id of selectedNoteIds()) {
+      const n = current.notes.find(m => m.id === id);
+      const memberNode = noteEls.get(id);
+      if (!n || !memberNode) continue;
+      // Per-member rebase — the one licensed grab-time write (B21), which
+      // with B39 also folds each member's scale multiplier; visually silent.
+      rebaseNote(n);
+      const fw = memberNode.offsetWidth * n.scale, fh = memberNode.offsetHeight * n.scale;
+      g.group.push({
+        note: n, node: memberNode, x0: n.x, y0: n.y,
+        // Per-member bounds, widened to admit the grab position exactly as
+        // the single path below (B39). Members hitting different clamps can
+        // compress the group's relative geometry at the sheet edge — accepted
+        // (B40): the alternative is a note the group can never park flush.
+        minX: Math.min(0, n.x), maxX: Math.max(n.x, Math.max(0, LOGICAL_W - fw)),
+        minY: Math.min(0, n.y), maxY: Math.max(n.y, Math.max(0, LOGICAL_H - fh)),
+      });
+      memberNode.classList.add('pressed');
+    }
+    g.groupX0 = startLogical.x; g.groupY0 = startLogical.y;
+    setSelectionHidden(true);
+    return;
+  }
   rebaseNote(note);                  // grab math runs in current-frame units (issue #15)
   if (isDesktop) { selectNote(note.id); setSelectionHidden(true); }
-  const startLogical = toLogical(g.startX, g.startY);
   g.grabDX = startLogical.x - note.x;
   g.grabDY = startLogical.y - note.y;
   // Outer x range, fixed once and widened to include the grab position (B39):
@@ -1048,13 +1144,39 @@ function settleDragFoot(note, node, force) {
 }
 
 function updateDrag(e) {
-  const note = g.note, node = g.target.node;
   const pt = toLogical(e.clientX, e.clientY);
+  if (g.group) {
+    // One delta for the whole group, clamped per member (issue #55).
+    const dx = pt.x - g.groupX0, dy = pt.y - g.groupY0;
+    for (const m of g.group) {
+      m.note.x = clamp(m.x0 + dx, m.minX, m.maxX);
+      m.note.y = clamp(m.y0 + dy, m.minY, m.maxY);
+      m.node.style.left = m.note.x + 'px';
+      m.node.style.top = m.note.y + 'px';
+    }
+    return;
+  }
+  const note = g.note, node = g.target.node;
   note.x = clamp(pt.x - g.grabDX, g.dragMinX, g.dragMaxX);
   note.y = Math.max(g.dragMinY, pt.y - g.grabDY);   // upper bound lives in the settle
   settleDragFoot(note, node, false);
 }
 function endDrag() {
+  if (g.group) {
+    // One write for the whole group (issue #55). The drag held grab-time
+    // bounds, so no member overhangs; at the drop each settles onto the exact
+    // cap for its resting x (issue #53) — never tighter than what the clamp
+    // admitted, so nothing jumps, and a leftward member may re-widen.
+    for (const m of g.group) {
+      applyNoteWidth(m.node, m.note);
+      setHitInset(m.node, m.note);
+      m.node.classList.remove('pressed');
+    }
+    g.target.node.classList.remove('pressed');
+    saveNow();
+    if (isDesktop) updateSelectionUI();
+    return;
+  }
   const note = g.note, node = g.target.node;
   // One final, forced settle at the resting x before the write. Legal under
   // B17: the re-clamp runs inside the gesture, which owns its writes — B17
@@ -1149,6 +1271,67 @@ let selected = null;                 // { kind: 'note'|'lot', id }
 let lastTap = { key: null, t: 0 };   // double-click pairing across taps
 let selEl = null, selActions = null, selPrimary = null, selCopy = null, selDelete = null;
 
+/* Multi-selection (issue #55, B40): desktop NOTES only — lot rows stay
+   single-select by design (their inline buttons live on the row, and a lot
+   line is a list entry, not a spatial object worth herding). `selected` stays
+   the PRIMARY — every existing `selected &&` guard is untouched — and this set
+   holds the member ids when two or more notes are selected. Invariant: the set
+   is empty (today's single selection, bit-for-bit) or has size ≥ 2 and
+   contains the primary. The primary wears the one #selection overlay; every
+   other member wears .multi-selected, whose CSS outline tracks the node with
+   zero JS positioning. */
+const multiSel = new Set();
+
+// The selection as an id array, primary first — the order bulk actions run in.
+function selectedNoteIds() {
+  if (!selected || selected.kind !== 'note') return [];
+  const ids = [selected.id];
+  for (const id of multiSel) if (id !== selected.id) ids.push(id);
+  return ids;
+}
+
+/* Shift-click semantics (issue #55): toggle membership. Adding makes the
+   clicked note the primary; removing the primary promotes another member;
+   removing the last member clears. A set that would end at size 1 collapses
+   back to a plain single selection, keeping the invariant. */
+function toggleInSelection(id) {
+  if (!noteEls.get(id)) return;
+  if (!selected || selected.kind !== 'note') { selectNote(id); return; }
+  const members = new Set(multiSel.size ? multiSel : [selected.id]);
+  let primary;
+  if (members.has(id)) {
+    members.delete(id);
+    if (!members.size) { clearSelection(); return; }
+    primary = selected.id === id ? members.values().next().value : selected.id;
+  } else {
+    members.add(id);
+    primary = id;                      // the note just added leads
+  }
+  clearSelection();                    // strips rings, overlay, and the set
+  selectNote(primary);                 // the one overlay, on the primary
+  if (members.size > 1) {
+    for (const m of members) {
+      multiSel.add(m);
+      if (m !== primary) {
+        const node = noteEls.get(m);
+        if (node) node.classList.add('multi-selected');
+      }
+    }
+    updateSelectionUI();               // picks up the `multi` class
+  }
+}
+
+/* Note-removal hygiene (issue #55): a non-primary member that leaves the board
+   leaves the set (the primary's removal routes through clearSelection). A set
+   of one collapses back to a plain single selection. */
+function dropFromSelection(id) {
+  if (!multiSel.delete(id)) return;
+  const node = noteEls.get(id);
+  if (node) node.classList.remove('multi-selected');
+  if (multiSel.size === 1) multiSel.clear();
+  if (selEl) selEl.classList.toggle('multi', multiSel.size > 1);
+}
+
 function ensureSelectionEl() {
   if (selEl) return;
   selEl = document.createElement('div');
@@ -1188,7 +1371,11 @@ function ensureSelectionEl() {
 }
 
 function selectNote(id) {
-  if (selected && selected.kind === 'note' && selected.id === id) { updateSelectionUI(); return; }
+  // Re-selecting the primary is a no-op only while the selection is single: a
+  // plain click on the primary of a multi-selection collapses it (issue #55).
+  if (selected && selected.kind === 'note' && selected.id === id && multiSel.size === 0) {
+    updateSelectionUI(); return;
+  }
   clearSelection();
   const node = noteEls.get(id);
   if (!node) return;
@@ -1224,6 +1411,15 @@ function selectLot(id) {
 }
 
 function clearSelection() {
+  // Rings first: the whole set goes when the selection goes (issue #55) —
+  // applyMode's teardown and renderBoard's rebuild both land here.
+  if (multiSel.size) {
+    for (const id of multiSel) {
+      const node = noteEls.get(id);
+      if (node) node.classList.remove('multi-selected');
+    }
+    multiSel.clear();
+  }
   if (!selected) return;
   if (selected.kind === 'note') {
     const node = noteEls.get(selected.id);
@@ -1257,6 +1453,9 @@ function updateSelectionUI() {
     selEl.style.width = w + 'px';
     selEl.style.height = h + 'px';
     selPrimary.textContent = note.state === 'complete' ? COPY.restore : COPY.complete;
+    // Two or more selected: the overlay drops its resize grip (edges +
+    // handles, hidden in CSS) — resize is single-selection only (issue #55).
+    selEl.classList.toggle('multi', multiSel.size > 1);
     // Buttons sit under the bottom frame edge; flip above when they'd leave the page.
     selActions.classList.toggle('above', top + h + 64 > LOGICAL_H);
     setSelectionHidden(false);
@@ -1298,16 +1497,16 @@ function endResize() {
 }
 
 /* --- 9. Complete / restore / delete + Undo toast ------------------------- */
-function completeNote(node) {
+// State + presentation together, no write: the single-note wrappers below add
+// their own saveNow, the bulk path (issue #55) saves once for the whole set.
+function setNoteState(node, complete) {
   const note = current.notes.find(n => n.id === node.dataset.id);
-  note.state = 'complete'; node.classList.add('complete');
-  applyCompleteA11y(node, true); saveNow();
+  note.state = complete ? 'complete' : 'active';
+  node.classList.toggle('complete', complete);
+  applyCompleteA11y(node, complete);
 }
-function restoreNote(node) {
-  const note = current.notes.find(n => n.id === node.dataset.id);
-  note.state = 'active'; node.classList.remove('complete');
-  applyCompleteA11y(node, false); saveNow();
-}
+function completeNote(node) { setNoteState(node, true); saveNow(); }
+function restoreNote(node) { setNoteState(node, false); saveNow(); }
 function completeLot(node) {
   const item = current.parkingLot.find(i => i.id === node.dataset.id);
   item.state = 'complete'; node.classList.add('complete');
@@ -1319,21 +1518,9 @@ function restoreLot(node) {
   applyCompleteA11y(node, false); saveNow();
 }
 
-function deleteNote(node) {
-  if (selected && selected.kind === 'note' && selected.id === node.dataset.id) clearSelection();
-  const note = current.notes.find(n => n.id === node.dataset.id);
-  const index = current.notes.indexOf(note);
-  const snapshot = JSON.parse(JSON.stringify(note));
-  current.notes.splice(index, 1);
-  leave(node, () => { node.remove(); noteEls.delete(note.id); });
-  saveNow();
-  showUndo(() => {
-    current.notes.splice(index, 0, snapshot);          // exact z-order
-    el.board.appendChild(makeNoteEl(snapshot));
-    reorderNotesDOM();
-    saveNow();
-  });
-}
+// One id through the batch path (issue #55): same snapshot, same splice, same
+// index-restoring Undo — one implementation to keep honest.
+function deleteNote(node) { deleteNotes([node.dataset.id]); }
 function deleteLot(node) {
   if (selected && selected.kind === 'lot' && selected.id === node.dataset.id) clearSelection();
   const item = current.parkingLot.find(i => i.id === node.dataset.id);
@@ -1350,6 +1537,51 @@ function deleteLot(node) {
     saveNow();
   });
 }
+/* Bulk delete with ONE Undo (issue #55): the whole selection leaves in one
+   B18 window, one save, one toast — and the Undo re-inserts every note at its
+   original index and restores DOM order, so a delete-all + undo is a no-op.
+   Snapshots are taken ascending so re-inserting ascending lands each index
+   exactly. deleteNote is a one-id call through this same path, so single and
+   batch deletes cannot diverge. */
+function deleteNotes(ids) {
+  const wanted = new Set(ids);
+  const snap = [];
+  current.notes.forEach((n, i) => {
+    if (wanted.has(n.id)) snap.push({ note: JSON.parse(JSON.stringify(n)), index: i });
+  });
+  if (!snap.length) return;
+  clearSelection();
+  for (let i = snap.length - 1; i >= 0; i--) {       // descending: indices stay valid
+    const s = snap[i];
+    current.notes.splice(s.index, 1);
+    const node = noteEls.get(s.note.id);
+    if (node) leave(node, () => { node.remove(); noteEls.delete(s.note.id); });
+  }
+  saveNow();
+  showUndo(() => {
+    for (const s of snap) {                          // ascending: exact z-order back
+      current.notes.splice(s.index, 0, s.note);
+      el.board.appendChild(makeNoteEl(s.note));
+    }
+    reorderNotesDOM();
+    saveNow();
+  });
+}
+
+/* Complete or restore every selected note in one pass (issue #55). The caller
+   picks the direction — the sel-btn keys off the PRIMARY's state, the context
+   menu off the whole set — and each member is SET, not toggled, so a mixed
+   selection lands uniform. One save for the whole action, like endDrag and
+   deleteNotes. */
+function setSelectedNotesState(restore) {
+  for (const id of selectedNoteIds()) {
+    const node = noteEls.get(id);
+    if (node) setNoteState(node, !restore);
+  }
+  saveNow();
+  updateSelectionUI();
+}
+
 // Rebuild note DOM order to match array order (used after undo-insert).
 function reorderNotesDOM() {
   for (const note of current.notes) {
@@ -1453,6 +1685,7 @@ function copyText(text) {
 /* --- 10. Long-press menu ------------------------------------------------- */
 let menuOpen = false, menuKeyHandler = null, menuOutsideHandler = null;
 let menuInvoker = null;              // desktop contextmenu: focus returns here on close
+let menuReturnFocus = false;         // true only inside closeMenu's synchronous focus return
 
 function openMenuFor(target, clientX, clientY) {
   let items = [];
@@ -1488,6 +1721,56 @@ function openMenuFor(target, clientX, clientY) {
   }
   buildMenu(items, clientX, clientY);
 }
+
+/* Desktop right-click on a note (issue #55): the selection's own menu, ONE
+   delegated listener. Right-click on empty canvas or the lot keeps the
+   BROWSER's native menu, and an active editor keeps its own (paste, spelling);
+   lot rows stay single-select with inline buttons, so they are not routed
+   here either. The recognizer never sees the press (button !== 0 guard), so
+   nothing underneath drags or creates. */
+el.board.addEventListener('contextmenu', (e) => {
+  if (!isDesktop) return;
+  if (isEditing(e.target)) return;     // the editor's own menu is the useful one
+  const target = classifyTarget(e.target);
+  if (target.type !== 'note') return;
+  const note = current.notes.find(n => n.id === target.node.dataset.id);
+  if (!note) return;                   // no record (a mid-leave husk): the native menu stands
+  e.preventDefault();
+  // #54's law holds here too: an editor open elsewhere commits before the
+  // menu acts on committed state.
+  commitOpenEditor(target.node);
+  // Outside the current multi-selection the right-click acts on the clicked
+  // note alone — select it (single) first, exactly like a plain click.
+  if (!(selected && selected.kind === 'note' &&
+        (selected.id === note.id || multiSel.has(note.id)))) selectNote(note.id);
+  const ids = selectedNoteIds();
+  if (!ids.length) return;
+  const many = ids.length > 1;
+  // The primary action flips to Restore only when EVERY selected note is
+  // complete — a mixed selection still reads Complete, which is the state it
+  // will make true. Singular labels when one note is selected (B42's grammar).
+  const allComplete = ids.every(id => {
+    const n = current.notes.find(m => m.id === id);
+    return n && n.state === 'complete';
+  });
+  const items = [
+    allComplete
+      ? { label: many ? COPY.restoreAll : COPY.restore, glyph: GLYPH.restore,
+          action: () => setSelectedNotesState(true) }
+      : { label: many ? COPY.completeAll : COPY.complete, glyph: GLYPH.complete,
+          action: () => setSelectedNotesState(false) },
+    { sep: true },                     // destructive last, behind the hairline (UIUX §7)
+    { label: many ? COPY.deleteAll : COPY.delete, glyph: GLYPH.delete, danger: true,
+      action: () => deleteNotes(selectedNoteIds()) },
+  ];
+  menuInvoker = target.node;           // focus returns to the note on close
+  let x = e.clientX, y = e.clientY;
+  if (!x && !y) {                      // Shift+F10 fires contextmenu at 0,0
+    const r = target.node.getBoundingClientRect();
+    x = r.left + r.width / 2; y = r.top + r.height / 2;
+  }
+  buildMenu(items, x, y);
+});
 
 function buildMenu(items, clientX, clientY) {
   closeMenu();
@@ -1559,7 +1842,12 @@ function closeMenu() {
   if (menuKeyHandler) document.removeEventListener('keydown', menuKeyHandler, true);
   if (menuOutsideHandler) document.removeEventListener('pointerdown', menuOutsideHandler, true);
   menuKeyHandler = menuOutsideHandler = null;
-  if (menuInvoker) { const m = menuInvoker; menuInvoker = null; m.focus(); }
+  if (menuInvoker) {
+    const m = menuInvoker; menuInvoker = null;
+    // focus() dispatches focusin synchronously; the flag scopes the multi-
+    // selection exemption to exactly this call (issue #55).
+    menuReturnFocus = true; m.focus(); menuReturnFocus = false;
+  }
 }
 
 /* --- 10.5 PDF export (issue #43) -----------------------------------------

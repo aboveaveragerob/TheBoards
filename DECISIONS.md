@@ -1041,3 +1041,48 @@ B18's 400ms.
 
 Supersedes PRD §6.2's 45% cap as read by B32 ("--note-max-w set in applyLayout" — the
 per-note var is the pattern now) and B39's exportNoteBox cap; B39 is annotated in place.
+
+---
+
+## K. Desktop dismissal and multi-selection (issues #54, #55)
+
+### B40. Click-away while editing commits and dismisses, never creates; shift-click herds notes
+
+**#54.** The desktop `canvas`/`lot` tap guarded on `selected` alone, but while EDITING nothing
+is selected (edit paths clear selection first) and the recognizer's `isEditing` early-out tests
+the *clicked* target, not the active editor — so a click on bare paper mid-edit sailed past the
+guard, `preventDefault` had already suppressed the native blur (B27), and the tap fell into the
+ghost + `createNote` path: dismissal and creation on the same click. Ruling: a mode-independent
+`isEditing(document.activeElement) → blur` guard sits ABOVE the `selected` check in both
+creation-surface cases — the blur runs the commit-on-blur path, the click is spent on
+dismissing, and the NEXT click creates (ghost + B18 window), which is desktop parity with #41's
+mobile rule. The desktop `note`/`lot-item` branches commit an open editor the same way before
+selecting; on the edited note's own hit collar the click only dismisses, because edit and
+selection are mutually exclusive (B22).
+
+**#55.** Desktop notes gain shift-click multi-selection; **lot rows stay single-select by
+design** — a lot line is a list entry, not a spatial object worth herding. `selected` remains
+the sole PRIMARY, so every existing `selected &&` guard is untouched; a module-level `multiSel`
+set holds member ids and is empty (today's behavior, bit-for-bit) or size ≥ 2 and containing
+the primary. The primary wears the one `#selection` overlay; every other member wears
+`.multi-selected`, a CSS outline that rides the node itself — zero JS positioning. With two or
+more selected the overlay hides its edges and handles: **resize is single-selection only**.
+Shift-click toggles membership (adding makes the clicked note primary; removing the primary
+promotes another member; the last removal clears) and never pairs into the double-click window;
+a plain click collapses to single. Group drag: grabbing a member moves every member by one
+delta — per-member `rebaseNote` at grab (B21's licensed write, folding each member's scale per
+B39), per-member bounds widened to admit the grab position, `.pressed` on all, `surfaceNote`
+only on the grabbed one, one `saveNow` at drop. Members hitting different clamps can compress
+the group's relative geometry at the sheet edge — accepted; the alternative is a group that can
+never park flush. Right-click (the recognizer now ignores non-primary buttons outright) opens
+the selection's own menu via the delegated board `contextmenu` listener: Complete all — Restore
+all only when EVERY member is complete — then the hairline, then Delete all in `--danger`
+(UIUX §7); singular labels at size 1; empty canvas and active editors keep the browser's native
+menu. The sel-actions row acts on the whole selection: Complete/Restore keyed off the primary
+applied to all, Copy joins every text primary-first with newlines, Delete routes through the
+new `deleteNotes` — one B18 window, one save, ONE Undo that re-inserts every note at its
+original index and restores DOM order. `clearSelection` strips rings and set together, so
+`applyMode`'s teardown and `renderBoard`'s rebuild stay one call; note-removal paths drop ids
+from the set, and a set of one collapses back to a plain single selection.
+`test/desktop.js` [D18] pins the dismiss-then-create sequence; [D19] pins rings, hidden
+handles, the shared drag delta, the menu shape, and the batch Undo round-trip.

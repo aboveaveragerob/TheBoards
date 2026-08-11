@@ -777,6 +777,163 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
+  console.log('\n[D18] Click-away from an open editor dismisses; the second click creates (issue #54)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    await page.mouse.click(800, 600);
+    await page.waitForTimeout(500);
+    await page.keyboard.type('persist me');
+    // Click far empty canvas while the editor is open: commit + dismiss only —
+    // no ghost, no note, even after the window a buggy path would have used.
+    await page.mouse.click(500, 300);
+    await page.waitForTimeout(600);
+    ok('no note created by the dismissing click', (await noteCount(page)) === 1,
+       'count=' + await noteCount(page));
+    ok('editor blurred', await page.evaluate(() =>
+      !document.activeElement || !document.activeElement.classList.contains('note-text')));
+    ok('text persisted', await page.evaluate(() =>
+      current.notes.length === 1 && current.notes[0].text === 'persist me'));
+    // The SECOND click is the creating one: ghost, then a note after the window.
+    await page.mouse.click(500, 300);
+    await page.waitForTimeout(80);
+    ok('second click draws the ghost', await page.evaluate(() => !!document.querySelector('.tap-ghost')));
+    ok('still one note at 80ms', (await noteCount(page)) === 1, 'count=' + await noteCount(page));
+    await page.waitForTimeout(450);
+    ok('second click created the note', (await noteCount(page)) === 2, 'count=' + await noteCount(page));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  console.log('\n[D19] Shift-click multi-select: rings, group drag, menu, bulk delete + one Undo (issue #55)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const make = async (x, y, t) => {
+      await page.mouse.click(x, y);
+      await page.waitForTimeout(500);
+      await page.keyboard.type(t);
+      await page.evaluate(() => document.activeElement.blur());
+      await page.waitForTimeout(150);
+    };
+    await make(500, 200, 'one');
+    await make(700, 400, 'two');
+    await make(900, 600, 'three');
+    const rectOf = (t) => page.evaluate((t) => {
+      const n = [...document.querySelectorAll('.note')]
+        .find(x => x.querySelector('.note-text').textContent === t);
+      const r = n.getBoundingClientRect();
+      return { x: r.x, y: r.y, cx: r.x + r.width / 2, cy: r.y + r.height / 2 };
+    }, t);
+
+    // Select one, shift-click two: one member ring, the overlay loses its grip.
+    let r1 = await rectOf('one');
+    await page.mouse.click(r1.cx, r1.cy);
+    await page.waitForTimeout(100);
+    let r2 = await rectOf('two');
+    await page.keyboard.down('Shift');
+    await page.mouse.click(r2.cx, r2.cy);
+    await page.keyboard.up('Shift');
+    await page.waitForTimeout(100);
+    ok('one .multi-selected ring', await page.evaluate(() =>
+      document.querySelectorAll('.note.multi-selected').length === 1));
+    ok('the overlay wears .multi', await page.evaluate(() =>
+      document.querySelector('#selection').classList.contains('multi')));
+    ok('resize handles hidden — resize is single-select only', await page.evaluate(() =>
+      getComputedStyle(document.querySelector('#selection .sel-handle.br')).display === 'none' &&
+      getComputedStyle(document.querySelector('#selection .sel-edge.e')).display === 'none'));
+
+    // Group drag: one delta moves both members.
+    r1 = await rectOf('one'); r2 = await rectOf('two');
+    await page.mouse.move(r2.cx, r2.cy);
+    await page.mouse.down();
+    await page.mouse.move(r2.cx + 60, r2.cy + 40, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const n1 = await rectOf('one'), n2 = await rectOf('two');
+    const d1 = { x: n1.x - r1.x, y: n1.y - r1.y }, d2 = { x: n2.x - r2.x, y: n2.y - r2.y };
+    ok('both notes moved by the same delta',
+       Math.abs(d1.x - d2.x) < 1 && Math.abs(d1.y - d2.y) < 1, JSON.stringify({ d1, d2 }));
+    ok('and the delta is the drag (~60px)', d1.x > 45 && d1.x < 75, JSON.stringify(d1));
+
+    // Right-click a MEMBER: the selection's own menu.
+    const m1 = await rectOf('one');
+    await page.mouse.click(m1.cx, m1.cy, { button: 'right' });
+    await page.waitForTimeout(150);
+    ok('menu opened on right-click', await page.evaluate(() =>
+      document.querySelector('#menu').hidden === false));
+    const shape = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')];
+      return { labels: b.map(x => x.textContent), danger: b.map(x => x.classList.contains('danger')),
+               seps: document.querySelectorAll('#menu .sep').length };
+    });
+    ok('menu is Complete all then Delete all', shape.labels.length === 2 &&
+       /Complete all/.test(shape.labels[0]) && /Delete all/.test(shape.labels[1]),
+       JSON.stringify(shape.labels));
+    ok('only Delete all is danger, and last',
+       shape.danger[0] === false && shape.danger[1] === true, JSON.stringify(shape.danger));
+    ok('one separator', shape.seps === 1, String(shape.seps));
+
+    // Delete all → one B18 window, both gone, ONE Undo toast.
+    const origTexts = await page.evaluate(() => current.notes.map(n => n.text));
+    await page.evaluate(() => {
+      [...document.querySelectorAll('#menu button')].find(b => /Delete all/.test(b.textContent)).click();
+    });
+    await page.waitForTimeout(100);
+    ok('nothing deleted at 100ms (B18)', (await noteCount(page)) === 3,
+       'count=' + await noteCount(page));
+    await page.waitForTimeout(600);
+    ok('both selected notes gone after the window', (await noteCount(page)) === 1,
+       'count=' + await noteCount(page));
+    const toast = await page.evaluate(() => ({
+      shown: document.querySelector('#toast').classList.contains('show'),
+      msg: document.querySelector('#toast .msg') && document.querySelector('#toast .msg').textContent,
+      buttons: document.querySelectorAll('#toast button').length,
+    }));
+    ok('ONE Undo toast for the batch', toast.shown && toast.msg === 'Deleted' && toast.buttons === 1,
+       JSON.stringify(toast));
+
+    // Undo restores both at their original indices.
+    await page.evaluate(() => document.querySelector('#toast button').click());
+    await page.waitForTimeout(600);
+    ok('both restored', (await noteCount(page)) === 3, 'count=' + await noteCount(page));
+    ok('at their original indices', await page.evaluate((want) =>
+      JSON.stringify(current.notes.map(n => n.text)) === JSON.stringify(want), origTexts),
+      JSON.stringify(origTexts));
+
+    // sel-btn actions run on the whole selection: Complete both, Copy both.
+    const s1 = await rectOf('one');
+    await page.mouse.click(s1.cx, s1.cy);
+    await page.waitForTimeout(100);
+    const s2 = await rectOf('two');
+    await page.keyboard.down('Shift');
+    await page.mouse.click(s2.cx, s2.cy);
+    await page.keyboard.up('Shift');
+    await page.waitForTimeout(100);
+    const btn = await page.evaluate(() => {
+      const b = document.querySelector('#selection .sel-btn.sel-complete');
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await page.mouse.click(btn.x, btn.y);
+    await page.waitForTimeout(550);
+    ok('Complete with two selected completes both', await page.evaluate(() => {
+      const st = t => [...document.querySelectorAll('.note')]
+        .find(x => x.querySelector('.note-text').textContent === t).classList.contains('complete');
+      return st('one') && st('two') && !st('three');
+    }));
+    const cbtn = await page.evaluate(() => {
+      const b = document.querySelector('#selection .sel-btn.sel-copy');
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await page.mouse.click(cbtn.x, cbtn.y);
+    await page.waitForTimeout(550);
+    ok('Copy with two selected joins the texts, primary first', await page.evaluate(() =>
+      navigator.clipboard.readText().then(t => t === 'two\none', () => false)));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== desktop: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);

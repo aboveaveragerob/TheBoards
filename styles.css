@@ -729,6 +729,19 @@ html.desktop #pane {
 .sel-btn.sel-delete   { background: var(--danger);         border: 2px solid var(--danger); }
 .sel-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
+/* ---- Multi-selection (issue #55): the primary keeps the full #selection
+   chrome; every OTHER member wears an outline ring in ink — the outline rides
+   the node itself, so drags and resizes track with zero JS positioning. The
+   offset splits the difference to the ring's inset(-4)+border(2). With two or
+   more selected the overlay drops its resize grip: resize is single-selection
+   only, by design. ---- */
+html.desktop .note.multi-selected .note-text {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+#selection.multi .sel-edge,
+#selection.multi .sel-handle { display: none; }
+
 /* ---- Lot rows on desktop (issue #11): the selected row draws a frame — an
    explicit, narrow override of "lot lines are never framed" (§4.4), scoped to
    desktop + selected. outline, not border (rows have no padding; a border
