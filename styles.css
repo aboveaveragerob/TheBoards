@@ -645,9 +645,10 @@ html.desktop #pane {
 }
 #selection .sel-actions.above { top: auto; bottom: calc(100% + 12px); }
 
-/* The two actions (issue #4): muted green Complete / muted red Delete, both
-   paired with --paper text — the pairing inverts correctly in both themes by
-   construction, ≥ AA in each. */
+/* The three actions (issues #4, #59): muted green Complete / neutral ink Copy
+   / muted red Delete, each paired with --paper text — the pairings invert
+   correctly in both themes by construction, ≥ AA in each. Copy takes plain
+   ink because it changes nothing: the accents mark state changes. */
 .sel-btn {
   min-height: 36px;
   padding: 0 14px;
@@ -659,6 +660,7 @@ html.desktop #pane {
   cursor: pointer;
 }
 .sel-btn.sel-complete { background: var(--accent-restore); border: 2px solid var(--accent-restore); }
+.sel-btn.sel-copy     { background: var(--ink);            border: 2px solid var(--ink); }
 .sel-btn.sel-delete   { background: var(--danger);         border: 2px solid var(--danger); }
 .sel-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
@@ -718,8 +720,9 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 .board-row.tapped .row-date { color: var(--paper); }
 /* Already ink-filled, so it acknowledges by draining instead of filling. */
 .primary-btn.tapped         { background: var(--paper); color: var(--ink); }
-/* Selection action buttons rest in their muted fills; same drain on tap. */
+/* Selection action buttons rest in their fills; same drain on tap. */
 .sel-btn.sel-complete.tapped { background: var(--paper); color: var(--accent-restore); }
+.sel-btn.sel-copy.tapped     { background: var(--paper); color: var(--ink); }
 .sel-btn.sel-delete.tapped   { background: var(--paper); color: var(--danger); }
 .pane-del.tapped             { background: var(--danger); color: var(--paper); }
 

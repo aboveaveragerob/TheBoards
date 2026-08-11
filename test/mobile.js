@@ -211,8 +211,21 @@ const activeIsNoteText = page => page.evaluate(() =>
     await page.waitForTimeout(150);
     const menuVisible = await page.evaluate(() => document.querySelector('#menu').hidden === false);
     ok('menu opened on note long-press', menuVisible);
-    const labels = await page.evaluate(() => [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('menu has Complete/Boards/Delete', labels.length === 3, JSON.stringify(labels));
+    // B42 (issues #59/#60): All boards · Complete · Copy · Delete, top to
+    // bottom — danger last, behind the one separator.
+    const shape = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')];
+      return { labels: b.map(x => x.textContent),
+               danger: b.map(x => x.classList.contains('danger')),
+               seps: document.querySelectorAll('#menu .sep').length };
+    });
+    const labels = shape.labels;
+    ok('menu is All boards · Complete · Copy · Delete', labels.length === 4 &&
+       /All boards/.test(labels[0]) && /Complete/.test(labels[1]) &&
+       /Copy/.test(labels[2]) && /Delete/.test(labels[3]), JSON.stringify(labels));
+    ok('only Delete is danger, and it is last',
+       shape.danger.join('|') === 'false|false|false|true', JSON.stringify(shape.danger));
+    ok('one separator before Delete', shape.seps === 1, String(shape.seps));
     // Export is board-level. The item-order law is per-menu, and a note's menu
     // is not the place to export the board it happens to sit on.
     ok('the note menu did not gain Export', !labels.some(l => /Export/.test(l)), JSON.stringify(labels));
@@ -708,8 +721,8 @@ const activeIsNoteText = page => page.evaluate(() =>
       document.querySelector('#menu').hidden === false));
     const shape = await page.evaluate(() =>
       [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('anchor menu is Export then Boards', shape.length === 2 &&
-       /Export/.test(shape[0]) && /Boards/.test(shape[1]), JSON.stringify(shape));
+    ok('anchor menu is Export then All boards', shape.length === 2 &&
+       /Export/.test(shape[0]) && /All boards/.test(shape[1]), JSON.stringify(shape));
     ok('still on the board — no navigation yet',
        await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
 
@@ -725,6 +738,46 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('the open board — not a stale snapshot — was exported', s.includes('(ANCHORPATHMARKER)'));
     ok('exporting did not navigate to the list',
        await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 17. Copy from the long-press menu (issue #59) -----------------------
+  console.log('\n[17] Long-press menu Copy shows the Copied notice');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await tap(page, 200, 400);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('pocket text');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(200);
+    const box = await page.evaluate(() => {
+      const r = document.querySelector('.note').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await tap(page, box.x, box.y, 700);
+    await page.waitForTimeout(150);
+    const btn = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')].find(x => /Copy/.test(x.textContent));
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    ok('the menu offers Copy', !!btn);
+    if (btn) {
+      await tap(page, btn.x, btn.y);
+      await page.waitForTimeout(600);                    // through the B18 window
+      ok('menu closed after the window',
+        await page.evaluate(() => document.querySelector('#menu').hidden !== false));
+      ok('Copied notice shows', await page.evaluate(() => {
+        const t = document.querySelector('#toast');
+        return t.classList.contains('show') && /Copied/.test(t.textContent);
+      }));
+      ok('the record text reached the clipboard', await page.evaluate(() =>
+        navigator.clipboard.readText().then(t => t === 'pocket text', () => false)));
+      ok('copying deleted nothing', (await noteCount(page)) === 1);
+    }
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

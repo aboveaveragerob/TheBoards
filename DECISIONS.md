@@ -839,3 +839,38 @@ horizontal geometry is doing its job.
 *Impermanent, still.* `EXPORT_GEO` remains a second copy of this geometry. [11c] now pins it to the
 rendered board rather than to a literal, which is as close to one source as two files get without
 a shared module.
+
+### B42. Every menu says "All boards", and every item offers Copy (issues #59, #60; supersedes A1's item order)
+
+**"Boards" → "All boards".** The menu item is a destination, and beside Complete and Delete the
+bare word read as a category label for the things on the board (issue #60). The rename is the one
+`COPY.boards` key, so every menu site changes together — the item menu and the anchor's
+Export · All boards. The `#list-title` page heading still says "Boards": it is not a menu, it
+names the page you are standing on, and that is the one place the old word was right.
+
+**Copy is an action on the record, not the DOM.** `copyText()` writes the item's `.text` field —
+plain text by construction, the data model has never held anything else (B3) — through
+`navigator.clipboard.writeText`, falling back to a throwaway textarea + `execCommand('copy')`
+where the async API is missing or rejects. The textarea must opt back into `user-select: text`
+(the body forbids selection, so `select()` would otherwise grab nothing), sits off-viewport, and
+is removed in `finally`. Success shows a short "Copied" notice; failure shows "Couldn't copy." for
+longer, because the notice is the only evidence anything went wrong — and `showNotice` already
+refuses to clobber a pending undo. Copying a completed item is allowed: the scratch-out withholds
+the text from the screen and the export (§4.3), but the record still holds it, and Copy reads the
+record.
+
+**The item menu reorders: All boards · Complete/Restore · Copy · Delete.** A1 led with Complete on
+the reading that the likeliest action goes first. With four items the menu now reads navigation
+first, then the item's own actions in rising severity — change state, read out, destroy. That
+supersedes A1's Complete-first placement; UIUX §7's actual law — destructive last, in `--danger`,
+behind the hairline — holds unchanged, and `test/mobile.js` [8] pins the new order. The anchor
+menu stays Export · All boards: two non-destructive items, no separator, same as everywhere else.
+
+**Desktop selection shows Complete · Copy · Delete.** The new `.sel-copy` rests in plain ink — the
+accent fills mark state changes, and Copy changes nothing — and drains on tap like its siblings.
+It runs through `delayAction` like every action (B18 uniform): a clipboard write has no visible
+result of its own, so the drain is the acknowledgment. Lot rows carry the same inline button, and
+all of it routes through the recognizer, not native `click` — setPointerCapture retargets clicks,
+the constraint B22 already records. `.sel-actions` centres its flex row under the note, so the
+third button arrives centred and equally spaced for free; `test/desktop.js` [D15] pins the order,
+the empty B18 window, and the clipboard round-trip.

@@ -39,8 +39,12 @@ const LEAVE_MS = 120;
 const ACTION_DELAY = 400;            // click → action; the window is acknowledged, not idle
 
 const COPY = {
-  complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'Boards',
+  // "All boards" (issue #60): the menu item is a destination, and "Boards"
+  // alone read as a category label. One key renames every menu site at once;
+  // the #list-title page heading is not a menu and keeps its own text.
+  complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'All boards',
   deleted: 'Deleted', undo: 'Undo',
+  copy: 'Copy', copied: 'Copied', copyError: 'Couldn’t copy.',
   // One word, no ellipsis, no object noun — the menu's existing grammar. There
   // is exactly one export, so "to what?" has one answer; the day a second
   // format exists this has to become a submenu with PDF as the leaf.
@@ -53,7 +57,9 @@ const COPY = {
 // ⇩ is "out of the app, down to the device". Not ↓ (the browser-download
 // convention, borrowed rather than reasoned) and not 📄, which restates the
 // noun and puts a colour emoji against ▦'s geometric weight.
-const GLYPH = { complete: '✓', restore: '↺', boards: '▦', export: '⇩', delete: '🗑' };
+// ⧉ is "this, again, elsewhere" — two frames, one content; the note motif
+// doubled, in the set's geometric weight.
+const GLYPH = { complete: '✓', restore: '↺', boards: '▦', export: '⇩', copy: '⧉', delete: '🗑' };
 
 // contenteditable mode: prefer plaintext-only (Chromium/Samsung Internet — the
 // Z Fold target); fall back to "true" where unsupported so text still captures.
@@ -641,14 +647,19 @@ function makeTapGhost(clientX, clientY) {
 function handleTap(target, x, y) {
   switch (target.type) {
     case 'sel-btn': {
-      // Complete/Restore/Delete — real actions, so B18's window applies.
+      // Complete/Restore/Copy/Delete — every button runs through B18's window,
+      // Copy included: one grammar for the row, and the drain animation is the
+      // acknowledgment a clipboard write otherwise lacks (issue #59). Copy of
+      // a completed item is allowed — the record still holds the text.
       const lotRow = target.node.closest('.lot-item');
       const isDel = target.node.classList.contains('sel-delete');
+      const isCopy = target.node.classList.contains('sel-copy');
       delayAction(target.node, () => {
         if (lotRow) {
           const item = current.parkingLot.find(i => i.id === lotRow.dataset.id);
           if (!item) return;
-          if (isDel) { clearSelection(); deleteLot(lotRow); }
+          if (isCopy) copyText(item.text);
+          else if (isDel) { clearSelection(); deleteLot(lotRow); }
           else {
             if (item.state === 'complete') restoreLot(lotRow); else completeLot(lotRow);
             updateSelectionUI();
@@ -657,7 +668,8 @@ function handleTap(target, x, y) {
           const node = noteEls.get(selected.id);
           const note = current.notes.find(n => n.id === selected.id);
           if (!node || !note) return;
-          if (isDel) { clearSelection(); deleteNote(node); }
+          if (isCopy) copyText(note.text);
+          else if (isDel) { clearSelection(); deleteNote(node); }
           else {
             if (note.state === 'complete') restoreNote(node); else completeNote(node);
             updateSelectionUI();
@@ -1012,7 +1024,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
    native listeners inside #board are unreliable by construction. */
 let selected = null;                 // { kind: 'note'|'lot', id }
 let lastTap = { key: null, t: 0 };   // double-click pairing across taps
-let selEl = null, selActions = null, selPrimary = null, selDelete = null;
+let selEl = null, selActions = null, selPrimary = null, selCopy = null, selDelete = null;
 
 function ensureSelectionEl() {
   if (selEl) return;
@@ -1039,10 +1051,16 @@ function ensureSelectionEl() {
   selActions.className = 'sel-actions';
   selPrimary = document.createElement('button');
   selPrimary.type = 'button'; selPrimary.className = 'sel-btn sel-complete';
+  // Copy sits between them (issue #59): Complete · Copy · Delete — the same
+  // non-destructive-first, destructive-last order as the long-press menu (B42).
+  selCopy = document.createElement('button');
+  selCopy.type = 'button'; selCopy.className = 'sel-btn sel-copy';
+  selCopy.textContent = COPY.copy;
   selDelete = document.createElement('button');
   selDelete.type = 'button'; selDelete.className = 'sel-btn sel-delete';
   selDelete.textContent = COPY.delete;
-  selActions.appendChild(selPrimary); selActions.appendChild(selDelete);
+  selActions.appendChild(selPrimary); selActions.appendChild(selCopy);
+  selActions.appendChild(selDelete);
   selEl.appendChild(selActions);
 }
 
@@ -1071,10 +1089,13 @@ function selectLot(id) {
   act.className = 'lot-actions';
   const p = document.createElement('button');
   p.type = 'button'; p.className = 'sel-btn sel-complete';
+  const c = document.createElement('button');
+  c.type = 'button'; c.className = 'sel-btn sel-copy';
+  c.textContent = COPY.copy;                     // lot rows copy too (issue #59)
   const d = document.createElement('button');
   d.type = 'button'; d.className = 'sel-btn sel-delete';
   d.textContent = COPY.delete;
-  act.appendChild(p); act.appendChild(d);
+  act.appendChild(p); act.appendChild(c); act.appendChild(d);
   node.appendChild(act);
   updateSelectionUI();
 }
@@ -1242,21 +1263,30 @@ function showUndo(undoFn, scope) {
 function hideToast() {
   delete el.toast.dataset.mode;
   delete el.toast.dataset.scope;
+  delete el.toast.dataset.seq;
   el.toast.classList.remove('show');
   setTimeout(() => { if (!el.toast.classList.contains('show')) el.toast.hidden = true; }, 160);
 }
 /* A message with no action. `save` is persistent (hideSaveError clears it when
-   the write lands); `export` carries a ttl, because nothing later will come
-   along to retract it. */
+   the write lands); `export` and `copy` carry a ttl, because nothing later will
+   come along to retract them. */
+let noticeSeq = 0;
 function showNotice(text, mode, ttl) {
   if (el.toast.dataset.mode === 'undo') return;        // never clobber a pending undo
+  // Each notice stamps the toast; the ttl timer only hides its own stamp. A
+  // mode check alone let a stale timer hide a newer same-mode notice early —
+  // copying two items inside 1.5s (issue #59) is how that became observable.
+  const seq = String(++noticeSeq);
   el.toast.dataset.mode = mode;
+  el.toast.dataset.seq = seq;
   el.toast.textContent = '';
   const msg = document.createElement('span'); msg.className = 'msg'; msg.textContent = text;
   el.toast.appendChild(msg);
   el.toast.hidden = false;
   requestAnimationFrame(() => el.toast.classList.add('show'));
-  if (ttl) setTimeout(() => { if (el.toast.dataset.mode === mode) hideToast(); }, ttl);
+  if (ttl) setTimeout(() => {
+    if (el.toast.dataset.mode === mode && el.toast.dataset.seq === seq) hideToast();
+  }, ttl);
 }
 function showSaveError() {
   // A retrying save re-announces itself on every attempt, so it can afford to
@@ -1266,6 +1296,36 @@ function showSaveError() {
 }
 function hideSaveError() {
   if (el.toast.dataset.mode === 'save') { delete el.toast.dataset.mode; hideToast(); }
+}
+
+/* Copy an item's plain text — the record field, never the DOM (issue #59).
+   clipboard.writeText is the real API; where it's missing or rejects (insecure
+   origin, permission policy) fall back to the execCommand route through a
+   throwaway textarea. Success gets a short notice; failure gets a longer one,
+   because it is the only evidence anything went wrong. */
+function copyText(text) {
+  const fallback = () => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    // The body forbids selection, so the textarea must opt back in or select()
+    // grabs nothing and execCommand copies nothing. Off-viewport, not hidden:
+    // a display:none control cannot hold a selection either.
+    ta.style.cssText =
+      'position:fixed;top:0;left:-9999px;user-select:text;-webkit-user-select:text;';
+    let done = false;
+    try {
+      document.body.appendChild(ta);
+      ta.select();
+      done = document.execCommand('copy');
+    } catch (err) { /* done stays false */ }
+    finally { ta.remove(); }
+    if (done) showNotice(COPY.copied, 'copy', 1500);
+    else showNotice(COPY.copyError, 'copy', UNDO_MS);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showNotice(COPY.copied, 'copy', 1500), fallback);
+  } else fallback();
 }
 
 /* --- 10. Long-press menu ------------------------------------------------- */
@@ -1289,12 +1349,17 @@ function openMenuFor(target, clientX, clientY) {
                        : current.parkingLot.find(i => i.id === node.dataset.id);
     if (!rec) return;                // a menu over nothing has nothing to offer
     const completed = rec.state === 'complete';
-    // Order (UIUX §7): Complete/Restore · Boards · Delete (destructive last).
+    // Order (B42, issues #59/#60): All boards · Complete/Restore · Copy ·
+    // Delete. A1's Complete-first placement is superseded; UIUX §7's law —
+    // destructive last, in --danger, behind a hairline — still holds.
+    items.push({ label: COPY.boards, glyph: GLYPH.boards, action: goToList });
     if (completed) items.push({ label: COPY.restore, glyph: GLYPH.restore,
         action: () => (isNote ? restoreNote(node) : restoreLot(node)) });
     else items.push({ label: COPY.complete, glyph: GLYPH.complete,
         action: () => (isNote ? completeNote(node) : completeLot(node)) });
-    items.push({ label: COPY.boards, glyph: GLYPH.boards, action: goToList });
+    // Copy reads the live record, not a snapshot — an edit between open and
+    // act (impossible by gesture, cheap to honour) still copies the truth.
+    items.push({ label: COPY.copy, glyph: GLYPH.copy, action: () => copyText(rec.text) });
     items.push({ sep: true });
     items.push({ label: COPY.delete, glyph: GLYPH.delete, danger: true,
         action: () => (isNote ? deleteNote(node) : deleteLot(node)) });

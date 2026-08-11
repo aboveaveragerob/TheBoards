@@ -399,6 +399,55 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
+  console.log('\n[D15] Copy: Complete · Copy · Delete, B18 window, clipboard + notice (issue #59)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.mouse.click(800, 600);
+    await page.waitForTimeout(500);
+    await page.keyboard.type('take this text');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(200);
+    const box = await page.evaluate(() => {
+      const r = document.querySelector('.note').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await page.mouse.click(box.x, box.y);
+    await page.waitForTimeout(120);
+    const labels = await page.evaluate(() =>
+      [...document.querySelectorAll('#selection .sel-btn')].map(b => b.textContent));
+    ok('three buttons in order Complete · Copy · Delete',
+       labels.join('|') === 'Complete|Copy|Delete', JSON.stringify(labels));
+    const btn = await page.evaluate(() => {
+      const b = document.querySelector('#selection .sel-btn.sel-copy');
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    ok('the Copy button is hittable', !!btn);
+    if (btn) {
+      // A sentinel proves the B18 window really is empty of side effects.
+      await page.evaluate(() => navigator.clipboard.writeText('sentinel'));
+      await page.mouse.click(btn.x, btn.y);
+      await page.waitForTimeout(100);
+      ok('nothing copied at 100ms (B18)', await page.evaluate(() =>
+        navigator.clipboard.readText().then(t => t === 'sentinel', () => false)));
+      ok('no notice yet at 100ms', await page.evaluate(() =>
+        !document.querySelector('#toast').classList.contains('show')));
+      await page.waitForTimeout(450);
+      ok('the note text lands after the window', await page.evaluate(() =>
+        navigator.clipboard.readText().then(t => t === 'take this text', () => false)));
+      ok('Copied notice shows', await page.evaluate(() => {
+        const t = document.querySelector('#toast');
+        return t.classList.contains('show') && /Copied/.test(t.textContent);
+      }));
+      ok('the note is still selected — Copy is not destructive', await page.evaluate(() =>
+        !!document.querySelector('.note.selected')));
+    }
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== desktop: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);
