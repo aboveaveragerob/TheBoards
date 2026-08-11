@@ -941,3 +941,33 @@ proportions.
 B21's grab-time rebase (`x = renderX; rw = LOGICAL_W`) now folds scale as well; B22's
 "frame-drag resize shares pinch's scale/clamp/hit math" still holds — the two clamps widened
 together.
+
+---
+
+## I. The desktop rail's categories (issue #58)
+
+### B41. The rail sorts into To-Do / Idea / Unsorted, and each section pages (supersedes B24's overflow ellipsis)
+The desktop rail splits into three equal sections — To-Do Boards, Idea Boards, Unsorted
+Boards, top to bottom. A board carries `category` and `catStamp`, both read-site
+defaulted (the B21 idiom — no migration, no DB version bump): a record without a
+category *is* Unsorted, so every pre-#58 board and every new board lands there by
+writing nothing. In-category order is `(catStamp ‖ createdAt)` desc with B24's
+immutable comparator as tiebreak. A pointer-drag moves a card between sections —
+pointer-based like the list rows, because native HTML5 DnD fights the cards' button
+semantics and paints its own ghost — and the section under the cursor frames itself in
+`--accent-page`: where the board will land. Release writes `category` +
+`catStamp = Date.now()`, which *is* moved-to-top by the sort key. The drop is a
+completed gesture like a note drag: saved immediately, no B18 window. Whole-record
+puts (B13) make the write site two-headed — the open board mutates `current` +
+`saveNow()` (putting any snapshot would lose live edits); any other board is fetched
+fresh and put directly (the debounced persist can't clobber a record it never holds).
+Overflow **pages** instead of scrolling: each section clips to a per-page card budget
+measured from the rail's height (re-derived on resize), and «‹›» pager buttons —
+muted blue `--accent-page` paired with `--paper`, the sel-btn construction so both
+themes invert ≥ AA, behind a neutral `--ink-shadow` border — turn pages instantly,
+like all navigation (B22: B18 governs consequences, and a page turn commits nothing).
+Page state is per-category, clamped every render, reset to the first page on a drop
+into the section; a single page hides its pager and indicator (§10: no state, no
+statement). B24's "when boards overflow the rail, the bottom edge says so"
+(`#pane-more`'s ellipsis) is **superseded** — pagination states the same truth and
+makes it actionable.

@@ -19,6 +19,7 @@
   --focus-ring:      #4A4E82;
   --elevation:       0 2px 8px rgb(0 0 0 / 0.25);
   --pane:            #E2DEE4;   /* slightly darker paper: the sunken desktop rail */
+  --accent-page:     #4E5F80;   /* muted blue: the rail's pager + drop frame (issue #58) */
 }
 
 /* --- §2.2 Dark theme ----------------------------------------------------- */
@@ -35,6 +36,7 @@
     --accent-restore: #AEC7A6;
     --focus-ring:     #A0A2D8;
     --pane:           #141118;
+    --accent-page:    #A8B6D6;
   }
 }
 
@@ -529,25 +531,85 @@ html.desktop #pane {
 #pane-cards {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: hidden;                    /* categories page; nothing scrolls (issue #58) */
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-/* §10's truncation law at list level: the bottom edge says "more" only when
-   boards overflow the rail (toggled from JS). */
-#pane-more {
-  flex: 0 0 auto;
-  border-top: 1px solid var(--hairline);
-  padding-top: 2px;
-  text-align: center;
-  color: var(--ink-shadow);
-  font-size: 12px;
-  letter-spacing: 3px;
-  line-height: 1;
+
+/* ---- Rail categories (issue #58 / B41): three equal thirds — To-Do, Idea,
+   Unsorted. Overflow turns pages, never scrolls: .pane-cat-cards clips, the
+   pager below navigates. The fixed heights here are shared law with app.js —
+   head = PANE_CAT_HEAD (24), pager = PANE_PAGER_H (32), row = 56 + 8 gap —
+   panePageCap() derives the per-page card budget from them. ---- */
+.pane-cat {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
-#pane-more::before { content: "···"; }
+/* Mid-drag landing frame: the section under the cursor is where the board
+   will move on release. Drawn just inside the section — #pane-cards clips
+   (it must: pagination, not scroll), so an outset outline loses its side
+   edges against the clip and the frame reads as two stray rules. */
+.pane-cat.drop-target { outline: 2px solid var(--accent-page); outline-offset: -2px; }
+.pane-cat-head {
+  flex: 0 0 24px;                      /* = PANE_CAT_HEAD in app.js */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-shadow);
+}
+.pane-cat-pages { font-size: 11px; letter-spacing: 0; }
+.pane-cat-cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;                    /* pagination, never a scrollbar (issue #58) */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;                            /* = PANE_ROW_GAP in app.js */
+}
+/* The pager: muted blue paired with --paper — the sel-btn construction, so it
+   inverts ≥ AA in both themes — behind a neutral ink-shadow border that holds
+   its edge against both the fill and the sunken rail. Sized for the desktop
+   pointer: comfortably past WCAG 2.5.8's 24px floor (B23). */
+.pane-pager {
+  flex: 0 0 32px;                      /* = PANE_PAGER_H in app.js */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+}
+.pager-btn {
+  min-width: 36px;
+  min-height: 28px;
+  background: var(--accent-page);
+  color: var(--paper);
+  border: 1px solid var(--ink-shadow);
+  border-radius: 2px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+.pager-btn:disabled { opacity: 0.4; cursor: default; }
+.pager-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Mid-drag: the origin row dims but holds its slot; a fixed clone of the card
+   rides the pointer. pointer-events:none keeps the hit-test seeing the
+   categories under the cursor, never the ghost itself. */
+.pane-row.pane-dragging { opacity: 0.55; }
+.pane-drag-ghost {
+  position: fixed;
+  z-index: 1200;                       /* above everything: it belongs to the pointer */
+  pointer-events: none;
+  opacity: 0.92;
+  box-shadow: var(--elevation);
+}
 
 .pane-row {
   display: flex;

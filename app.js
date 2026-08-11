@@ -31,6 +31,10 @@ const LONGPRESS_MS = 500;
 const HIT_FLOOR = 44;                // px physical (PRD §5.3, UIUX §6) — mobile
 const HIT_FLOOR_DESKTOP = 24;        // WCAG 2.5.8 AA; a 44px collar swallows dismiss clicks (issue #12)
 const PANE_W = 300;                  // CSS px; unscaled width of the desktop board rail
+const PANE_CAT_HEAD = 24;            // .pane-cat-head flex-basis (issue #58)
+const PANE_PAGER_H = 32;             // .pane-pager flex-basis (issue #58)
+const PANE_ROW_H = 56;               // .pane-card min-height
+const PANE_ROW_GAP = 8;              // .pane-cat-cards flex gap
 const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
 const SWAP_MS = 150;                 // board-swap crossfade; sequenced by timeout (§8-safe)
 const SAVE_DEBOUNCE = 300;
@@ -53,13 +57,20 @@ const COPY = {
   exportLossy: 'Some characters aren’t in the PDF font.',
   saveError: 'Couldn’t save — retrying.',
   untitled: 'What’s up?',
+  // The rail's three categories (issue #58) and its pager's aria-labels.
+  catTodo: 'To-Do Boards', catIdea: 'Idea Boards', catUnsorted: 'Unsorted Boards',
+  pageFirst: 'First page', pagePrev: 'Previous page',
+  pageNext: 'Next page', pageLast: 'Last page',
 };
 // ⇩ is "out of the app, down to the device". Not ↓ (the browser-download
 // convention, borrowed rather than reasoned) and not 📄, which restates the
 // noun and puts a colour emoji against ▦'s geometric weight.
 // ⧉ is "this, again, elsewhere" — two frames, one content; the note motif
 // doubled, in the set's geometric weight.
-const GLYPH = { complete: '✓', restore: '↺', boards: '▦', export: '⇩', copy: '⧉', delete: '🗑' };
+const GLYPH = { complete: '✓', restore: '↺', boards: '▦', export: '⇩', copy: '⧉', delete: '🗑',
+                // Pager arrows (issue #58): guillemets read as "page" not
+                // "play", and they carry no emoji colour against the rail.
+                pageFirst: '«', pagePrev: '‹', pageNext: '›', pageLast: '»' };
 
 // contenteditable mode: prefer plaintext-only (Chromium/Samsung Internet — the
 // Z Fold target); fall back to "true" where unsupported so text still captures.
@@ -172,7 +183,6 @@ const el = {
   pane: document.getElementById('pane'),
   paneNew: document.getElementById('pane-new'),
   paneCards: document.getElementById('pane-cards'),
-  paneMore: document.getElementById('pane-more'),
 };
 const anchorEls = {
   title: document.getElementById('anchor-title'),
@@ -259,7 +269,12 @@ function applyLayout() {
     }
   });
   if (selected) updateSelectionUI();
-  if (isDesktop && el.paneCards) updatePaneOverflow();
+  // Capacity check (issue #58, replacing the #pane-more overflow check B41
+  // supersedes): the per-page card budget is measured from the rail's height,
+  // so a resize that changes it must re-render — and re-paginate — the rail.
+  // paneCap is 0 until the first renderPane, so boot's renderBoard →
+  // applyLayout chain doesn't render the rail twice back to back.
+  if (isDesktop && el.paneCards && paneCap && panePageCap() !== paneCap) renderPane();
   // No letterbox now: the toast sits 12px above the screen's bottom edge.
   document.documentElement.style.setProperty('--toast-bottom', '12px');
 }
@@ -2195,56 +2210,259 @@ async function swapBoard(id) {
   }, SWAP_MS);
 }
 
-async function renderPane() {
-  if (!isDesktop || !el.paneCards) return;
-  const all = await idbGetAll();
-  all.sort(boardOrder);
-  el.paneCards.textContent = '';
-  for (const b of all) {
-    const row = document.createElement('div');
-    row.className = 'pane-row'; row.setAttribute('role', 'listitem');
-    const card = document.createElement('button');
-    card.type = 'button'; card.className = 'pane-card'; card.dataset.id = b.id;
-    fillRowContent(card, b);
-    row.appendChild(card);
-    if (current && b.id === current.id) {
-      card.classList.add('active');
-      // Deletion path (a), issue #10: a permanent control on the open board's
-      // card only — deleting keeps the board's contents in front of you.
-      const del = document.createElement('button');
-      del.type = 'button'; del.className = 'pane-del';
-      del.setAttribute('aria-label', 'Delete board');
-      del.textContent = GLYPH.delete;
-      del.addEventListener('click', () => delayAction(del, () => deleteBoard(b.id, row)));
-      row.appendChild(del);
-    } else {
-      // `click` never fires for the secondary button, so this cannot collide
-      // with the contextmenu path below.
-      card.addEventListener('click', () => delayAction(card, () => swapBoard(b.id)));
-    }
-    // Deletion path (b), issue #10: right-click any card → the board menu
-    // (Export, then Delete). The one summoning gesture "remove click-and-hold"
-    // doesn't touch, and it collides with nothing else in the app.
-    card.addEventListener('contextmenu', (ev) => {
-      ev.preventDefault();            // scoped to the card; elsewhere stays native
-      let x = ev.clientX, y = ev.clientY;
-      if (!x && !y) {                 // Shift+F10 fires contextmenu at 0,0
-        const r = card.getBoundingClientRect();
-        x = r.left + r.width / 2; y = r.top + r.height / 2;
-      }
-      menuInvoker = card;             // focus returns to the card on close
-      openBoardRowMenu(row, b, x, y);
-    });
-    el.paneCards.appendChild(row);
-  }
-  updatePaneOverflow();
+/* The rail's three categories (issue #58 / B41): To-Do, Idea, Unsorted — one
+   third each, top to bottom. Category is read-site defaulted, the B21 idiom:
+   a record without one IS Unsorted, so pre-#58 boards and new boards land
+   there by writing nothing — no migration, no DB version bump. In-category
+   order is catStamp (written on drop, = moved-to-top) falling back to
+   createdAt, with B24's immutable comparator as tiebreak. */
+const PANE_CATS = ['todo', 'idea', 'unsorted'];
+const PANE_CAT_COPY = { todo: 'catTodo', idea: 'catIdea', unsorted: 'catUnsorted' };
+const catOf = (b) =>
+  (b.category === 'todo' || b.category === 'idea') ? b.category : 'unsorted';
+const catOrder = (a, b) =>
+  ((b.catStamp || b.createdAt) - (a.catStamp || a.createdAt)) || boardOrder(a, b);
+
+/* Pagination (issue #58): overflow turns pages, never scrolls. Page state is
+   per-category and module-level so a re-render keeps the reader's place;
+   renderPane clamps it so deletes can't strand a page past the end. paneCap
+   is the budget the last render used — applyLayout compares against it. */
+let panePage = { todo: 0, idea: 0, unsorted: 0 };
+let paneCap = 0;                       // 0 = never rendered; the capacity check waits
+let paneDragCancel = null;             // the live card-drag's teardown, if one is mid-flight
+
+function panePageCap() {
+  // A third of the rail, minus the section's fixed furniture, in whole rows.
+  // The pager's slot is reserved even when a single page hides it, so the
+  // budget cannot flap between one-page and many-page states.
+  const catH = el.paneCards.clientHeight / 3;
+  return Math.max(1, Math.floor((catH - PANE_CAT_HEAD - PANE_PAGER_H) /
+                                (PANE_ROW_H + PANE_ROW_GAP)));
 }
 
-/* §10's truncation law at list level (issue #9): when boards overflow the
-   rail, the bottom edge says so; when they don't, it says nothing. */
-function updatePaneOverflow() {
-  if (!el.paneCards || !el.paneMore) return;
-  el.paneMore.hidden = el.paneCards.scrollHeight <= el.paneCards.clientHeight + 1;
+async function renderPane() {
+  if (!isDesktop || !el.paneCards) return;
+  // A re-render tears the captured card out from under a live drag — pointerup
+  // would never arrive, stranding the fixed ghost on screen. Cancel it first.
+  if (paneDragCancel) paneDragCancel();
+  const all = await idbGetAll();
+  const buckets = { todo: [], idea: [], unsorted: [] };
+  // The open board buckets from memory, not the snapshot: `current` is
+  // authoritative for it (the export takes the same stance), and a drop's
+  // write can still be behind the debounced persist when this getAll runs.
+  for (const b of all) {
+    const rec = (current && b.id === current.id) ? current : b;
+    buckets[catOf(rec)].push(rec);
+  }
+  paneCap = panePageCap();
+  el.paneCards.textContent = '';
+  for (const cat of PANE_CATS) {
+    const boards = buckets[cat].sort(catOrder);
+    const pages = Math.max(1, Math.ceil(boards.length / paneCap));
+    panePage[cat] = Math.max(0, Math.min(panePage[cat], pages - 1));
+    const page = panePage[cat];
+
+    const sec = document.createElement('div');
+    sec.className = 'pane-cat'; sec.dataset.cat = cat;
+    sec.setAttribute('role', 'group');
+    // Page state rides the group label — the visual indicator is aria-hidden
+    // and a rebuilt node can't announce, so this is where AT hears the page.
+    const name = COPY[PANE_CAT_COPY[cat]];
+    sec.setAttribute('aria-label',
+      pages > 1 ? name + ', page ' + (page + 1) + ' of ' + pages : name);
+
+    // Visual head only — the group's aria-label already says it (the
+    // band-label pattern), so AT doesn't hear every section twice.
+    const head = document.createElement('div');
+    head.className = 'pane-cat-head'; head.setAttribute('aria-hidden', 'true');
+    const label = document.createElement('span');
+    label.textContent = COPY[PANE_CAT_COPY[cat]];
+    head.appendChild(label);
+    if (pages > 1) {
+      const ind = document.createElement('span');
+      ind.className = 'pane-cat-pages';
+      ind.textContent = (page + 1) + '/' + pages;
+      head.appendChild(ind);
+    }
+    sec.appendChild(head);
+
+    const cards = document.createElement('div');
+    cards.className = 'pane-cat-cards'; cards.setAttribute('role', 'list');
+    for (const b of boards.slice(page * paneCap, (page + 1) * paneCap))
+      cards.appendChild(makePaneRow(b));
+    sec.appendChild(cards);
+
+    const pager = document.createElement('div');
+    pager.className = 'pane-pager';
+    pager.hidden = pages === 1;        // one page says nothing (§10's law)
+    pager.appendChild(makePagerBtn('pageFirst', page === 0, () => goPanePage(cat, 0, 'pageFirst')));
+    pager.appendChild(makePagerBtn('pagePrev', page === 0, () => goPanePage(cat, page - 1, 'pagePrev')));
+    pager.appendChild(makePagerBtn('pageNext', page === pages - 1, () => goPanePage(cat, page + 1, 'pageNext')));
+    pager.appendChild(makePagerBtn('pageLast', page === pages - 1, () => goPanePage(cat, pages - 1, 'pageLast')));
+    sec.appendChild(pager);
+
+    el.paneCards.appendChild(sec);
+  }
+}
+
+/* Inert navigation, like selection (B22): a page turn commits nothing, so
+   B18's window does not apply — the pager responds on the click. The render
+   replaces the clicked button, so focus is put back on its successor (or the
+   nearest enabled sibling) — a keyboard reader pages without re-tabbing. */
+async function goPanePage(cat, p, key) {
+  panePage[cat] = p;
+  await renderPane();
+  const sec = el.paneCards.querySelector('.pane-cat[data-cat="' + cat + '"]');
+  if (!sec) return;
+  let b = sec.querySelector('.pager-btn[aria-label="' + COPY[key] + '"]');
+  if (b && b.disabled) b = sec.querySelector('.pager-btn:enabled');
+  if (b) b.focus();
+}
+
+function makePagerBtn(key, disabled, go) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'pager-btn';
+  b.setAttribute('aria-label', COPY[key]);
+  b.disabled = disabled;
+  const g = document.createElement('span');
+  g.setAttribute('aria-hidden', 'true'); g.textContent = GLYPH[key];
+  b.appendChild(g);
+  b.addEventListener('click', go);
+  return b;
+}
+
+function makePaneRow(b) {
+  const row = document.createElement('div');
+  row.className = 'pane-row'; row.setAttribute('role', 'listitem');
+  const card = document.createElement('button');
+  card.type = 'button'; card.className = 'pane-card'; card.dataset.id = b.id;
+  fillRowContent(card, b);
+  row.appendChild(card);
+  const isActive = current && b.id === current.id;
+  if (isActive) {
+    card.classList.add('active');
+    // Deletion path (a), issue #10: a permanent control on the open board's
+    // card only — deleting keeps the board's contents in front of you.
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'pane-del';
+    del.setAttribute('aria-label', 'Delete board');
+    del.textContent = GLYPH.delete;
+    del.addEventListener('click', () => delayAction(del, () => deleteBoard(b.id, row)));
+    row.appendChild(del);
+  }
+  // Pointer path (issue #58): press-and-move past MOVE_THRESHOLD drags the
+  // card between categories; a motionless release keeps the old click
+  // behavior (inactive → B18 window → swap). Replaces the bare `click`
+  // listener so a drag's release can't also swap boards.
+  attachPaneCardDrag(card, row, b);
+  // Keyboard activation still arrives as a `click` with no pointer sequence
+  // (detail 0) — the swap stays reachable without a mouse.
+  if (!isActive) card.addEventListener('click', (ev) => {
+    if (ev.detail === 0) delayAction(card, () => swapBoard(b.id));
+  });
+  // Deletion path (b), issue #10: right-click any card → the board menu
+  // (Export, then Delete). The one summoning gesture "remove click-and-hold"
+  // doesn't touch, and it collides with nothing else in the app.
+  card.addEventListener('contextmenu', (ev) => {
+    ev.preventDefault();              // scoped to the card; elsewhere stays native
+    let x = ev.clientX, y = ev.clientY;
+    if (!x && !y) {                   // Shift+F10 fires contextmenu at 0,0
+      const r = card.getBoundingClientRect();
+      x = r.left + r.width / 2; y = r.top + r.height / 2;
+    }
+    menuInvoker = card;               // focus returns to the card on close
+    openBoardRowMenu(row, b, x, y);
+  });
+  return row;
+}
+
+/* Card drag (issue #58): pointer-based, mirroring attachRowGestures — native
+   HTML5 DnD fights the cards' button semantics and paints its own ghost.
+   Movement past MOVE_THRESHOLD turns the press into a drag: the origin row
+   dims in place, a fixed clone rides the pointer, and the category under the
+   cursor frames itself in --accent-page — where the board will land. The
+   active card drags like any other. */
+function attachPaneCardDrag(card, row, b) {
+  let down = false, dragging = false, sx = 0, sy = 0, gx = 0, gy = 0;
+  let ghost = null, over = null;
+  const clearDrag = () => {
+    if (ghost) { ghost.remove(); ghost = null; }
+    row.classList.remove('pane-dragging');
+    if (over) { over.classList.remove('drop-target'); over = null; }
+    paneDragCancel = null;
+  };
+  card.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;        // right-click stays the contextmenu path
+    down = true; dragging = false;
+    sx = e.clientX; sy = e.clientY;
+    const r = card.getBoundingClientRect();
+    gx = sx - r.left; gy = sy - r.top; // grab point, so the ghost doesn't jump
+    card.setPointerCapture(e.pointerId);
+  });
+  card.addEventListener('pointermove', (e) => {
+    if (!down) return;
+    if (!dragging) {
+      if (Math.hypot(e.clientX - sx, e.clientY - sy) < MOVE_THRESHOLD) return;
+      dragging = true;
+      // Register the teardown: a renderPane mid-drag destroys this card and
+      // its capture, so the render must be able to cancel the gesture.
+      paneDragCancel = () => { down = false; dragging = false; clearDrag(); };
+      row.classList.add('pane-dragging');
+      ghost = card.cloneNode(true);
+      ghost.classList.add('pane-drag-ghost');
+      const r = card.getBoundingClientRect();
+      ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
+      document.body.appendChild(ghost);
+    }
+    ghost.style.left = (e.clientX - gx) + 'px';
+    ghost.style.top = (e.clientY - gy) + 'px';
+    let hit = null;
+    for (const c of el.paneCards.querySelectorAll('.pane-cat')) {
+      const r = c.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right &&
+          e.clientY >= r.top && e.clientY <= r.bottom) { hit = c; break; }
+    }
+    if (over !== hit) {
+      if (over) over.classList.remove('drop-target');
+      over = hit;
+      if (over) over.classList.add('drop-target');
+    }
+  });
+  card.addEventListener('pointerup', () => {
+    if (!down) return;
+    down = false;
+    const target = dragging && over ? over.dataset.cat : null;
+    const dragged = dragging;
+    dragging = false;
+    clearDrag();
+    // A drop is a completed gesture like endDrag — saved immediately, no
+    // delayAction (B18 governs actions-from-taps, not gesture commits).
+    // Releasing over the section the card already lives in is a change of
+    // mind, not a move: no write, no reorder-to-top, no page reset.
+    if (target && target !== catOf(b)) dropPaneCard(b, target);
+    else if (!dragged && !(current && b.id === current.id))
+      delayAction(card, () => swapBoard(b.id));
+  });
+  card.addEventListener('pointercancel', () => { down = false; dragging = false; clearDrag(); });
+}
+
+/* The drop writes category + catStamp = Date.now() — which IS moved-to-top,
+   by the sort key. Whole-record puts (B13) make the write site two-headed:
+   the open board mutates `current` and saves now (putting any snapshot would
+   lose live edits); any other board is fetched fresh and put directly — the
+   debounced persist can't clobber a record it never holds, and a fresh get
+   can't resurrect a board deleted mid-drag. */
+async function dropPaneCard(b, cat) {
+  panePage[cat] = 0;                   // the dropped card lands first — show it
+  if (current && current.id === b.id) {
+    current.category = cat;
+    current.catStamp = Date.now();
+    saveNow();
+  } else {
+    const rec = await idbGet(b.id);
+    if (rec) { rec.category = cat; rec.catStamp = Date.now(); await idbPut(rec); }
+  }
+  renderPane();
 }
 
 /* Live title (issue #14): the active card updates in place per keystroke; a

@@ -571,6 +571,134 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
+  console.log('\n[D16] Rail categories: To-Do / Idea / Unsorted, drag between, pager (issue #58)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    const heads = await page.evaluate(() =>
+      [...document.querySelectorAll('#pane-cards .pane-cat-head span:first-child')].map(s => s.textContent));
+    ok('three category headers in order', heads.length === 3 &&
+       heads[0] === 'To-Do Boards' && heads[1] === 'Idea Boards' && heads[2] === 'Unsorted Boards',
+       JSON.stringify(heads));
+
+    // A board created from the rail auto-categorizes to Unsorted.
+    await page.click('#pane-new');
+    await page.waitForTimeout(700);
+    ok('new board appears in Unsorted', await page.evaluate(() =>
+      document.querySelectorAll('.pane-cat[data-cat="unsorted"] .pane-card').length === 2 &&
+      !document.querySelector('.pane-cat[data-cat="todo"] .pane-card') &&
+      !document.querySelector('.pane-cat[data-cat="idea"] .pane-card')));
+
+    // Pointer-drag the inactive card onto To-Do.
+    const beforeId = await page.evaluate(() => current.id);
+    const dragId = await page.evaluate(() =>
+      document.querySelector('.pane-cat[data-cat="unsorted"] .pane-card:not(.active)').dataset.id);
+    const from = await page.evaluate(() => {
+      const r = document.querySelector('.pane-cat[data-cat="unsorted"] .pane-card:not(.active)')
+        .getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    const to = await page.evaluate(() => {
+      const r = document.querySelector('.pane-cat[data-cat="todo"]').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 8 });
+    await page.waitForTimeout(60);
+    ok('To-Do frame highlights mid-drag', await page.evaluate(() =>
+      document.querySelector('.pane-cat[data-cat="todo"]').classList.contains('drop-target')));
+    ok('drag ghost follows the pointer', await page.evaluate(() =>
+      !!document.querySelector('.pane-drag-ghost')));
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    ok('highlight cleared on release', await page.evaluate(() =>
+      !document.querySelector('.drop-target') && !document.querySelector('.pane-drag-ghost')));
+    ok('card lands first in To-Do', await page.evaluate((id) => {
+      const first = document.querySelector('.pane-cat[data-cat="todo"] .pane-card');
+      return !!first && first.dataset.id === id;
+    }, dragId));
+    ok('IDB record carries category + catStamp', await page.evaluate(async (id) => {
+      const rec = await idbGet(id);
+      return !!rec && rec.category === 'todo' && typeof rec.catStamp === 'number';
+    }, dragId));
+    ok('the drag did not switch boards', await page.evaluate(() => current.id) === beforeId);
+
+    // Overflow pages, never scrolls: seed 9 more boards into Unsorted.
+    await page.evaluate(async () => {
+      for (let i = 0; i < 9; i++) {
+        const r = newBoardRecord();
+        r.title = 'Seed ' + i;
+        r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;  // older than the live boards
+        await idbPut(r);
+      }
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    ok('categorization survives the reload', await page.evaluate((id) => {
+      const first = document.querySelector('.pane-cat[data-cat="todo"] .pane-card');
+      return !!first && first.dataset.id === id;
+    }, dragId));
+    const pg = await page.evaluate(async () => {
+      const un = document.querySelector('.pane-cat[data-cat="unsorted"]');
+      const pager = un.querySelector('.pane-pager');
+      const btns = [...pager.querySelectorAll('.pager-btn')];
+      const all = await idbGetAll();
+      return {
+        visible: !pager.hidden,
+        disabled: btns.map(b => b.disabled),
+        labels: btns.map(b => b.getAttribute('aria-label')),
+        ind: un.querySelector('.pane-cat-pages').textContent,
+        onPage: un.querySelectorAll('.pane-card').length,
+        total: all.filter(b => b.category !== 'todo' && b.category !== 'idea').length,
+        noScroll: un.querySelector('.pane-cat-cards').scrollHeight <=
+                  un.querySelector('.pane-cat-cards').clientHeight + 1,
+      };
+    });
+    ok('pager visible in Unsorted', pg.visible);
+    ok('pager is first/prev/next/last', pg.labels.join(',') ===
+       'First page,Previous page,Next page,Last page', pg.labels.join(','));
+    ok('first/prev disabled on page 0; next/last enabled',
+       pg.disabled[0] && pg.disabled[1] && !pg.disabled[2] && !pg.disabled[3],
+       JSON.stringify(pg.disabled));
+    const pages = Math.ceil(pg.total / pg.onPage);
+    ok('indicator reads 1/' + pages, pg.ind === '1/' + pages,
+       pg.ind + ' (total=' + pg.total + ' onPage=' + pg.onPage + ')');
+    ok('the shown page does not overflow its clip', pg.noScroll);
+
+    // Pager clicks are inert navigation — instant, no 400ms window.
+    const clickPager = (lbl) => page.evaluate((l) => {
+      document.querySelector('.pane-cat[data-cat="unsorted"] .pager-btn[aria-label="' + l + '"]').click();
+    }, lbl);
+    const unState = () => page.evaluate(() => {
+      const un = document.querySelector('.pane-cat[data-cat="unsorted"]');
+      const btn = (l) => un.querySelector('.pager-btn[aria-label="' + l + '"]');
+      return { ind: un.querySelector('.pane-cat-pages').textContent,
+               first: un.querySelector('.pane-card').dataset.id,
+               nextOff: btn('Next page').disabled, lastOff: btn('Last page').disabled };
+    });
+    const p0 = await unState();
+    await clickPager('Next page');
+    await page.waitForTimeout(150);
+    let s = await unState();
+    ok('next turns to page 2', s.ind === '2/' + pages && s.first !== p0.first, s.ind);
+    await clickPager('Last page');
+    await page.waitForTimeout(150);
+    s = await unState();
+    ok('last jumps to the end, next/last disable', s.ind === pages + '/' + pages &&
+       s.nextOff && s.lastOff, s.ind);
+    await clickPager('Previous page');
+    await page.waitForTimeout(150);
+    s = await unState();
+    ok('prev steps back', s.ind === (pages - 1) + '/' + pages, s.ind);
+    await clickPager('First page');
+    await page.waitForTimeout(150);
+    s = await unState();
+    ok('first returns to page 1', s.ind === '1/' + pages && s.first === p0.first, s.ind);
+
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== desktop: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);
