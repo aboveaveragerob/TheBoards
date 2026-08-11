@@ -1,17 +1,19 @@
 # The Top Band — Implementation Plan (issues #51, #52)
 
-> **Status: designed, not implemented.** This document is the hand-off: the
-> geometry is derived and the owner's three open calls are ruled on, but no
-> source file in this commit has been touched. The implementing session executes
-> the steps below on this branch. The binding record when it lands is
-> `DECISIONS.md` B38, which does not exist yet — writing it is step 8.
+> **Status: implemented.** `DECISIONS.md` B38 is the binding record — read that
+> first if the two disagree. `styles.css`, `app.js` (`EXPORT_GEO`,
+> `exportBoardPage`, the new `frameOpenTop` helper) and `sw.js` (cache bumped to
+> `v7`) all landed, `test/mobile.js` and `test/desktop.js` were updated for the
+> nine assertions this reverses, and all three suites (`mobile.js`, `desktop.js`,
+> `sw-update.js`) are green.
 >
-> *Screenshots not seen.* The three images on issues #51/#52 could not be fetched
-> (the planning session's proxy blocks `user-attachments`). Everything here is
-> derived from the issue text plus the geometry history in `DECISIONS.md`
-> B33–B37. If the screenshots show something the text does not say, the
-> verification steps are where it will surface — trust the pictures over this
-> document.
+> *Screenshots since seen.* The three images on issues #51/#52, unread when this
+> plan was written (the planning session's proxy blocked `user-attachments`),
+> were fetched and read by the implementing session. Both confirm the plan as
+> written: the rendered board shows the gap this plan closes between the rule
+> and the header labels, and the reference photo on #52 shows a note card with
+> no top edge, its side lines running past where the text starts. No
+> contradiction surfaced.
 
 ## Context
 

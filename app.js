@@ -257,8 +257,6 @@ function applyLayout() {
   el.board.style.setProperty('--offx', offX + 'px');
   el.board.style.setProperty('--offy', offY + 'px');
   el.board.style.setProperty('--lot-h', lotH() + 'px');
-  // After --logical-w: the card's width sets how many lines the title takes.
-  syncCardHeight();
   // Re-derive each note's on-sheet x, y AND size (proportional across frames —
   // the multiplier tracks LOGICAL_W, issue #57) and its decoupled hit area
   // (physical size changed). Width cap FIRST (issue #53): setHitInset measures
@@ -393,16 +391,6 @@ function applyNoteWidth(node, note) {
    Desktop always takes three — B20 pins LOGICAL_H >= 1000. */
 const LOT_HEAD = 34, LOT_ROW = 44, LOT_3ROW_MIN_H = 900;
 const lotH = () => LOT_HEAD + LOT_ROW * (LOGICAL_H >= LOT_3ROW_MIN_H ? 3 : 2);
-
-/* The card's *rendered* height, republished so the header labels sit under the
-   card it actually is rather than the two-line card --card-h assumes (B37).
-   A phone card is ~145 units wide and a real title often takes three lines; at
-   the min-height alone the labels stayed put and "Requirements" — width:
-   max-content, spilling inward by design (B35) — ran under the card's frame.
-   Cheap: one offsetHeight read, and only where the title can have changed. */
-function syncCardHeight() {
-  el.board.style.setProperty('--card-actual-h', anchorEls.title.offsetHeight + 'px');
-}
 
 function setHitInset(node, note) {
   const w = node.offsetWidth, h = node.offsetHeight;   // logical (transform-independent)
@@ -1002,7 +990,6 @@ el.board.addEventListener('input', (e) => {
     current[t.dataset.anchor] = t.textContent;
     t.classList.toggle('filled', !!t.textContent.length);
     if (t.dataset.anchor === 'title') {
-      syncCardHeight();                  // the card grows as it is typed into
       if (isDesktop) updateActiveCardTitle();
     }
     scheduleSave();
@@ -2047,6 +2034,21 @@ function pdfCanvas() {
       p.rrect(x + bw / 2, y + bw / 2, w - bw, h - bw, Math.max(0, r - bw / 2));
       return p.raw('S');
     },
+    // The title compartment (B38, issue #52): the sheet's own top edge is its
+    // fourth side, so only three are drawn — down the left, across the bottom,
+    // back up the right, one path, inset by half the border width same as
+    // `frame`. No radius: at the export's 0.581 A4 scale the 2px CSS corner is
+    // ~1pt, and a three-segment path is honest about which sides exist.
+    frameOpenTop(x, y, w, h, bw, bg) {
+      if (bg) { p.fill(bg); p.rect(x, y, w, h); p.raw('f'); }
+      p.strokeColor(PDF_INK).lineWidth(bw);
+      const lx = x + bw / 2, rx = x + w - bw / 2, by = y + h - bw / 2;
+      p.raw(pdfNum(lx) + ' ' + pdfNum(y) + ' m');
+      p.raw(pdfNum(lx) + ' ' + pdfNum(by) + ' l');
+      p.raw(pdfNum(rx) + ' ' + pdfNum(by) + ' l');
+      p.raw(pdfNum(rx) + ' ' + pdfNum(y) + ' l');
+      return p.raw('S');
+    },
     /* One line of text on a baseline. The text matrix cancels the page flip;
        without it every glyph would render upside down. */
     text(str, x, baseline, size, bold, color) {
@@ -2148,12 +2150,15 @@ function pdfAssemble(streams, title) {
    notes sit above every piece of furniture. */
 const EXPORT_GEO = {
   gutter: 24, ruleY: 48,                // --band-top + --card-h / 2 (B37)
-  bandTop: 14,
   compL: 24, compR: 272, reqL: 628, reqR: 876,
-  cardL: 280, cardW: 340, cardTop: 14, cardMinH: 68, cardPad: 12,
+  // The compartment starts at the sheet's own top edge (B38, issue #52);
+  // cardPadTop is its top padding, cardPad its bottom/side padding.
+  cardL: 280, cardW: 340, cardTop: 0, cardMinH: 82, cardPad: 12, cardPadTop: 28,
+  zoneHeaderY: 8, zoneItemsY: 34,      // mirrors lotHeaderY / lotItemsY (B38)
   // The export sheet is 1000 units tall, so it keeps the three-row lot (B37).
   lotTop: EXPORT_H - 16 - 166, lotH: 166, lotHeaderY: 8, lotItemsY: 34, lotRow: 44,
-  headSize: 15, headLH: 19.5,          // 15px / 1.3, the band + card + lot header
+  headSize: 15, headLH: 19.5,          // title, anchor text, lot header
+  labelSize: 12, labelLH: 15.6,        // the band's nomenclature (12 x 1.3, B38)
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
   noteSize: 17, noteLH: 23.8,          // 17px / 1.4
   border: 2, radius: 2, notePadX: 12, notePadY: 10,
@@ -2215,36 +2220,36 @@ function exportBoardPage(rec) {
     { text: rec.components, label: 'Components', l: g.compL, r: g.compR, align: 'left' },
     { text: rec.requirements, label: 'Requirements', l: g.reqL, r: g.reqR, align: 'right' },
   ];
-  // Measured before the zones are drawn, because the labels hang off it: the
-  // card is at least cardMinH and grows with the title, and the labels follow
-  // it down (B37 — .band-zone reads --card-actual-h for the same reason).
-  const title = rec.title || '';
-  const cardContentW = g.cardW - 2 * g.cardPad - 2 * g.border;
-  const titleLines = title ? pdfWrap(title, true, g.headSize, cardContentW) : [];
-  const cardH = Math.max(g.cardMinH,
-                         titleLines.length * g.headLH + 2 * g.cardPad + 2 * g.border);
+  // The label sits under the rule at a fixed offset (B38 — .band-label's own
+  // `top: 8px`, no longer hanging off the card), so it draws independently of
+  // the card's height.
+  const labelTop = g.ruleY + g.zoneHeaderY;
   for (const z of zones) {
     const w = z.r - z.l;
-    // 6px under the card, mirroring .band-label's `top: calc(100% + 6px)`.
-    const labelTop = g.cardTop + cardH + 6;
     if (z.text) {
       // .anchor has padding 2px 0 4px. Not clipped to the zone: on screen the
       // zone sets no overflow, so a long entry flows down over the canvas, and
-      // since B37 made the zone the card's own 68-unit box a clip here would
-      // start cutting text at three lines that the board still shows. The
-      // export draws what the screen draws (B34).
-      p.lines(pdfWrap(z.text, true, g.headSize, w), z.l, w, g.bandTop + 2,
+      // the export draws what the screen draws (B34).
+      p.lines(pdfWrap(z.text, true, g.headSize, w), z.l, w, g.ruleY + g.zoneItemsY + 2,
               g.headSize, g.headLH, true, 'left');
     }
-    p.lines([z.label], z.l, w, labelTop, g.headSize, g.headLH, true, z.align);
+    p.lines([z.label], z.l, w, labelTop, g.labelSize, g.labelLH, true, z.align);
   }
 
-  p.frame(g.cardL, g.cardTop, g.cardW, cardH, g.radius, g.border, PDF_PAPER);
+  const title = rec.title || '';
+  const cardContentW = g.cardW - 2 * g.cardPad - 2 * g.border;
+  const titleLines = title ? pdfWrap(title, true, g.headSize, cardContentW) : [];
+  // One border now, not two — the compartment's border-top is no longer drawn
+  // (B38, issue #52).
+  const cardH = Math.max(g.cardMinH,
+                         titleLines.length * g.headLH + g.cardPadTop + g.cardPad + g.border);
+  p.frameOpenTop(g.cardL, g.cardTop, g.cardW, cardH, g.border, PDF_PAPER);
   if (titleLines.length) {
-    // justify-content: center — the block is centred in the card, then each
-    // line is centred in the block.
+    // justify-content: center — the block is centred in the space between the
+    // top padding and the bottom padding + border, then each line is centred
+    // in the block.
     const blockH = titleLines.length * g.headLH;
-    const top = g.cardTop + (cardH - blockH) / 2;
+    const top = g.cardPadTop + (cardH - g.cardPadTop - g.cardPad - g.border - blockH) / 2;
     p.lines(titleLines, g.cardL + g.border + g.cardPad, cardContentW, top,
             g.headSize, g.headLH, true, 'center');
   }
