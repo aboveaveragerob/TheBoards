@@ -11,6 +11,48 @@ question was escalated.
 
 ---
 
+> ## Status: this is the **v1** record.
+>
+> A1 and B1–B43 below were ruled against a `PRD.md` / `UIUX.md` pair that did not
+> exist at the time — they were reconstructed afterwards, and both documents now
+> do exist. This file stays exactly as it is: it is the reasoning history, it is
+> binding for v1, and **it is append-only.** An entry is superseded by a later
+> ruling, never edited away.
+>
+> **For v2, decisions live in `PRD.md` and `UIUX.md`, not in a `B44+` here.**
+> Opening new B-entries alongside a specification that rules on the same
+> questions would create two records that can disagree — which is the failure
+> (PP4) v2 was written to end. The relationship is:
+>
+> | Question | Authority |
+> |---|---|
+> | What the product is and must do | `PRD.md` |
+> | How it renders and behaves under the hand | `UIUX.md` (wins on any rendering question — see A1) |
+> | Why v1 does what it does, and what has already been tried | **this file** |
+>
+> Where v2 supersedes a ruling here, it says so by number. The ones it overturns
+> outright:
+>
+> - **B16** (the light/dark palette pair) — retired. v2 is dark-only; `PRD §0.5`,
+>   `UIUX §2.1`.
+> - **B40's accepted anisotropy** ("when the two ratios diverge, vertical
+>   clearances can still shift") and **B21's width-only multiplier** — replaced by
+>   the similarity transform in `PRD` FR-210, which closes issues #65 and #75.
+> - **The `--line` mid-grey introduced with B15/B16** — deleted. It was specified
+>   against surfaces it is not drawn on (1.64:1 on the sheet it rules across);
+>   `UIUX §2.3`, `§2.5`.
+>
+> Everything else here still stands. In particular the B33 → B35 → B36 → B37 →
+> B38 band chain is **unchanged and still authoritative** — v2 adds a measurement
+> gate in front of it (`UIUX §13.2`) because a new typeface changes the type, and
+> the band is sized by the type it holds.
+>
+> **Grep this file before changing gesture, layout, band/lot or menu behaviour.**
+> A prior fix in that area very likely already ruled out the approach you are
+> about to take.
+
+---
+
 ## A. Resolved internal conflict
 
 ### A1. Long-press menu order
