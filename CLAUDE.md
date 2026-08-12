@@ -94,28 +94,48 @@ Key architectural facts:
   (`pushState`/`popstate`) specifically so the OS/browser back gesture works
   (B9) — never intercept or shadow it.
 
-## The decisions record — read before changing behavior
+## The three records — read before changing behavior
+
+| File | Answers | Wins on | Cited as |
+|---|---|---|---|
+| `PRD.md` | what the app is, who it is for, why | product intent | `PRD §x` |
+| `UIUX.md` | what it renders, and in what values | **rendering** | `UIUX §x` |
+| `DECISIONS.md` | every ruling, in order, with its reason | the later ruling always wins | `B<n>` |
+
+**`UIUX.md` is the rendering authority** (`DECISIONS.md:22`, which resolved A1
+by following `UIUX §7` over `PRD §6.6`). Every design value — hexes, contrast
+ratios, sizes, radii, durations, thresholds, ARIA contracts — lives there and
+nowhere else. `PRD.md` §9 holds the design system's *position* and points at it.
+Both `app.js` and `styles.css` are sectioned against `UIUX.md`'s numbering:
+every top-level `§` marker in `styles.css` is a UIUX section number, and its
+header block is that document's table of contents.
+
+**Cite with the document prefix** — `PRD §6.2`, `UIUX §4.3`. A bare `§x` is
+ambiguous: `styles.css` uses bare `§6.1`/`§6.2`/`§6.5` for PRD sections and bare
+`§6` for UIUX's touch floor, in the same file (`UIUX.md` Appendix A).
 
 `DECISIONS.md` is the binding, cumulative record of every UI/interaction
-ruling in this app, each numbered (`B1`…`B43`+) and tied to an issue number,
+ruling in this app, each numbered (`B1`…`B52`+) and tied to an issue number,
 resolved against the product/design principles quoted at its top (capture
 precedes structure · positions permanent · zero cognitive tax · every pixel
 earns its place). Later entries explicitly `supersede`/`override` earlier
 ones — **grep `DECISIONS.md` for the relevant section before changing
 gesture, layout, band/lot, or menu behavior**, because a prior fix in that
 area very likely already ruled out the approach you're about to take (the
-band geometry alone has been ruled on four times, each correcting a
-regression the previous ruling caused). If you make a new UI/behavior
-judgment call that isn't already covered, add a new `B`-numbered entry in
-the same style (issue reference, principle it resolves against, what it
-supersedes/overrides) rather than leaving the decision implicit in code.
+band geometry alone has been ruled on five times — B33 → B35 → B36 → B37 →
+B38 — each correcting a regression the previous ruling caused, and B49 puts
+it back in play because v2 changes the typeface that sizes it). If you make a
+new UI/behavior judgment call that isn't already covered, add a new
+`B`-numbered entry in the same style (issue reference, principle it resolves
+against, what it supersedes/overrides) rather than leaving the decision
+implicit in code — and if it is a *rendering* call, the value itself belongs
+in `UIUX.md`, with the entry recording why.
 
 `DESKTOP-MODE-PLAN.md` and `TOP-BAND-PLAN.md` are point-in-time
 implementation plans for past features (both marked `Status: implemented`
 at the top) — useful as historical context for *why* the desktop grammar
 and top-band layout look the way they do, but `DECISIONS.md` is authoritative
-if the two ever disagree. `PRD.md`/`UIUX.md` are referenced throughout both
-`app.js` comments and `DECISIONS.md` but are not checked into this repo.
+if the two ever disagree.
 
 ## Commit style
 

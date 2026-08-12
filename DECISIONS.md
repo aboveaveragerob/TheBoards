@@ -1169,3 +1169,200 @@ all of it routes through the recognizer, not native `click` — setPointerCaptur
 the constraint B22 already records. `.sel-actions` centres its flex row under the note, so the
 third button arrives centred and equally spaced for free; `test/desktop.js` [D15] pins the order,
 the empty B18 window, and the clipboard round-trip.
+
+---
+
+## M. The v2 design system (PR #77; `UIUX.md`)
+
+v1 had no design layer worth the name: a two-pole value scale (B16), a system typeface, and
+geometry. v2 gives the app an identity, and `UIUX.md` — the document 37 citations across
+`app.js`, `styles.css`, `index.html` and this file had been pointing at since the first commit —
+finally exists to hold it. These entries record the calls made while writing it.
+
+### B44. The app is dark-only (supersedes B16's light/dark pair)
+The `prefers-color-scheme` pair is **retired, not defaulted**. There is no switch to retire it to:
+PRD §1.4 forbids the setting, and a theme the person has to choose is a question the interface is
+asking. **Why dark rather than light:** PRD §1.1's identity is calm water at depth and at dusk, and
+the one lit thing in the room is the note you just wrote. A bright productivity surface cannot say
+that — on a white board every surface is lit and the note is just another rectangle. The
+inversion only reads if the room is dark.
+
+B16 is superseded in its values, not its method; B45 carries the method forward. The
+`prefers-color-scheme: dark` block and the entire light `:root` are **removed, not overridden** —
+an override leaves a dead branch that the next reader has to disprove.
+
+Two consequences worth stating. `--letterbox` becomes true black `#000000`: on the mobile path
+`renderScale = 1` and there is no letterbox (B32), but on desktop and any aspect mismatch it is
+the largest persistent field in the app, and true black switches OLED pixels off. And
+**`--elevation` stops being wrong** — v1 declared it once, in the light block, with no dark
+override, so the same 25%-black drop shadow sat on a `#29232F` surface for a year and nothing
+caught it. Dark-only removes the inconsistency by removing the second theme; that is luck, not a
+fix, and it is recorded here so it is not read as one.
+
+### B45. The ladder is a law, not a list (extends B16's method to the v2 palette)
+B16 did not legitimise its palette by listing it. It legitimised it by naming the method — *a
+single near-monochrome value scale generated from two poles*, chroma ≤ 0.018 OKLCH — and that
+method is what let B16 claim identity from structure rather than costume (UIUX §1). v2 replaces
+the two poles with a six-rung surface ladder, and six hand-picked hexes with verified ratios are
+**six assertions, not a system**: nothing in them says what a seventh surface would be.
+
+**Decision:** the ladder is stated as a generative law and the six values are its output
+(UIUX §2.1.1). One axis — luminance. One hue family, desaturated cyan-green, with `--letterbox`
+achromatic because it is the absence of the app and `--danger` the single warm value and not a
+ground. Rungs separated by function rather than by an interval: four dark rungs inside one
+luminance decade because they are all *behind*, two an order of magnitude above because they are
+*in front*. `--chrome` and `--furniture` are 1.13:1 apart on purpose — they are one recessed mass
+with a seam in it, not two depths — which is exactly what an even OKLCH step would have destroyed.
+
+Two derivations do the load-bearing work, and both are properties of the poles rather than
+opinions about them:
+
+- **The ink crossover.** `L = √((L_light + 0.05)(L_dark + 0.05)) − 0.05 = 0.1788`, where both poles
+  land on 4.19:1. Below it a ground takes `--ink-light`; above it, `--ink-dark`. This *predicts*
+  every row of the ink table instead of restating it.
+- **The forbidden band.** Solving each pole for AA gives light ink holding to `L ≤ 0.163` and dark
+  ink from `L ≥ 0.196`. **No text-bearing surface may sit between them.** Repeating the solve at
+  3:1 gives `L ≤ 0.270` and `L ≥ 0.114`, which *overlap* — so a mark can go anywhere a word
+  cannot. That asymmetry is used twice below.
+
+The six hex values are **impermanent**. The law is not.
+
+### B46. The ink crossover governs edges too (supersedes the universal `--chrome` border)
+The v2 draft carried one border rule: *every filled control takes a 2px `--chrome` border*,
+justified at 8.19:1. That figure is on `--shelf` alone. Computed against the whole ladder,
+`--chrome` as a line is 1.09:1 on `--letterbox`, 1.00:1 on itself, 1.13:1 on `--furniture` and
+**2.52:1 on `--board`** — below WCAG 1.4.11's 3:1 on four of six grounds. Two live controls sit in
+the failure: `.sel-btn` Copy, which is `--chrome`-filled on the board, and `.pane-card`, which is
+`--board`-filled on the `--chrome` rail. Both would have shipped with invisible edges.
+
+**Decision:** the crossover is not a text rule. **A line takes the same ink pole its ground takes**
+(UIUX §2.2.3) — text, rules, hairlines, borders and drawn marks alike. One law, and by B45's
+overlap it is satisfiable on every rung. On `--shelf` it reduces to exactly what the old rule
+said, which is why it supersedes rather than contradicts: the old rule was right for the case it
+was derived from and was generalised without being re-checked.
+
+The note is the one element that **crosses grounds** — `--board` normally, `--shelf` when dragged
+over the Parking Lot — so its edge cannot follow a ground. It keeps `--ink-dark`: on the board its
+own fill separates it at 4.01:1, and on the shelf, where the fill collapses to 1.23:1, the 2px
+frame carries it at 8.19:1. Fill covers one ground, border covers the other. That is the general
+rule stated properly — *clear 3:1 against every ground you can sit on, by fill or by border* — and
+the fixed-position controls are just its easy case.
+
+### B47. `--line` is retired
+The draft carried a mid-grey `#717575` for rules, hairlines, disabled states and the tap-ghost,
+with the note that no ink reaches AA *on* it. The larger problem is the reverse: at `L = 0.1752`
+it is **1.64:1 on `--board`**, 1.99:1 on `--shelf` and 2.45:1 on `--note`. It fails three of its
+four jobs, and the two failures that matter are structural — `#band-rule`, the element B33 through
+B38 fought five times to make permanent, and B18's `.tap-ghost`, which is the *entire content* of
+the 400 ms acknowledgment window. An invisible ghost is 400 ms of nothing, which is the one thing
+B18 exists to forbid.
+
+It is also, by B45's arithmetic, dead centre of the forbidden band — and no grey between these
+poles can escape it. A neutral line that reads on every ground is a convention, not a value that
+works.
+
+**Decision:** retire it. Rules and hairlines take the ground's pole (B46), at full strength when
+structural and at alpha when merely grouping. `--ink-rgb` — one of v1's tokens with no stated
+fate — is revived as `--ink-light-rgb` / `--ink-dark-rgb` and now carries hairlines as well as the
+scratch-out's 40% destroyed text. `--ink-shadow` goes the same way and for the same reason: a
+second mid-tone has the identical problem.
+
+### B48. The note takes colour, and keeps its 2px radius
+**The colour.** UIUX §1 forbids costume, and a note that is `--note #89c7c5` rather than paper is
+the most obvious place v2 could have broken that rule. It survives because the value is saying
+something structural: the note is the brightest surface in the app **because it is the only thing
+the person made**. That is a statement about what a note *is*. The test is falsifiable — if a
+re-tune ever made some other surface brightest, the identity would be wrong even with every
+contrast ratio still passing.
+
+**The radius stays at 2px.** An earlier draft moved it to 3. Rejected: the radius set is three
+steps with three meanings — 2 a drawn thing, 3 the selection ring, 8 an elevated transient
+surface — and the ring is 3 *because* it sits 1 px outside a 2 px note. Moving the note to 3
+forces the ring to 4 and buys nothing; 2 px already reads as drawn rather than as a UI card at
+every scale a note can take, which is the property the change was arguing for. `EXPORT_GEO.radius`
+therefore does not move either. Same class of unexamined import as the `font-color` property and
+the 10 px label the draft's own control table had already corrected.
+
+**Known, not fixed:** `.note.tapped .note-text` and `.lot-item.tapped .lot-text` are unreachable.
+`.tapped` is applied only by `delayAction`, and no code path passes a `.note` or `.lot-item` as
+the acknowledgment node — notes reach the pressed state through `.pressed` alone. Either the rules
+are dead and should go, or notes are missing their acknowledgment and it should be wired. The
+current state says one thing in CSS and does another in JS, and no test distinguishes them.
+
+### B49. Montserrat Alternates, and the band metrics it re-opens
+Self-hosted in `fonts/`, three weights (400/600/800), Latin-subset `woff2`, `font-display: swap`.
+**No CDN:** it is a network dependency (PRD §3.3) and an uncacheable hole in an offline-first
+shell (PRD §3.2). `swap` is not a preference — a font load must never sit between the intent to
+write and the caret (PRD §1.1). Three weights is the smallest set covering body, the existing 600
+emphasis and the 800 primary label; the face has no variable version, so each is a file, and each
+is added to `sw.js` `ASSETS` under B36's bump discipline.
+
+**The obligation this creates is the point of the entry.** B37 ruled that *the band is sized by
+the type it holds, not by the sheet*. Changing the type therefore changes the band, and the band
+has been ruled on five times (B33 → B35 → B36 → B37 → B38). Two values are `system-ui`
+measurements and are **not yet verified**: `--card-h: 68px` (= two 15px lines at 1.3, plus padding
+and border) and the 12 px band label, which B38 chose as the largest whole size clearing
+`--card-w`'s 100 px floor — ~94.4 px at 12 px against ~102.3 px at 13 px, which fails. If
+Montserrat Alternates' advances differ, one or both move, and `--rule-y` moves with `--card-h`.
+
+Verification follows B37's rule: **measure the live board**, not a copy of the stylesheet.
+`test/mobile.js` [11c] already does this and exists precisely because B36's version resolved a
+hand-copied clamp string in a throwaway probe and could only ever catch `EXPORT_GEO` drifting from
+that copy, never from the CSS.
+
+### B50. `🗑` becomes a drawn mark
+The glyph set is typographic, not assets — `✓ ↺ ▦ ⇩ ⧉ « ‹ › »` — and `app.js` already reasoned
+its way to `⇩` over `📄` on exactly this ground. `🗑` was the survivor: a colour emoji among
+monochrome geometric marks, which on a near-black palette is a bright foreign object that also
+overrides `--danger`.
+
+**Swapping in another codepoint does not fix it.** The requirement is that every glyph render from
+the self-hosted subset rather than falling back to a platform font — a fallback is a second
+typeface arriving unannounced — and a subset chosen for Latin text cannot be relied on for
+dingbats.
+
+**Decision:** `.pane-del` draws its mark — two 1 px rules crossed at ±45°, in `--danger`. Three
+things fall out of one change, which is why it is the right answer rather than merely an available
+one: it needs no glyph coverage, so it cannot fall back; it is monochrome by construction, so it
+cannot reintroduce a foreign palette; and **it stops being text**, so WCAG 1.4.11's 3:1 applies
+instead of 1.4.3's 4.5:1 — and `--danger` on a `--board` card is 3.51:1, which passes as a mark
+and fails as a word. The palette problem and the contrast problem had the same fix, and neither
+would have been solved by choosing a better emoji.
+
+### B51. Motion lengthens, and reduced motion is zeroed in JS as well as CSS
+PRD §1.1's calm water asks for a slower settle than v1's 120/150 ms. The set does **not** grow —
+no new motion has earned its place — but its two durations become 200 ms and 260 ms on
+`cubic-bezier(0.16, 1, 0.3, 1)`, a long decelerate that covers most of the distance early and
+spends the tail arriving. Note capture (B27) and the button press-translate stay instant: a
+control that lags feels broken, not calm.
+
+**The trap is that three of those durations are duplicated in JS.** `LEAVE_MS = 120` and
+`SWAP_MS = 150` are copies of CSS values, and the toast teardown fires at 160 ms — 10 ms after its
+150 ms fade. Lengthening one side alone ships a teardown that beats its own animation. They move
+as one set: 200 / 260 / 270.
+
+**And lengthening makes the reduced-motion path worse.** B24 sequences the board swap by
+`setTimeout` rather than `transitionend`, because a zeroed transition never fires its event. With
+the CSS killed the JS still waits `SWAP_MS`, so a reduced-motion user gets 260 ms of nothing where
+they used to get 150 — the exact failure B18 exists to prevent, arrived at from the other
+direction. **A duration sequenced in JS must be zeroed in JS**, not merely in CSS: `LEAVE_MS` and
+`SWAP_MS` read `prefers-reduced-motion` and collapse to 0. Nothing tests any of this.
+
+### B52. `UIUX.md` exists, and citations take a document prefix
+The document 37 citations pointed at was never written. `styles.css` opens with its table of
+contents (*"See UIUX.md: §2 tokens, §3 geometry, §4 note…"*), every top-level `§` marker in that
+file is one of its numbers, `app.js`'s section map cites five more, and A1 above resolved a spec
+conflict by calling it **the rendering authority**. It is now written, at that numbering, which is
+recovered rather than chosen — renumbering would break every citation.
+
+The consequence for PRD.md: **one value, one home.** Its §9 keeps the positions (dark-only, depth
+as darkness, one warm hue, one typeface, no shadow on notes, never colour alone) and hands every
+enumerable value to `UIUX.md`; its §10 stops being a redirect table and states the boundary
+instead. A value with two homes has no home, and A1 is this repo's evidence for what happens when
+two documents disagree.
+
+**Citations take the document prefix from here on: `PRD §6.2`, `UIUX §4.3`.** A bare `§x` is
+ambiguous today — `styles.css` uses bare `§6.1`/`§6.2`/`§6.5` for PRD's anchors, notes and Parking
+Lot, and bare `§6` for UIUX's touch floor, in the same file. Existing bare citations are
+grandfathered and should be prefixed when the surrounding rule is next touched. `app.js:2209`
+cites "styles.css §1", which is not a marker in that file at all.
