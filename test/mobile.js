@@ -41,6 +41,24 @@ async function tapWithMove(page, x, y, dx, dy) {
   await c.detach();
 }
 
+// Press and drag, stopping WITH THE FINGER STILL DOWN so the caller can assert
+// mid-drag state (the landing frame, the ghost). Returns the live CDP session:
+// the caller sends touchEnd and detaches. Stepped so the move crosses
+// MOVE_THRESHOLD, and quick enough to stay inside LONGPRESS_MS.
+async function touchDragTo(page, from, to, steps = 8) {
+  const c = await page.context().newCDPSession(page);
+  await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from.x, y: from.y }] });
+  await page.waitForTimeout(20);
+  for (let i = 1; i <= steps; i++) {
+    await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{
+      x: from.x + (to.x - from.x) * i / steps,
+      y: from.y + (to.y - from.y) * i / steps,
+    }] });
+    await page.waitForTimeout(15);
+  }
+  return c;
+}
+
 const noteCount = page => page.evaluate(() => document.querySelectorAll('.note').length);
 const activeIsNoteText = page => page.evaluate(() =>
   !!document.activeElement && document.activeElement.classList.contains('note-text'));
@@ -895,6 +913,210 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('export wrap width agrees with the screen (±1)',
        Math.abs(m.exportW - m.screenW) <= 1, JSON.stringify(m));
     ok('the exported note wraps to more than one line', m.lines > 1, String(m.lines));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 19. the list view's categories (issue #74, B44) --------------------
+  // The mobile twin of desktop's [D16]. Everything here rides genuine touch
+  // events, never synthesized clicks (B27b): the drag IS the feature, and it
+  // is the browser's touch pipeline that has to deliver it.
+  console.log('\n[19] List categories: To-Do / Idea / Unsorted, touch-drag between, pager (issue #74)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    // A second board, so Unsorted holds one the drag can move without it also
+    // being the open board (which takes dropBoardCard's other write path).
+    await page.evaluate(async () => {
+      const r = newBoardRecord();
+      r.title = 'Draggable';
+      r.createdAt = r.updatedAt = Date.now() - 50000;   // older: sorts below the open board
+      await idbPut(r);
+    });
+    await page.reload();
+    await page.waitForTimeout(500);
+    await page.evaluate(() => goToList());
+    await page.waitForTimeout(300);
+
+    const heads = await page.evaluate(() =>
+      [...document.querySelectorAll('#list-rows .cat-head span')].map(s => s.textContent));
+    ok('three category headers in order', heads.length === 3 &&
+       heads[0] === 'To-Do Boards' && heads[1] === 'Idea Boards' && heads[2] === 'Unsorted Boards',
+       JSON.stringify(heads));
+
+    // Category is read-site defaulted (B21 idiom): a record that never had one
+    // IS Unsorted, so nothing was written to put these two there.
+    ok('both boards start in Unsorted, none elsewhere', await page.evaluate(() =>
+      document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row').length === 2 &&
+      !document.querySelector('.board-cat[data-cat="todo"] .board-row') &&
+      !document.querySelector('.board-cat[data-cat="idea"] .board-row')));
+    ok('no category was written to storage', await page.evaluate(async () =>
+      (await idbGetAll()).every(b => b.category === undefined && b.catStamp === undefined)));
+
+    // ---- touch-drag Unsorted -> To-Do ------------------------------------
+    const beforeId = await page.evaluate(() => current.id);
+    const dragId = await page.evaluate(() =>
+      [...document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row')]
+        .find(c => c.textContent.includes('Draggable')).dataset.id);
+    const from = await page.evaluate(() => {
+      const r = [...document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row')]
+        .find(c => c.textContent.includes('Draggable')).getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    const to = await page.evaluate(() => {
+      const r = document.querySelector('.board-cat[data-cat="todo"] .cat-cards').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    // Press and move, all inside LONGPRESS_MS — movement past MOVE_THRESHOLD
+    // is what turns the press into a drag rather than into the board menu.
+    const c = await touchDragTo(page, from, to);
+    ok('To-Do frame highlights mid-drag', await page.evaluate(() =>
+      document.querySelector('.board-cat[data-cat="todo"]').classList.contains('drop-target')));
+    ok('drag ghost follows the finger', await page.evaluate(() =>
+      !!document.querySelector('.card-drag-ghost')));
+    ok('the hold menu never opened — movement cancelled it',
+       await page.evaluate(() => document.querySelector('#menu').hidden !== false));
+    await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await c.detach();
+    await page.waitForTimeout(300);
+
+    ok('highlight and ghost cleared on release', await page.evaluate(() =>
+      !document.querySelector('.drop-target') && !document.querySelector('.card-drag-ghost')));
+    ok('card lands first in To-Do', await page.evaluate((id) => {
+      const first = document.querySelector('.board-cat[data-cat="todo"] .board-row');
+      return !!first && first.dataset.id === id;
+    }, dragId));
+    ok('it left Unsorted', await page.evaluate(() =>
+      document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row').length === 1));
+    ok('IDB record carries category + catStamp', await page.evaluate(async (id) => {
+      const rec = await idbGet(id);
+      return !!rec && rec.category === 'todo' && typeof rec.catStamp === 'number';
+    }, dragId));
+    ok('the drag did not open the board',
+       await page.evaluate(() => document.querySelector('#list-view').hidden === false));
+    ok('and did not switch the open board', await page.evaluate(() => current.id) === beforeId);
+
+    // ---- the other two readings of the same press are untouched (B43) -----
+    const todoCard = await page.evaluate(() => {
+      const r = document.querySelector('.board-cat[data-cat="todo"] .board-row').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await tap(page, todoCard.x, todoCard.y, 700);        // motionless hold
+    await page.waitForTimeout(200);
+    ok('a motionless hold still opens the board menu',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false));
+    const items = await page.evaluate(() =>
+      [...document.querySelectorAll('#menu button')].map(b => b.textContent));
+    ok('and it is still Export then Delete', items.length === 2 &&
+       /Export/.test(items[0]) && /Delete/.test(items[1]), JSON.stringify(items));
+    // Dismiss on the page heading: B30's inert-dismiss covers presses that
+    // land on #board, so a dismiss onto another card would open that board.
+    const title = await page.evaluate(() => {
+      const r = document.querySelector('#list-title').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await tap(page, title.x, title.y);
+    await page.waitForTimeout(600);                      // let any window drain
+    ok('dismissing the menu opened nothing',
+       await page.evaluate(() => document.querySelector('#list-view').hidden === false));
+
+    await tap(page, todoCard.x, todoCard.y);             // motionless release
+    await page.waitForTimeout(600);                      // past ACTION_DELAY
+    ok('a motionless tap still opens the board',
+       await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
+    ok('and it opened the one that was tapped',
+       await page.evaluate(() => current.id) === dragId);
+
+    // ---- overflow pages, never scrolls -----------------------------------
+    await page.evaluate(async () => {
+      for (let i = 0; i < 9; i++) {
+        const r = newBoardRecord();
+        r.title = 'Seed ' + i;
+        r.createdAt = r.updatedAt = Date.now() - (i + 2) * 100000;
+        await idbPut(r);
+      }
+    });
+    await page.reload();
+    await page.waitForTimeout(500);
+    await page.evaluate(() => goToList());
+    await page.waitForTimeout(300);
+
+    ok('categorization survives the reload', await page.evaluate((id) => {
+      const first = document.querySelector('.board-cat[data-cat="todo"] .board-row');
+      return !!first && first.dataset.id === id;
+    }, dragId));
+
+    const pg = await page.evaluate(async () => {
+      const un = document.querySelector('.board-cat[data-cat="unsorted"]');
+      const pager = un.querySelector('.cat-pager');
+      const btns = [...pager.querySelectorAll('.pager-btn')];
+      const all = await idbGetAll();
+      const cards = un.querySelector('.cat-cards');
+      return {
+        visible: !pager.hidden,
+        disabled: btns.map(b => b.disabled),
+        labels: btns.map(b => b.getAttribute('aria-label')),
+        ind: un.querySelector('.cat-pages').textContent,
+        onPage: un.querySelectorAll('.board-row').length,
+        total: all.filter(b => b.category !== 'todo' && b.category !== 'idea').length,
+        noScroll: cards.scrollHeight <= cards.clientHeight + 1,
+        listNoScroll: (() => {
+          const v = document.querySelector('#list-view');
+          return v.scrollHeight <= v.clientHeight + 1;
+        })(),
+        floor: Math.min(...btns.map(b => Math.min(b.getBoundingClientRect().width,
+                                                  b.getBoundingClientRect().height))),
+      };
+    });
+    ok('pager visible in Unsorted', pg.visible);
+    ok('pager is first/prev/next/last', pg.labels.join(',') ===
+       'First page,Previous page,Next page,Last page', pg.labels.join(','));
+    ok('first/prev disabled on page 0; next/last enabled',
+       pg.disabled[0] && pg.disabled[1] && !pg.disabled[2] && !pg.disabled[3],
+       JSON.stringify(pg.disabled));
+    const pages = Math.ceil(pg.total / pg.onPage);
+    ok('indicator reads 1/' + pages, pg.ind === '1/' + pages,
+       pg.ind + ' (total=' + pg.total + ' onPage=' + pg.onPage + ')');
+    // The load-bearing pair: overflow PAGES. Neither the category nor the
+    // screen itself may scroll — B44 trades the scroll away for the drag.
+    ok('the shown page does not overflow its clip', pg.noScroll);
+    ok('the list view itself does not scroll', pg.listNoScroll);
+    ok('pager buttons clear the 44px touch floor', pg.floor >= 44, String(pg.floor));
+
+    // Page turns are inert navigation — instant, no 400ms window (B22).
+    const tapPager = async (lbl) => {
+      const b = await page.evaluate((l) => {
+        const r = document.querySelector(
+          '.board-cat[data-cat="unsorted"] .pager-btn[aria-label="' + l + '"]')
+          .getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }, lbl);
+      await tap(page, b.x, b.y);
+      await page.waitForTimeout(150);
+    };
+    const unState = () => page.evaluate(() => {
+      const un = document.querySelector('.board-cat[data-cat="unsorted"]');
+      const btn = (l) => un.querySelector('.pager-btn[aria-label="' + l + '"]');
+      return { ind: un.querySelector('.cat-pages').textContent,
+               first: un.querySelector('.board-row').dataset.id,
+               nextOff: btn('Next page').disabled, lastOff: btn('Last page').disabled };
+    });
+    const p0 = await unState();
+    await tapPager('Next page');
+    let s = await unState();
+    ok('next turns to page 2', s.ind === '2/' + pages && s.first !== p0.first, s.ind);
+    await tapPager('Last page');
+    s = await unState();
+    ok('last jumps to the end, next/last disable', s.ind === pages + '/' + pages &&
+       s.nextOff && s.lastOff, s.ind);
+    await tapPager('Previous page');
+    s = await unState();
+    ok('prev steps back', s.ind === (pages - 1) + '/' + pages, s.ind);
+    await tapPager('First page');
+    s = await unState();
+    ok('first returns to page 1', s.ind === '1/' + pages && s.first === p0.first, s.ind);
+    ok('a page turn opened no board',
+       await page.evaluate(() => document.querySelector('#list-view').hidden === false));
+
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

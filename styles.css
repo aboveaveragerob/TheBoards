@@ -443,16 +443,23 @@ body {
 /* ============================================================================
    §10 Board list view (the only other screen)
    ========================================================================== */
+/* Since issue #74 the list holds three paged categories, so it does not scroll
+   — the pager states the overflow instead (B44, extending B42's law to mobile).
+   That is what frees press-and-move to mean "drag this board to a category":
+   with no vertical pan left to fight, the board's own MOVE_THRESHOLD is the
+   whole discriminator. touch-action: none is the same stance as the board (B12). */
 #list-view {
   position: fixed;
   inset: 0;
   z-index: 500;
   background: var(--paper);
-  overflow-y: auto;
-  touch-action: pan-y;                 /* the list scrolls; the board does not */
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
+  touch-action: none;
+  display: flex;
+  flex-direction: column;
 }
 #list-header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -474,23 +481,35 @@ body {
   cursor: pointer;
 }
 .primary-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-#list-rows { padding-bottom: 24px; }
+#list-rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;                    /* categories page; nothing scrolls (issue #74) */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;                            /* = PANE_ROW_GAP in app.js */
+  padding: 0 12px 12px;
+}
+/* A row is a card now, not a list line: it can be picked up and carried to
+   another category, so it has to read as a discrete object with its own edge
+   (issue #74). Same 56px height it always had — PANE_ROW_H in app.js. */
 .board-row {
   display: flex;
   align-items: baseline;
   gap: 16px;
   width: 100%;
-  min-height: 56px;
-  padding: 12px 20px;
+  min-height: 56px;                    /* = PANE_ROW_H in app.js */
+  padding: 12px 16px;
   background: var(--surface-raised);
-  border: none;
-  border-bottom: 1px solid var(--hairline);
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 .board-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.board-row-wrap { display: flex; align-items: stretch; flex: 0 0 auto; }
 .board-row .row-title {
   flex: 1 1 auto;
   min-width: 0;
@@ -504,6 +523,111 @@ body {
   flex: 0 0 auto;
   font-size: 13px;
   color: var(--ink-shadow);
+}
+
+/* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44) ----------------
+   Three equal sections — To-Do, Idea, Unsorted — on both the mobile list and
+   the desktop rail, from one DOM shape: head, cards, pager. Overflow turns
+   pages, never scrolls, so .cat-cards clips and the pager below navigates.
+
+   Mobile merges the head and the pager onto one LIST_CAT_STRIP (44px) row so
+   the rest of each third goes to boards — three per page instead of two (B44).
+   Desktop stacks them, and restates its own fixed heights below; those numbers
+   are shared law with app.js, where catPageCap() derives the card budget from
+   them (head 24 + pager 32, or the 44px strip). ---- */
+.board-cat {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: 48px 1fr;        /* = LIST_CAT_STRIP in app.js */
+  grid-template-areas: "head pager" "cards cards";
+  align-items: center;
+  column-gap: 8px;                     /* the label never touches the pager */
+}
+/* Mid-drag landing frame: the section under the pointer is where the board
+   will move on release. Drawn just inside the section — the surface clips (it
+   must: pagination, not scroll), so an outset outline loses its side edges and
+   the frame reads as two stray rules. */
+.board-cat.drop-target { outline: 2px solid var(--accent-page); outline-offset: -2px; }
+.cat-head {
+  grid-area: head;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-shadow);
+}
+.cat-head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;             /* truncation always indicated (§10) */
+  white-space: nowrap;
+}
+.cat-cards {
+  grid-area: cards;
+  align-self: stretch;
+  flex: 1 1 auto;                      /* desktop restacks the section as a column */
+  min-height: 0;
+  overflow: hidden;                    /* pagination, never a scrollbar */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;                            /* = PANE_ROW_GAP in app.js */
+}
+/* The pager: muted blue paired with --paper — the sel-btn construction, so it
+   inverts ≥ AA in both themes — behind a neutral ink-shadow border that holds
+   its edge against both the fill and the surface. The n/m indicator sits
+   between ‹ and ›: it says which page the arrows are on, so it travels with
+   them, and one page hides the whole strip at once (§10: no state, no
+   statement). Mobile sizes to HIT_FLOOR; desktop to B23's 24px floor. */
+.cat-pager {
+  grid-area: pager;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+}
+/* Adjacent buttons share their border, the seam .pane-del already uses: at
+   the touch floor four separate squares crowd the category name off the
+   strip, and one segmented control reads as one control anyway. */
+.pager-btn + .pager-btn { margin-left: -1px; }
+.cat-pages {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-shadow);
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+.pager-btn {
+  min-width: 44px;                     /* = HIT_FLOOR (PRD §5.3, UIUX §6) */
+  min-height: 44px;
+  background: var(--accent-page);
+  color: var(--paper);
+  border: 1px solid var(--ink-shadow);
+  border-radius: 2px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+.pager-btn:disabled { opacity: 0.4; cursor: default; }
+.pager-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Mid-drag: the origin row dims but holds its slot; a fixed clone of the card
+   rides the pointer. pointer-events:none keeps the hit-test seeing the
+   categories under the pointer, never the ghost itself. */
+.board-row-wrap.card-dragging,
+.pane-row.card-dragging { opacity: 0.55; }
+.card-drag-ghost {
+  position: fixed;
+  z-index: 1200;                       /* above everything: it belongs to the pointer */
+  pointer-events: none;
+  opacity: 0.92;
+  box-shadow: var(--elevation);
 }
 
 /* ============================================================================
@@ -547,79 +671,31 @@ html.desktop #pane {
   gap: 8px;
 }
 
-/* ---- Rail categories (issue #58 / B42): three equal thirds — To-Do, Idea,
-   Unsorted. Overflow turns pages, never scrolls: .pane-cat-cards clips, the
-   pager below navigates. The fixed heights here are shared law with app.js —
-   head = PANE_CAT_HEAD (24), pager = PANE_PAGER_H (32), row = 56 + 8 gap —
-   panePageCap() derives the per-page card budget from them. ---- */
-.pane-cat {
-  flex: 1 1 0;
-  min-height: 0;
+/* ---- Rail categories: the desktop skin of the shared §10.5 section. Same
+   three children, restacked — head above the cards, pager below — and sized
+   for the desktop pointer rather than a fingertip. The fixed heights here are
+   shared law with app.js: head = PANE_CAT_HEAD (24), pager = PANE_PAGER_H
+   (32), row = 56 + 8 gap; catPageCap() derives the card budget from them. ---- */
+html.desktop .board-cat {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
 }
-/* Mid-drag landing frame: the section under the cursor is where the board
-   will move on release. Drawn just inside the section — #pane-cards clips
-   (it must: pagination, not scroll), so an outset outline loses its side
-   edges against the clip and the frame reads as two stray rules. */
-.pane-cat.drop-target { outline: 2px solid var(--accent-page); outline-offset: -2px; }
-.pane-cat-head {
+html.desktop .cat-head {
   flex: 0 0 24px;                      /* = PANE_CAT_HEAD in app.js */
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--ink-shadow);
 }
-.pane-cat-pages { font-size: 11px; letter-spacing: 0; }
-.pane-cat-cards {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;                    /* pagination, never a scrollbar (issue #58) */
-  display: flex;
-  flex-direction: column;
-  gap: 8px;                            /* = PANE_ROW_GAP in app.js */
-}
-/* The pager: muted blue paired with --paper — the sel-btn construction, so it
-   inverts ≥ AA in both themes — behind a neutral ink-shadow border that holds
-   its edge against both the fill and the sunken rail. Sized for the desktop
-   pointer: comfortably past WCAG 2.5.8's 24px floor (B23). */
-.pane-pager {
+html.desktop .cat-pager {
   flex: 0 0 32px;                      /* = PANE_PAGER_H in app.js */
-  display: flex;
   align-items: flex-end;
   justify-content: center;
   gap: 8px;
 }
-.pager-btn {
-  min-width: 36px;
-  min-height: 28px;
-  background: var(--accent-page);
-  color: var(--paper);
-  border: 1px solid var(--ink-shadow);
-  border-radius: 2px;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1;
-  cursor: pointer;
-}
-.pager-btn:disabled { opacity: 0.4; cursor: default; }
-.pager-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-/* Mid-drag: the origin row dims but holds its slot; a fixed clone of the card
-   rides the pointer. pointer-events:none keeps the hit-test seeing the
-   categories under the cursor, never the ghost itself. */
-.pane-row.pane-dragging { opacity: 0.55; }
-.pane-drag-ghost {
-  position: fixed;
-  z-index: 1200;                       /* above everything: it belongs to the pointer */
-  pointer-events: none;
-  opacity: 0.92;
-  box-shadow: var(--elevation);
-}
+html.desktop .cat-pages { font-size: 11px; letter-spacing: 0; padding: 0 2px; }
+/* Past WCAG 2.5.8's 24px floor (B23) — a fingertip's 44px is not needed here,
+   and four of them would crowd a 300px rail. The rail has the room to space
+   them, so the seam is mobile's alone. */
+html.desktop .pager-btn { min-width: 36px; min-height: 28px; }
+html.desktop .pager-btn + .pager-btn { margin-left: 0; }
 
 .pane-row {
   display: flex;
@@ -834,7 +910,7 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 #toast           { transition: opacity 150ms ease, transform 150ms ease; }
 .note.leaving,
 .lot-item.leaving,
-.board-row.leaving,
+.board-row-wrap.leaving,
 .pane-row.leaving  { transition: opacity 120ms ease; opacity: 0; }
 /* Board swap (issue #4 "minimalist animation"): a 150ms crossfade, desktop
    only, sequenced by timeout in JS so reduced-motion (below) degrades cleanly

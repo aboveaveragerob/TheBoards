@@ -598,7 +598,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     const heads = await page.evaluate(() =>
-      [...document.querySelectorAll('#pane-cards .pane-cat-head span:first-child')].map(s => s.textContent));
+      [...document.querySelectorAll('#pane-cards .cat-head span:first-child')].map(s => s.textContent));
     ok('three category headers in order', heads.length === 3 &&
        heads[0] === 'To-Do Boards' && heads[1] === 'Idea Boards' && heads[2] === 'Unsorted Boards',
        JSON.stringify(heads));
@@ -607,21 +607,21 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.click('#pane-new');
     await page.waitForTimeout(700);
     ok('new board appears in Unsorted', await page.evaluate(() =>
-      document.querySelectorAll('.pane-cat[data-cat="unsorted"] .pane-card').length === 2 &&
-      !document.querySelector('.pane-cat[data-cat="todo"] .pane-card') &&
-      !document.querySelector('.pane-cat[data-cat="idea"] .pane-card')));
+      document.querySelectorAll('.board-cat[data-cat="unsorted"] .pane-card').length === 2 &&
+      !document.querySelector('.board-cat[data-cat="todo"] .pane-card') &&
+      !document.querySelector('.board-cat[data-cat="idea"] .pane-card')));
 
     // Pointer-drag the inactive card onto To-Do.
     const beforeId = await page.evaluate(() => current.id);
     const dragId = await page.evaluate(() =>
-      document.querySelector('.pane-cat[data-cat="unsorted"] .pane-card:not(.active)').dataset.id);
+      document.querySelector('.board-cat[data-cat="unsorted"] .pane-card:not(.active)').dataset.id);
     const from = await page.evaluate(() => {
-      const r = document.querySelector('.pane-cat[data-cat="unsorted"] .pane-card:not(.active)')
+      const r = document.querySelector('.board-cat[data-cat="unsorted"] .pane-card:not(.active)')
         .getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
     const to = await page.evaluate(() => {
-      const r = document.querySelector('.pane-cat[data-cat="todo"]').getBoundingClientRect();
+      const r = document.querySelector('.board-cat[data-cat="todo"]').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
     await page.mouse.move(from.x, from.y);
@@ -629,15 +629,15 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.mouse.move(to.x, to.y, { steps: 8 });
     await page.waitForTimeout(60);
     ok('To-Do frame highlights mid-drag', await page.evaluate(() =>
-      document.querySelector('.pane-cat[data-cat="todo"]').classList.contains('drop-target')));
+      document.querySelector('.board-cat[data-cat="todo"]').classList.contains('drop-target')));
     ok('drag ghost follows the pointer', await page.evaluate(() =>
-      !!document.querySelector('.pane-drag-ghost')));
+      !!document.querySelector('.card-drag-ghost')));
     await page.mouse.up();
     await page.waitForTimeout(300);
     ok('highlight cleared on release', await page.evaluate(() =>
-      !document.querySelector('.drop-target') && !document.querySelector('.pane-drag-ghost')));
+      !document.querySelector('.drop-target') && !document.querySelector('.card-drag-ghost')));
     ok('card lands first in To-Do', await page.evaluate((id) => {
-      const first = document.querySelector('.pane-cat[data-cat="todo"] .pane-card');
+      const first = document.querySelector('.board-cat[data-cat="todo"] .pane-card');
       return !!first && first.dataset.id === id;
     }, dragId));
     ok('IDB record carries category + catStamp', await page.evaluate(async (id) => {
@@ -658,23 +658,23 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.reload();
     await page.waitForTimeout(600);
     ok('categorization survives the reload', await page.evaluate((id) => {
-      const first = document.querySelector('.pane-cat[data-cat="todo"] .pane-card');
+      const first = document.querySelector('.board-cat[data-cat="todo"] .pane-card');
       return !!first && first.dataset.id === id;
     }, dragId));
     const pg = await page.evaluate(async () => {
-      const un = document.querySelector('.pane-cat[data-cat="unsorted"]');
-      const pager = un.querySelector('.pane-pager');
+      const un = document.querySelector('.board-cat[data-cat="unsorted"]');
+      const pager = un.querySelector('.cat-pager');
       const btns = [...pager.querySelectorAll('.pager-btn')];
       const all = await idbGetAll();
       return {
         visible: !pager.hidden,
         disabled: btns.map(b => b.disabled),
         labels: btns.map(b => b.getAttribute('aria-label')),
-        ind: un.querySelector('.pane-cat-pages').textContent,
+        ind: un.querySelector('.cat-pages').textContent,
         onPage: un.querySelectorAll('.pane-card').length,
         total: all.filter(b => b.category !== 'todo' && b.category !== 'idea').length,
-        noScroll: un.querySelector('.pane-cat-cards').scrollHeight <=
-                  un.querySelector('.pane-cat-cards').clientHeight + 1,
+        noScroll: un.querySelector('.cat-cards').scrollHeight <=
+                  un.querySelector('.cat-cards').clientHeight + 1,
       };
     });
     ok('pager visible in Unsorted', pg.visible);
@@ -690,12 +690,12 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
 
     // Pager clicks are inert navigation — instant, no 400ms window.
     const clickPager = (lbl) => page.evaluate((l) => {
-      document.querySelector('.pane-cat[data-cat="unsorted"] .pager-btn[aria-label="' + l + '"]').click();
+      document.querySelector('.board-cat[data-cat="unsorted"] .pager-btn[aria-label="' + l + '"]').click();
     }, lbl);
     const unState = () => page.evaluate(() => {
-      const un = document.querySelector('.pane-cat[data-cat="unsorted"]');
+      const un = document.querySelector('.board-cat[data-cat="unsorted"]');
       const btn = (l) => un.querySelector('.pager-btn[aria-label="' + l + '"]');
-      return { ind: un.querySelector('.pane-cat-pages').textContent,
+      return { ind: un.querySelector('.cat-pages').textContent,
                first: un.querySelector('.pane-card').dataset.id,
                nextOff: btn('Next page').disabled, lastOff: btn('Last page').disabled };
     });
