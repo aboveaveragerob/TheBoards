@@ -11,41 +11,38 @@ question was escalated.
 
 ---
 
-> ## Status: this is the **v1** record.
+> ## The specification now exists. This file is unchanged by that.
 >
-> A1 and B1–B43 below were ruled against a `PRD.md` / `UIUX.md` pair that did not
-> exist at the time — they were reconstructed afterwards, and both documents now
-> do exist. This file stays exactly as it is: it is the reasoning history, it is
-> binding for v1, and **it is append-only.** An entry is superseded by a later
-> ruling, never edited away.
->
-> **For v2, decisions live in `PRD.md` and `UIUX.md`, not in a `B44+` here.**
-> Opening new B-entries alongside a specification that rules on the same
-> questions would create two records that can disagree — which is the failure
-> (PP4) v2 was written to end. The relationship is:
+> A1 and B1–B44 below were ruled against a `PRD.md` / `UIUX.md` pair that did not
+> exist at the time. Both documents now do. **This remains the decision record:**
+> new rulings continue here as `B45`+, citing `UIUX §x` where the rendering detail
+> lives. A specification and a decision log answer different questions, and only
+> one of them records what has already been tried.
 >
 > | Question | Authority |
 > |---|---|
-> | What the product is and must do | `PRD.md` |
+> | What v2 must be | `PRD.md` |
 > | How it renders and behaves under the hand | `UIUX.md` (wins on any rendering question — see A1) |
-> | Why v1 does what it does, and what has already been tried | **this file** |
+> | Why the app does what it does, and what has already been tried | **this file** |
 >
-> Where v2 supersedes a ruling here, it says so by number. The ones it overturns
-> outright:
+> **Append only.** An entry is superseded by a later ruling, never edited away.
+> What v2's design system overturns, by number:
 >
-> - **B16** (the light/dark palette pair) — retired. v2 is dark-only; `PRD §0.5`,
+> - **B16** (the light/dark palette pair) — retired. v2 is dark-only; `PRD §1.5`,
 >   `UIUX §2.1`.
-> - **B40's accepted anisotropy** ("when the two ratios diverge, vertical
->   clearances can still shift") and **B21's width-only multiplier** — replaced by
->   the similarity transform in `PRD` FR-210, which closes issues #65 and #75.
 > - **The `--line` mid-grey introduced with B15/B16** — deleted. It was specified
 >   against surfaces it is not drawn on (1.64:1 on the sheet it rules across);
 >   `UIUX §2.3`, `§2.5`.
 >
-> Everything else here still stands. In particular the B33 → B35 → B36 → B37 →
-> B38 band chain is **unchanged and still authoritative** — v2 adds a measurement
-> gate in front of it (`UIUX §13.2`) because a new typeface changes the type, and
-> the band is sized by the type it holds.
+> **B40's accepted anisotropy** ("when the two ratios diverge, vertical clearances
+> can still shift") and **B21's width-only multiplier** still stand. Issues #65 and
+> #75 are the argument against them; they are superseded by whichever ruling lands
+> the similarity transform, which is not this release (`PRD §3.3`).
+>
+> Everything else here stands. In particular the B33 → B35 → B36 → B37 → B38 band
+> chain is **unchanged and still authoritative** — `UIUX §13.2` adds a measurement
+> gate in front of it, because a new typeface changes the type and the band is
+> sized by the type it holds.
 >
 > **Grep this file before changing gesture, layout, band/lot or menu behaviour.**
 > A prior fix in that area very likely already ruled out the approach you are
@@ -1211,3 +1208,46 @@ all of it routes through the recognizer, not native `click` — setPointerCaptur
 the constraint B22 already records. `.sel-actions` centres its flex row under the note, so the
 third button arrives centred and equally spaced for free; `test/desktop.js` [D15] pins the order,
 the empty B18 window, and the clipboard round-trip.
+
+---
+
+### B45. v2 is the design system, and the specification is sized to the change (supersedes the draft that retired this file)
+
+**A specification describes what is changing, not what already runs.** The first v2 draft ran to
+1,707 lines of `PRD.md`: 87 numbered requirements, of which 64 restated behaviour that already
+ships and is already recorded here, in this file, with the reasoning intact. A second copy with
+nothing keeping it honest is the same defect as the five unsynchronised colour sync points it
+correctly identifies — a value restated in places that cannot see each other — and the copy was
+twenty times the size. It also carried sections that existed only because the scaffold had them:
+an API contract that says "N/A", a dependency list that says "None", a tech stack that says
+"None", a project structure for five files, and a commands section duplicating `CLAUDE.md`, which
+is the file a session loads automatically. `PRD.md` is now §1–§8 and one appendix: the taste
+layer, scope, the data model, the constraints, eighteen design-system requirements, how they are
+verified, the risks, and the citation table. Everything cut is either in this file, in `UIUX.md`,
+or in `CLAUDE.md` already.
+
+**This file stays the decision record.** The draft retired it — "for v2, decisions live in
+`PRD.md` and `UIUX.md`, not in a `B44+` here" — on the reasoning that two records can disagree.
+The reasoning is sound and the conclusion is backwards: a specification says what must be true,
+a decision log says what was tried and rejected, and it is the second that stops a future session
+re-proposing an approach that has already regressed the band four times. B44 was ruled and merged
+to `main` eleven minutes before that sentence was written, which is the practical answer to
+whether the record had stopped being needed. New rulings continue here, citing `UIUX §x` where
+the rendering detail lives rather than restating it.
+
+**Three things are separated out of this release, and none is abandoned.** The fold/rotate
+arrangement bug (issues #65, #75) is the highest-value change outstanding and has nothing to do
+with colour; it needs its own ruling because the similarity transform supersedes B40 and B21, and
+gating it behind a palette serves neither. PDF font embedding is ~150KB per exported file in the
+most intricate code in the app, bought for typographic consistency on a printed sheet. Mobile
+board categories were specified as v2 scope after B44 had already shipped them. What remains is
+one coherent change: the app gets an identity, and nothing it does changes.
+
+**The design work itself is kept whole**, because it is the release. `UIUX.md` §2's ladder, the
+per-surface ink rebinding, the edge rule and its twelve adjacencies, and the two-tone focus ring
+were recomputed independently and every published ratio reproduces. They also caught three real
+defects in the draft that preceded them — a rule at 1.64:1 on the surface it crosses, a border at
+1.00:1 on its own ground, and two accents tabulated below AA as text without being flagged. That
+is the work; the rest was scaffolding around it. One arithmetic slip is corrected in passing:
+`UIUX §13.3` said eight of ten marks fall back to a platform font. Four of the ten are guillemets
+and plausibly in a Latin subset; six fall back.

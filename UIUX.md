@@ -60,7 +60,7 @@ wrong and should be removed.
 (B16) is retired — the whole light `:root` and the `prefers-color-scheme: dark`
 block are **removed, not overridden**.
 
-This is not a default with an escape hatch. `PRD §0.2` forbids the setting: the
+This is not a default with an escape hatch. `PRD §1.2` forbids the setting: the
 app asks nothing of the person, and a theme is a question. One identity, no
 choice to make.
 
@@ -86,7 +86,7 @@ thing on the board because **it is the only thing the person *placed*.**
 > brightest because it is "the only thing the person made." It isn't — a Parking
 > Lot line is also written by the person, which is why the shelf is the
 > second-brightest ground and not a dark one. What separates a note from a lot
-> line is not authorship but **coordinates** (`PRD §6.1`): a note has a position,
+> line is not authorship but **coordinates** (`PRD §4`): a note has a position,
 > a lot line is an ordered line. The ladder was already right; the sentence
 > justifying it was not.
 
@@ -189,14 +189,14 @@ Two consequences worth stating out loud:
 
 - **The note's 2px frame is the only thing separating two overlapping notes**
   (1.00:1 fill — they are the same colour). Free overlap with no snapping is a
-  core behaviour (`PRD §4`), so the frame is not chrome around the note; it is
+  core behaviour (`PRD §1.2`, P2), so the frame is not chrome around the note; it is
   what makes overlap legible. This is §1's "identity from structure" doing real
   work rather than asserting itself.
 - **The sheet gets a drawn edge it did not have in v1.** At 2.75:1 the page does
   not separate from the desk by fill. It appears only where the letterbox is
   visible — desktop, and any aspect mismatch — because on mobile the sheet *is*
   the viewport and there is nothing to be an edge against. A bounded page is the
-  product's central claim (`PRD §0.1`); drawing its bound is the thesis, not
+  product's central claim (`PRD §1.1`); drawing its bound is the thesis, not
   decoration.
 
 **Rules.** `#band-rule` and `#lot-rule` are 1px at full surface ink — 6.97:1 on
@@ -281,7 +281,19 @@ uniform `transform: scale()`. It never pans and never zooms; browser pinch-zoom
 is disabled at the platform level because the two-finger pinch belongs to the
 note (B12).
 
-Geometry is specified in `PRD §7.3`. Two rendering facts belong here:
+| | Touch | Fine pointer ≥1024px |
+|---|---|---|
+| `LOGICAL_W` | `vw` | `(vw − 300) / renderScale` |
+| `LOGICAL_H` | `vh` | `vh / renderScale` |
+| `renderScale` | `1` | `min(vh/1000, (vw − 300)/900)` |
+| `offX` | `0` | `300` (the rail) |
+| Floor | — | Neither logical dimension below 900×1000 |
+
+**The reference sheet is 900×1000** — what band and lot proportions are derived
+against and what the export draws, distinct from the live viewport-derived
+dimensions.
+
+Two rendering facts belong alongside it:
 
 - **The scale is uniform.** Note frames stay square and the decoupled hit maths
   (§6) stays exact. A *cover* fit would crop edge furniture; an axis-decoupled
@@ -333,7 +345,7 @@ size the note can be. It moves 2 → 3 from v1 to hold that reading against the 
 ### §4.1 Transform origin
 
 `transform-origin: top left` throughout, so stored `x`/`y` stay truthful and
-there is no drift to compensate (B4). Positions are data (`PRD §0.2`); a
+there is no drift to compensate (B4). Positions are data (`PRD §1.2`, P3); a
 rendering choice that required correcting them would be rewriting them.
 
 ### §4.2 States
@@ -363,13 +375,13 @@ minima do not apply to something the person has asked the app to strike out.
 
 Completion is reversible. In the PDF export a completed item is drawn scratched
 out and **emits no text object at all** — the on-screen promise becomes a
-property of the bytes (`PRD §4`).
+property of the bytes (B34).
 
 ### §4.4 Lot lines are never framed
 
 Parking Lot items are unframed stacked text lines: the one place in the app where
 text carries no frame. That is the visual expression of the structural fact that
-a lot item has no coordinates (`PRD §6.1`).
+a lot item has no coordinates (`PRD §4`).
 
 The one override is narrow and scoped: on desktop, a selected row draws an
 `outline` with its actions inline at the row's right edge (B25). Selected, on
@@ -524,17 +536,21 @@ One logical page, one render scale. Stored coordinates are converted for display
 and **never mutated by a layout change** — a rotation, a fold or a window drag
 changes how a position renders, never what it is.
 
-The v2 invariant, and the correction it makes, is specified in `PRD §7.3` and
-`FR-210`: across a device change the board is redrawn as a **similarity
-transform** — one ratio for both axes and for size — so relative arrangement is
-preserved exactly. v1 mapped `x` and `y` by two different ratios while sizing on
-the width ratio alone, which is why arrangement survives a resize but not a fold.
+**A correction is outstanding here, and it is not part of this release.** The
+current mapping is anisotropic: `x` maps by `LOGICAL_W/rw` and `y` by
+`LOGICAL_H/rh` — two ratios — while size maps on the width ratio alone. When
+those ratios diverge, which is exactly what folding a device does, relative
+arrangement distorts. B40 named and accepted this; issues **#65** and **#75**
+report it. The fix is a similarity transform — one ratio for both axes and for
+size — which supersedes B40, and it ships as its own change (`PRD §3.3`).
 
 ---
 
 ## §12 Accessibility
 
-Non-negotiable, and specified as requirements in `PRD §5.3`.
+Non-negotiable. The target is **WCAG 2.2 AA**, with AAA where the product already
+reaches it. This section is the specification; `PRD §6` states only the parts a
+test can prove.
 
 - Every editable region carries `role="textbox"` / `aria-multiline`.
 - The toast is a polite `role="status"`.
@@ -559,7 +575,7 @@ Non-negotiable, and specified as requirements in `PRD §5.3`.
 **Montserrat Alternates**, self-hosted, **no CDN**.
 
 A CDN font is a network dependency and an uncacheable hole in an offline-first
-shell (`PRD §17`). Fonts live in `fonts/`, are declared with `@font-face`, are
+shell (`PRD §5`). Fonts live in `fonts/`, are declared with `@font-face`, are
 listed in `sw.js`'s `ASSETS`, and are subject to the cache bump.
 
 **Three weights** — 400, 600, 800 — as Latin-subset `woff2`, with
@@ -596,10 +612,11 @@ inline SVG** in `currentColor`.
 
 The reasoning is the one `app.js` already applies to `🗑` and then does not
 follow through on. Montserrat Alternates is a Latin display face: of those ten
-marks, only the guillemets are plausibly in a Latin subset. The other eight fall
-back to whatever the platform supplies — which is exactly the objection raised
-against the colour-emoji bin, multiplied by eight, and it means the app's
-symbols are drawn by Android, iOS and Windows in three different voices.
+marks, the four guillemets are plausibly in a Latin subset. **The other six —
+`✓ ↺ ▦ ⇩ ⧉ 🗑` — fall back** to whatever the platform supplies, which is exactly
+the objection raised against the colour-emoji bin, multiplied by six, and it
+means the app's symbols are drawn by Android, iOS and Windows in three different
+voices.
 
 Interrogating what a menu glyph actually *is* settles it. It is not text — it is
 a symbol being asked to do something type cannot do: render identically
@@ -695,13 +712,13 @@ app's.
 ## §16 Implementation consequences
 
 Named here so the follow-up work is scoped rather than discovered. Tracked as
-requirements in `PRD §9` and `PRD §10`.
+requirements in `PRD §6` and verified per `PRD §7`.
 
 1. **Five colour sync points, none automated.** `styles.css :root`;
    `index.html`'s two `theme-color` metas (which collapse to one — there is one
    theme); `manifest.json`'s `background_color` and `theme_color`; and `app.js`'s
    `PDF_PAPER` / `PDF_INK` / `PDF_SHADE`, which are hand-derived floats. Changing
-   a token in one place silently desynchronises the others. `PRD §9.1` requires a
+   a token in one place silently desynchronises the others. `PRD §7` requires a
    test that fails when they diverge.
 2. **PDF font embedding is the largest single item.** The exporter uses base-14
    Helvetica with hardcoded base-36 advance-width tables. Embedding requires
