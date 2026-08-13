@@ -14,6 +14,16 @@ where §§ below supersede a numbered ruling, they say so by number.
 Sections §1–§12 keep the meanings the code already cites. New v2 material is
 numbered §13 and up, so no existing citation moves.
 
+**The rendered reference.** This system was settled by rendered specimen sheets,
+not prose — seven proof rounds, run outside the repo. The final sheet, **proof
+sheet 7, "A Well, Swapped"**, is committed at
+`docs/proofs/proof-7-a-well-swapped.html`; its own verification table records the
+swap that ended the process (the band takes `#020812` and is the deepest surface
+on the page; the card takes `#08152c` and separates by its border — 5.39:1 on the
+card, 5.95:1 on the band). The three `fonts/` files are extracted from that
+sheet's embedded faces. Where this document and that render disagree, the render
+is the earlier authority and the disagreement is a defect *here*.
+
 ---
 
 ## §1 Governing law
@@ -51,8 +61,9 @@ productive-anxious, not gamified, not neutral-corporate.
 
 The imagery is **calm water** — and note the register carefully: water at depth
 and at dusk, not noon glare. That is why the palette is dark. Deep water is
-peaceful; a bright white productivity surface is not. The one lit thing in the
-room is the note you just wrote.
+peaceful; a bright white productivity surface is not. The page reads top to
+bottom as one scene — near-black sky, water through the middle, lit sand at the
+foot — and the note is the one lit thing on the water.
 
 This does not license decoration. Peace is produced by restraint, depth and
 consistency. Where a value below is decorative rather than structural, it is
@@ -86,7 +97,6 @@ is stated against the worst extreme of its range**, never against a midpoint.
 | `--frame` | `#698ebf` | the card's border and the full-width rule — §2.5 | 0.2611 |
 | `--note` | `#a0d4da` | the note | 0.5962 |
 | `--shelf` | `#e3d2b5`, with weather | **the Parking Lot, as a texture** — §2.9 | 0.5133 … 0.7333 |
-| `--letterbox` | `#000000` | the desk — **never drawn**, see below | 0.0000 |
 
 `--furniture` is retired; `--band` and `--card` replace it, because the
 compartment and the two zones are no longer one surface. `--line` was already
@@ -97,27 +107,57 @@ through the middle, lit sand at the foot. The band is the deepest thing on it �
 an inset header you read past — and the card sits fractionally above the band at
 1.10:1, separated by its border rather than by its fill (§2.5).
 
-> **The note is no longer the brightest surface, and that retires a claim this
-> document used to make.** At 0.5962 the note now sits *below* the shelf's
-> 0.6576. The old sentence — "the note is the brightest thing on the board
-> because it is the only thing the person *placed*" — is simply false against
-> these values, and `§1.1`'s "the one lit thing in the room is the note you just
-> wrote" is true only of the canvas, not of the sheet.
->
-> Nothing is broken by it: the note still separates from the sheet by fill at
-> 3.72:1 and from the shelf by its frame at 1.09:1 fill. But the ladder's
-> ordering argument no longer holds, and **it is an open question** whether the
-> shelf should come down below the note or the claim should be reworded. Not
-> decided here.
+> **The note is not the brightest surface — the shelf is — and the identity
+> claim is reworded, not defended.** At 0.5962 the note sits below the shelf's
+> base 0.6576. The old sentence — "the note is the brightest thing on the board
+> because it is the only thing the person *placed*" — was false against these
+> values, so the claim is now scoped to where it is true: **on the water, the
+> note is the brightest thing there is** (`PRD §1.4`, `PRD §9.2`). The shelf is
+> lit sand at the foot of the scene — furniture the notes rest on, not a
+> competing voice. Nothing else moves: the note still separates from the sheet
+> by fill at 3.72:1 and from the shelf by its frame. Settled with the proof
+> sheets; recorded in `DECISIONS.md` (B46).
 
-**On `--letterbox`.** It is **never drawn.** `applyLayout()` derives both logical
-dimensions by dividing the viewport by the render scale, on *both* paths, so the
-sheet fills its area exactly at every viewport — the code says so in its own
-comments twice. The desk appears for 260ms during a desktop board swap, when
-`#board` crossfades to `opacity: 0`, and nowhere else. The token, its rationale,
-and every row it occupies in §2.5 and §2.7 are therefore specified against a
-condition that does not occur. **Open, and not resolved here:** either the layout
-maths change so the desk is real, or the token and its rows come out.
+**The desk is not a surface, and there is no desk token.** Earlier drafts
+carried one, with an OLED rationale — and it described a condition that does not
+occur: `applyLayout()` derives both logical dimensions by dividing the viewport
+by the render scale, on *both* paths, so the sheet fills its area exactly at
+every viewport. The code says so in its own comments twice. The desk appears for
+260ms during a desktop board swap, when `#board` crossfades to `opacity: 0`, and
+nowhere else; the page behind it keeps a plain black background, which is a
+one-line fact about `html`, not a rung on this ladder. The token and every row
+it occupied are **retired**.
+
+### §2.2.1 The generative law
+
+Seven hand-picked values with verified ratios are seven assertions; they say
+nothing about what an eighth surface would be. The ladder is therefore stated as
+a law, and the values above are its output:
+
+1. **One axis: luminance.** A surface's position in the app is its position on
+   the ladder. Nothing is distinguished from another surface by hue alone.
+2. **Two hue families, each with a job.** Water for the page — band, card and
+   field are one blue family at falling luminance — and sand for the shelf,
+   because the shelf is the one surface that is *ground for things at rest*
+   rather than part of the water. A third family must bring a third job with it;
+   `--danger` (§2.6) is the single saturated warm value and it is not a ground.
+3. **Rungs are separated by their function, not by an interval.** The dark rungs
+   sit inside one luminance decade because they are all "behind": the card reads
+   at 1.10:1 against the band *deliberately* — one recessed mass with a seam in
+   it, separated by linework, not by depth (§2.5). The note and the shelf sit an
+   order of magnitude above because they are "in front". The largest gap in the
+   ladder is between the field's top stop (0.1237) and the shelf's darkest wisp,
+   and it is where the ink flips (§2.3.1).
+4. **A new rung must clear the crossover test before it exists** (§2.3.1,
+   §2.3.2). Adding a surface means computing its luminance, reading its ink pole
+   off the crossover, and confirming it is outside the forbidden band. A value
+   that cannot carry text is not a ground; it is a line.
+
+Deriving the rungs from an interval — an even luminance ladder, a fixed OKLCH
+step — was considered and is wrong here: it would push the band and the card far
+enough apart to read as two depths, when their job is to read as one.
+
+**Impermanent:** the hex values. The law is not.
 
 ### §2.3 Ink — one per surface, not one per app
 
@@ -167,12 +207,65 @@ for this**, and the change is a rebinding rather than a rewrite. `--ink-a` stays
 channel-synced to `--ink` for the scratch-out's buried text (§4.3).
 
 **`--line` is deleted.** v1's mid-grey had four jobs — rules, hairlines, disabled
-states, the tap-ghost — and at `#717575` it failed the first two on the grounds
-they are actually drawn on (1.64:1 on `--board`, 1.99:1 on `--shelf`). Each job
+states, the tap-ghost — and it failed the first two on the grounds they are
+actually drawn on (1.64:1 on v1's board, 1.99:1 on its shelf); its luminance
+sits dead centre in the forbidden band (§2.3.2). Each job
 now resolves to the surface's own ink at a different weight: rules at full ink
 (§2.5), hairlines at an alpha (§2.5), disabled at `opacity`, the tap-ghost at a
 low alpha. **One ink per surface, expressed at three weights** — fewer tokens,
 and every one of them legible where it lands.
+
+### §2.3.1 The crossover
+
+The two poles are equal-contrast against a ground whose luminance is their
+geometric mean, offset by WCAG's 0.05. The poles are unchanged from the first
+derivation, so the number carries:
+
+```
+L_cross = √((L_light + 0.05) × (L_dark + 0.05)) − 0.05
+        = √(0.9589 × 0.0546) − 0.05
+        = 0.1788        (both poles land on 4.19:1 there)
+```
+
+> **Below `L = 0.1788` a ground takes `--ink-light`. Above it, `--ink-dark`.**
+
+This is the rule; §2.3's table is its output, not its source. Two margins are
+worth naming. The field's top stop (`L = 0.1237`) is the closest any ground
+comes to the boundary, 0.039 below it — the sheet cannot get much lighter
+without changing its ink. And `--frame` (`L = 0.2611`) sits *above* the
+crossover on grounds that take light ink — which is legal because it is a
+line, not a text ground; see §2.3.2's 3:1 close.
+
+### §2.3.2 The forbidden band
+
+Solving each pole for 4.5:1 gives the range where **neither** pole can carry
+body text:
+
+```
+light ink holds to   L ≤ 0.1631
+dark  ink holds from L ≥ 0.1957
+forbidden band:      0.163 < L < 0.196
+```
+
+> **No text-bearing surface may have a relative luminance between 0.163 and
+> 0.196.** There is no ink in the palette that works there.
+
+This is not hypothetical: v1's retired `--line` sat dead centre in that band
+(§2.3), and the band is stated as a law so the next mid-grey is rejected before
+it is authored rather than after.
+
+**The band closes at 3:1.** Repeating the solve for non-text contrast gives
+light ink holding to `L ≤ 0.270` and dark ink from `L ≥ 0.114` — they
+*overlap*. Every ground can carry a line, an icon or a border from one pole or
+the other; only *text* has a hole. The asymmetry is load-bearing: it is why a
+drawn mark can go where a word cannot (§13.3), and why `--frame` may live above
+the crossover while no text ground may.
+
+> **A line takes the same ink pole its ground takes** (§2.5). The crossover is
+> not a text rule; it is the rule for anything that must be seen against a
+> ground. The one deliberate exception is `--frame`, which is not an ink at all:
+> it is the band's own hue lifted until it clears 3:1 on both of its grounds,
+> because the card/band seam separates surfaces that share a pole.
 
 ### §2.4 Elevation
 
@@ -227,17 +320,19 @@ the other clashes. It is a lift of the band's own hue, so the linework belongs t
 the band rather than being applied to it. Clears 5.39:1 on the card, 5.95:1 on
 the band.
 
-> **Chosen implicitly.** `#698ebf` was the frame carried by the "A Well"
-> specimen, which was selected for its card fill. It was never picked on its own
-> against the two alternatives that were rendered beside it — muted ink
-> `#727a85` and a sand line `#b29c76`. Recorded as settled, but settled by
-> adoption rather than by choice.
+> **Ratified.** `#698ebf` arrived as the frame carried by the "A Well"
+> specimen, which was selected for its card fill — adopted, at first, rather
+> than chosen. Proof sheet 7 then kept it deliberately ("the lifted navy
+> linework it was rendered with") against the alternatives rendered beside it —
+> muted ink and a sand line — and that sheet is the committed reference. Chosen
+> now, not merely inherited.
 
-**The lot's top rule is still drawn, and still questionable.** With the shelf at
-3.39:1 against the sheet the fill already announces the section, so a rule on top
-of it is two marks doing one job. *Impermanent* — the case for keeping it is that
-a full-bleed section closed by a rule is a section idiom, while a box is enclosed
-on four sides. **Not decided.**
+**The lot's top rule is kept, drawn in the shelf's own ink.** With the shelf at
+3.39:1 against the sheet the fill alone would satisfy separation, so the rule
+carries no 3:1 obligation — like the band's, it is a **section mark**: the two
+ends of the sheet close with one rule each, the same idiom at both ends
+(§3.1). Proof sheet 7 draws it (`border-top: 1px solid var(--ink)` in the
+lot's on-light context) and is the reference. Settled.
 
 **Hairlines.** A separator is that surface's ink at the lowest alpha clearing
 3:1 on it — `0.40` on `--chrome`, where the only separators in the app live
@@ -449,8 +544,8 @@ whole-row budget**, keeping only its cap.
 
 ```css
 .note-text {
-  background: var(--note);            /* #89c7c5 */
-  color: var(--ink);                  /* rebound dark here — 10.11:1 */
+  background: var(--note);            /* #a0d4da */
+  color: var(--ink);                  /* rebound dark here — 11.84:1 */
   border: 2px solid var(--ink);       /* §2.5 — dark on this surface */
   border-radius: 3px;
   padding: 10px 12px;
@@ -494,7 +589,7 @@ Nothing here is colour alone (§1): every state has a geometry.
 ### §4.3 The scratch-out
 
 Completing does not delete and does not hide. Three families of ruled strokes at
-≥90% coverage — **texture, not colour** — in the surface's own ink at 10.11:1,
+≥90% coverage — **texture, not colour** — in the surface's own ink at 11.84:1,
 with the underlying text destroyed to 40% ink so no screenshot or zoom recovers
 it. The radius tracks the note's.
 
@@ -671,15 +766,15 @@ current mapping is anisotropic: `x` maps by `LOGICAL_W/rw` and `y` by
 those ratios diverge, which is exactly what folding a device does, relative
 arrangement distorts. B40 named and accepted this; issues **#65** and **#75**
 report it. The fix is a similarity transform — one ratio for both axes and for
-size — which supersedes B40, and it ships as its own change (`PRD §3.3`).
+size — which supersedes B40, and it ships as its own change (`PRD §2.5`).
 
 ---
 
 ## §12 Accessibility
 
 Non-negotiable. The target is **WCAG 2.2 AA**, with AAA where the product already
-reaches it. This section is the specification; `PRD §6` states only the parts a
-test can prove.
+reaches it. This section is the specification; `PRD §9.6` states only the parts
+a test can prove.
 
 - Every editable region carries `role="textbox"` / `aria-multiline`.
 - The toast is a polite `role="status"`.
@@ -704,8 +799,10 @@ test can prove.
 **Montserrat Alternates**, self-hosted, **no CDN**.
 
 A CDN font is a network dependency and an uncacheable hole in an offline-first
-shell (`PRD §5`). Fonts live in `fonts/`, are declared with `@font-face`, are
-listed in `sw.js`'s `ASSETS`, and are subject to the cache bump.
+shell (`PRD §3.2`, `PRD §3.3`). The three weight files are committed in
+`fonts/`, extracted from proof sheet 7's embedded faces; when the system ships
+they are declared with `@font-face`, listed in `sw.js`'s `ASSETS`, and subject
+to the cache bump. Until then they are present and inert — nothing loads them.
 
 **Three weights** — 400, 600, 800 — as Latin-subset `woff2`, with
 `font-display: swap` so capture is never blocked on a font load. Montserrat
@@ -853,15 +950,16 @@ app's.
 
 ## §16 Implementation consequences
 
-Named here so the follow-up work is scoped rather than discovered. Tracked as
-requirements in `PRD §6` and verified per `PRD §7`.
+Named here so the follow-up work is scoped rather than discovered. Scoped in
+`PRD §9` and verified per `PRD §9.6`.
 
 1. **Five colour sync points, none automated.** `styles.css :root`;
    `index.html`'s two `theme-color` metas (which collapse to one — there is one
    theme); `manifest.json`'s `background_color` and `theme_color`; and `app.js`'s
-   `PDF_PAPER` / `PDF_INK` / `PDF_SHADE`, which are hand-derived floats. Changing
-   a token in one place silently desynchronises the others. `PRD §7` requires a
-   test that fails when they diverge.
+   `PDF_PAPER` / `PDF_INK` / `PDF_SHADE`, which are hand-derived floats; and
+   `icons/`, whose B1 motif is drawn in the poles and must be regenerated, as
+   B16 regenerated it. Changing a token in one place silently desynchronises
+   the others. `PRD §9.6` requires a test that fails when they diverge.
 2. **PDF font embedding is the largest single item.** The exporter uses base-14
    Helvetica with hardcoded base-36 advance-width tables. Embedding requires
    `.ttf` (not `woff2`) for `FontFile2`; a `/FontDescriptor`; a `/Widths` array
@@ -884,7 +982,7 @@ requirements in `PRD §6` and verified per `PRD §7`.
 9. **Two surfaces stop being values.** `--board` becomes a three-stop field plus
    a falloff plus dither (§2.8); `--shelf` becomes a base plus turbulence wisps
    (§2.9). Both are pure CSS and one inline SVG each — no dependency, no build
-   step, paint-only, so `NFR-103`'s one-frame layout budget is untouched.
+   step, and paint-only — the layout cost is untouched.
 10. **`test/tokens.js` cannot stay a pure function over constants.** With a
     non-flat ground every ratio is a range. The rule becomes: *a non-flat
     surface declares its extremes, and every adjacency is asserted against the
@@ -907,13 +1005,50 @@ Recorded here so it is not mistaken for decided:
   ground; on a 0.66-luminance sand it is the loudest thing on the board. The
   requirement — ≥90% coverage, text destroyed beneath — survives at a lower alpha
   on a light ground. Raised three times, never ruled.
-- **`--letterbox` is never drawn** (§2.2). The token, its rationale and its rows
-  in §2.5 and §2.7 describe a surface that does not appear.
-- **The note is no longer the brightest surface** (§2.2); the shelf is. §1.1's
-  "the one lit thing in the room" is true of the canvas, not of the sheet.
-- **Whether the lot keeps its top rule** (§2.5).
-- **`--frame #698ebf` was adopted, not chosen** (§2.5).
 - **The band label could go to 13px** on the new face (§13.2).
+
+Four earlier entries in this list are settled and have moved into the body,
+with the proof sheets as provenance and `DECISIONS.md` B46+ as the record: the
+desk token is retired (§2.2), the brightest-surface claim is reworded rather
+than defended (§2.2, `PRD §1.4`), the lot keeps its top rule in its own ink
+(§2.5), and `--frame` is ratified (§2.5).
+
+### §16.2 Retiring v1's tokens
+
+Thirteen tokens exist in v1. **Every one has a fate here**; a token with no
+stated fate is a call site nobody knows how to edit.
+
+| v1 token | Sites | v2 |
+|---|---|---|
+| `--paper` | 22 | **split** — as a ground → §2.2's ladder by role; as a label on a fill → `--ink-dark` (§2.3) |
+| `--ink` | 38 | **split** — `--ink-light` or `--ink-dark`, rebound at the surface (§2.3) |
+| `--ink-rgb` | 1 | **renamed** → `--ink-a`, rebound per surface (§2.3) — and corrected: v1 declared comma-separated channels and used them with slash alpha (`rgb(34, 28, 36 / 0.4)`), which CSS Color 4 rejects, so the 40% buried-text fade (§4.3) may never have rendered. The v2 form is space-separated and valid |
+| `--ink-shadow` | 8 | **retired** — a second mid-tone has the same defect `--line` had (§2.3.2). Placeholders, dates and category heads take the ground's pole; the tap-ghost takes it at a low alpha |
+| `--letterbox` | 2 | **retired** — never drawn (§2.2). `html` keeps a plain black background, which is not a token |
+| `--surface-raised` | 3 | **retired** → `--chrome` — v1 raised menus *above* paper; v2 sinks them below the board (§16.1: `--chrome` itself is still round-1) |
+| `--hairline` | 6 | **retired** → `rgb(var(--ink-a) / 0.4)` — that surface's ink at the lowest alpha clearing 3:1 on it (§2.5) |
+| `--danger` | 7 | **kept**, retuned (§2.6) — pending the re-derivation §16.1 records |
+| `--accent-restore` | 5 | **kept**, retuned (§2.6) — same pending |
+| `--focus-ring` | 11 | **retired** — no single hue works on six grounds; replaced by the two-tone ring (§2.7) |
+| `--elevation` | 3 | **kept** (§2.4), gains an inset variant for `#pane` |
+| `--pane` | 1 | **retired** → `--chrome` (same pending as above) |
+| `--accent-page` | 2 | **kept**, retuned (§2.6) — same pending |
+
+### §16.3 What pins this document
+
+Per surface, what would actually fail if the words above were violated today:
+
+| Clause | Pinned by |
+|---|---|
+| §2 — every token, every ratio | **nothing** until `test/tokens.js` exists (`PRD §9.6`). The largest untested surface in the spec |
+| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — against the **v1 numbers**; those assertions move with the ruling that moved the band (B47), not before |
+| §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
+| §4 — wrap, homothetic render | `test/mobile.js` (B39/B40 scenarios) |
+| §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |
+| §7 — menu contents and order | `test/mobile.js` [8] |
+| §8 motion, §12 accessibility beyond floors | **nothing** |
+| §13.2 — the band under the new face | measured from `hmtx` here; the live gate is `test/mobile.js`'s geometry once the face ships |
+| §16 — that shipped CSS reaches an installed PWA | `test/sw-update.js` (B36) — note it reads `--card-h: 68px` literally out of `styles.css` (`CARD_H_RE`), so the token block keeps that declaration or the regex moves in the same commit |
 
 ---
 
@@ -943,7 +1078,16 @@ why §1–§12 keep their v1 meanings. For completeness:
 | `UIUX §12` — accessibility | §12 |
 | `styles.css §1` — "identity from structure, never costume" | §1 |
 
-New in this revision, so nothing existing moves: **§2.8** the board as a field,
-**§2.9** the shelf as weather, **§3.1** the band, **§3.2** the Parking Lot as a
-section, **§16.1** what is not settled. Every citation above keeps the meaning it
-already had.
+**The prefix mandate.** Every new citation names its document — `PRD §x`,
+`UIUX §x`, or a `B`-number — never a bare `§x`. The codebase already carries
+bare cites that mean different documents in the same file (`styles.css` mixes
+`§6.1`, this document's anchors under PRD numbering, with `§6`, this document's
+touch floor); existing cites keep their meaning, and new ones do not add to the
+ambiguity.
+
+New in this revision, so nothing existing moves: **§2.2.1** the generative law,
+**§2.3.1**/**§2.3.2** the crossover and the forbidden band, **§2.8** the board
+as a field, **§2.9** the shelf as weather, **§3.1** the band, **§3.2** the
+Parking Lot as a section, **§16.1** what is not settled, **§16.2** retiring
+v1's tokens, **§16.3** what pins this document. Every citation above keeps the
+meaning it already had.
