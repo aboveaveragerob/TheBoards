@@ -32,10 +32,15 @@ const LONGPRESS_MS = 500;
 const HIT_FLOOR = 44;                // px physical (PRD §5.3, UIUX §6) — mobile
 const HIT_FLOOR_DESKTOP = 24;        // WCAG 2.5.8 AA; a 44px collar swallows dismiss clicks (issue #12)
 const PANE_W = 300;                  // CSS px; unscaled width of the desktop board rail
-const PANE_CAT_HEAD = 24;            // .pane-cat-head flex-basis (issue #58)
-const PANE_PAGER_H = 32;             // .pane-pager flex-basis (issue #58)
-const PANE_ROW_H = 56;               // .pane-card min-height
-const PANE_ROW_GAP = 8;              // .pane-cat-cards flex gap
+const PANE_CAT_HEAD = 24;            // .cat-head flex-basis, desktop (issue #58)
+const PANE_PAGER_H = 32;             // .cat-pager flex-basis, desktop (issue #58)
+// Mobile stacks the same three children into two rows: label and pager share one
+// strip so the third that is left goes to boards (B44). 48 = HIT_FLOOR's 44px
+// pager button plus the 2px above and below that keeps it off the cards — the
+// constant covers the whole strip, so catPageCap()'s budget stays exact.
+const LIST_CAT_STRIP = 48;           // .board-cat head/pager row, mobile (issue #74)
+const PANE_ROW_H = 56;               // .pane-card / .board-row min-height
+const PANE_ROW_GAP = 8;              // .cat-cards flex gap
 const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
 const SWAP_MS = 150;                 // board-swap crossfade; sequenced by timeout (§8-safe)
 const SAVE_DEBOUNCE = 300;
@@ -273,11 +278,15 @@ function applyLayout() {
   });
   if (selected) updateSelectionUI();
   // Capacity check (issue #58, replacing the #pane-more overflow check B42
-  // supersedes): the per-page card budget is measured from the rail's height,
-  // so a resize that changes it must re-render — and re-paginate — the rail.
-  // paneCap is 0 until the first renderPane, so boot's renderBoard →
-  // applyLayout chain doesn't render the rail twice back to back.
-  if (isDesktop && el.paneCards && paneCap && panePageCap() !== paneCap) renderPane();
+  // supersedes): the per-page card budget is measured from the surface's
+  // height, so a resize that changes it must re-render — and re-paginate.
+  // catCap is 0 until the first render, so boot's renderBoard → applyLayout
+  // chain doesn't draw the rail twice back to back. Off-desktop the same
+  // check covers a rotation while the list is open (issue #74).
+  if (catCap && catPageCap() !== catCap) {
+    if (isDesktop && el.paneCards) renderPane();
+    else if (!isDesktop && listOpen) renderList();
+  }
   // No letterbox now: the toast sits 12px above the screen's bottom edge.
   document.documentElement.style.setProperty('--toast-bottom', '12px');
 }
@@ -2456,38 +2465,258 @@ function fillRowContent(node, b) {
   }
 }
 
+/* The three categories (issue #58 / B42, extended to the list view by issue #74
+   / B44): To-Do, Idea, Unsorted — one third each, top to bottom, on whichever
+   surface is showing. Category is read-site defaulted, the B21 idiom: a record
+   without one IS Unsorted, so pre-#58 boards and new boards land there by
+   writing nothing — no migration, no DB version bump. In-category order is
+   catStamp (written on drop, = moved-to-top) falling back to createdAt, with
+   B24's immutable comparator as tiebreak. */
+const BOARD_CATS = ['todo', 'idea', 'unsorted'];
+const CAT_COPY = { todo: 'catTodo', idea: 'catIdea', unsorted: 'catUnsorted' };
+const catOf = (b) =>
+  (b.category === 'todo' || b.category === 'idea') ? b.category : 'unsorted';
+const catOrder = (a, b) =>
+  ((b.catStamp || b.createdAt) - (a.catStamp || a.createdAt)) || boardOrder(a, b);
+
+/* Pagination (issue #58): overflow turns pages, never scrolls. Page state is
+   per-category and module-level so a re-render keeps the reader's place, and
+   it is shared by the rail and the list because the two are never on screen at
+   once (applyMode pops the list state on the flip to desktop) — each renderer
+   clamps every render, so a differing capacity heals itself. catCap is the
+   budget the last render used — applyLayout compares against it. */
+let catPage = { todo: 0, idea: 0, unsorted: 0 };
+let catCap = 0;                        // 0 = never rendered; the capacity check waits
+let dragCancel = null;                 // the live card-drag's teardown, if one is mid-flight
+
+function catPageCap() {
+  const host = isDesktop ? el.paneCards : el.listRows;
+  if (!host) return 1;
+  // A third of the surface, minus the section's own furniture, in whole rows.
+  // Desktop stacks the head above the cards and the pager below; mobile merges
+  // both into one strip (B44). The pager's slot is reserved even when a single
+  // page hides it, so the budget cannot flap between one- and many-page states.
+  const catH = (host.clientHeight - PANE_ROW_GAP * (BOARD_CATS.length - 1)) / BOARD_CATS.length;
+  const furniture = isDesktop ? PANE_CAT_HEAD + PANE_PAGER_H : LIST_CAT_STRIP;
+  return Math.max(1, Math.floor((catH - furniture) / (PANE_ROW_H + PANE_ROW_GAP)));
+}
+
+/* One section, both surfaces: head, cards, pager — the same three children
+   everywhere, so the merged mobile strip is a CSS grid decision and not a
+   second DOM shape. `makeCard` is what differs (a rail card or a list row). */
+function makeCatSection(cat, boards, cap, makeCard) {
+  const pages = Math.max(1, Math.ceil(boards.length / cap));
+  catPage[cat] = Math.max(0, Math.min(catPage[cat], pages - 1));
+  const page = catPage[cat];
+
+  const sec = document.createElement('div');
+  sec.className = 'board-cat'; sec.dataset.cat = cat;
+  sec.setAttribute('role', 'group');
+  // Page state rides the group label — the visual indicator is aria-hidden and
+  // a rebuilt node can't announce, so this is where AT hears the page.
+  const name = COPY[CAT_COPY[cat]];
+  sec.setAttribute('aria-label',
+    pages > 1 ? name + ', page ' + (page + 1) + ' of ' + pages : name);
+
+  // Visual head only — the group's aria-label already says it (the band-label
+  // pattern), so AT doesn't hear every section twice.
+  const head = document.createElement('div');
+  head.className = 'cat-head'; head.setAttribute('aria-hidden', 'true');
+  const label = document.createElement('span');
+  label.textContent = name;
+  head.appendChild(label);
+  sec.appendChild(head);
+
+  const cards = document.createElement('div');
+  cards.className = 'cat-cards'; cards.setAttribute('role', 'list');
+  for (const b of boards.slice(page * cap, (page + 1) * cap))
+    cards.appendChild(makeCard(b));
+  sec.appendChild(cards);
+
+  // The n/m indicator sits between ‹ and › rather than beside the label: it
+  // states which page the arrows are on, so it belongs with them — and one
+  // page then says nothing (§10's law) through the pager's own `hidden`,
+  // rather than through a second guard that has to agree with it.
+  const pager = document.createElement('div');
+  pager.className = 'cat-pager'; pager.hidden = pages === 1;
+  pager.appendChild(makePagerBtn('pageFirst', page === 0, () => goCatPage(cat, 0, 'pageFirst')));
+  pager.appendChild(makePagerBtn('pagePrev', page === 0, () => goCatPage(cat, page - 1, 'pagePrev')));
+  const ind = document.createElement('span');
+  ind.className = 'cat-pages'; ind.setAttribute('aria-hidden', 'true');
+  ind.textContent = (page + 1) + '/' + pages;
+  pager.appendChild(ind);
+  pager.appendChild(makePagerBtn('pageNext', page === pages - 1, () => goCatPage(cat, page + 1, 'pageNext')));
+  pager.appendChild(makePagerBtn('pageLast', page === pages - 1, () => goCatPage(cat, pages - 1, 'pageLast')));
+  sec.appendChild(pager);
+
+  return sec;
+}
+
+/* Inert navigation, like selection (B22): a page turn commits nothing, so
+   B18's window does not apply — the pager responds on the click. The render
+   replaces the clicked button, so focus is put back on its successor (or the
+   nearest enabled sibling) — a keyboard reader pages without re-tabbing. */
+async function goCatPage(cat, p, key) {
+  catPage[cat] = p;
+  if (isDesktop) await renderPane(); else await renderList();
+  const host = isDesktop ? el.paneCards : el.listRows;
+  const sec = host && host.querySelector('.board-cat[data-cat="' + cat + '"]');
+  if (!sec) return;
+  let b = sec.querySelector('.pager-btn[aria-label="' + COPY[key] + '"]');
+  if (b && b.disabled) b = sec.querySelector('.pager-btn:enabled');
+  if (b) b.focus();
+}
+
+function makePagerBtn(key, disabled, go) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'pager-btn';
+  b.setAttribute('aria-label', COPY[key]);
+  b.disabled = disabled;
+  const g = document.createElement('span');
+  g.setAttribute('aria-hidden', 'true'); g.textContent = GLYPH[key];
+  b.appendChild(g);
+  b.addEventListener('click', go);
+  return b;
+}
+
+/* The drop writes category + catStamp = Date.now() — which IS moved-to-top,
+   by the sort key. Whole-record puts (B13) make the write site two-headed:
+   the open board mutates `current` and saves now (putting any snapshot would
+   lose live edits); any other board is fetched fresh and put directly — the
+   debounced persist can't clobber a record it never holds, and a fresh get
+   can't resurrect a board deleted mid-drag. */
+async function dropBoardCard(b, cat) {
+  catPage[cat] = 0;                    // the dropped card lands first — show it
+  if (current && current.id === b.id) {
+    current.category = cat;
+    current.catStamp = Date.now();
+    saveNow();
+  } else {
+    const rec = await idbGet(b.id);
+    if (rec) { rec.category = cat; rec.catStamp = Date.now(); await idbPut(rec); }
+  }
+  if (isDesktop) renderPane(); else renderList();
+}
+
+/* The list view is the rail's mobile twin (issue #74 / B44): same three
+   sections, same paging, same drag — it just skins them differently. The open
+   board buckets from memory, not the snapshot, for the reason renderPane
+   gives: `current` is authoritative for it. */
 async function renderList() {
   const all = await idbGetAll();
-  all.sort(boardOrder);
-  el.listRows.textContent = '';
+  const buckets = { todo: [], idea: [], unsorted: [] };
   for (const b of all) {
-    const row = document.createElement('button');
-    row.type = 'button'; row.className = 'board-row'; row.setAttribute('role', 'listitem');
-    row.dataset.id = b.id;
-    fillRowContent(row, b);
-    attachRowGestures(row, b);
-    el.listRows.appendChild(row);
+    const rec = (current && b.id === current.id) ? current : b;
+    buckets[catOf(rec)].push(rec);
   }
+  catCap = catPageCap();
+  el.listRows.textContent = '';
+  for (const cat of BOARD_CATS)
+    el.listRows.appendChild(
+      makeCatSection(cat, buckets[cat].sort(catOrder), catCap, makeListRow));
 }
+
+function makeListRow(b) {
+  const row = document.createElement('div');
+  row.className = 'board-row-wrap'; row.setAttribute('role', 'listitem');
+  const card = document.createElement('button');
+  card.type = 'button'; card.className = 'board-row'; card.dataset.id = b.id;
+  fillRowContent(card, b);
+  row.appendChild(card);
+  attachBoardCardGestures(card, row, b,
+    { container: el.listRows, onTap: () => openBoardById(b.id) });
+  return row;
+}
+
 function formatDate(ms) {
   const d = new Date(ms);
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-// List rows: tap → open; long-press → Delete (board) with Undo.
-function attachRowGestures(row, board) {
-  let t = null, sx = 0, sy = 0, longed = false, moved = false;
-  row.addEventListener('pointerdown', (e) => {
-    sx = e.clientX; sy = e.clientY; longed = false; moved = false;
-    if (!isDesktop) {
-      t = setTimeout(() => { longed = true; if (navigator.vibrate) navigator.vibrate(10); openBoardRowMenu(row, board, e.clientX, e.clientY); }, LONGPRESS_MS);
+/* One gesture law for a board card, on either surface (issue #74 / B44).
+   Pointer-based, never native HTML5 DnD — that fights the cards' button
+   semantics and paints its own ghost. Movement past MOVE_THRESHOLD turns the
+   press into a drag: the origin row dims in place, a fixed clone rides the
+   pointer, and the category under it frames itself in --accent-page — where
+   the board will land. A motionless release is the old tap (open, or swap);
+   a motionless mobile *hold* is the board's menu, which movement cancels.
+
+   Mobile can afford move-to-drag only because the list pages instead of
+   scrolling: there is no vertical pan left for the gesture to be confused
+   with. See B44. */
+function attachBoardCardGestures(card, row, b, opts) {
+  let down = false, dragging = false, longed = false, t = null;
+  let sx = 0, sy = 0, gx = 0, gy = 0;
+  let ghost = null, over = null;
+  const clearDrag = () => {
+    clearTimeout(t);
+    if (ghost) { ghost.remove(); ghost = null; }
+    row.classList.remove('card-dragging');
+    if (over) { over.classList.remove('drop-target'); over = null; }
+    dragCancel = null;
+  };
+  card.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;        // right-click stays the contextmenu path
+    down = true; dragging = false; longed = false;
+    sx = e.clientX; sy = e.clientY;
+    const r = card.getBoundingClientRect();
+    gx = sx - r.left; gy = sy - r.top; // grab point, so the ghost doesn't jump
+    card.setPointerCapture(e.pointerId);
+    // Mobile summons the board menu by hold; desktop reaches the same menu by
+    // right-click, on the card's own contextmenu listener (B24).
+    if (!isDesktop) t = setTimeout(() => {
+      longed = true;
+      if (navigator.vibrate) navigator.vibrate(10);
+      openBoardRowMenu(row, b, sx, sy);
+    }, LONGPRESS_MS);
+  });
+  card.addEventListener('pointermove', (e) => {
+    if (!down || longed) return;       // the menu is up: this press is spent
+    if (!dragging) {
+      if (Math.hypot(e.clientX - sx, e.clientY - sy) < MOVE_THRESHOLD) return;
+      dragging = true;
+      clearTimeout(t);                 // movement cancels the long-press (B29)
+      // Register the teardown: a re-render mid-drag destroys this card and its
+      // capture, so the render must be able to cancel the gesture.
+      dragCancel = () => { down = false; dragging = false; clearDrag(); };
+      row.classList.add('card-dragging');
+      // The same "the gesture just changed mode" signal the hold gives.
+      if (!isDesktop && navigator.vibrate) navigator.vibrate(10);
+      ghost = card.cloneNode(true);
+      ghost.classList.add('card-drag-ghost');
+      const r = card.getBoundingClientRect();
+      ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
+      document.body.appendChild(ghost);
+    }
+    ghost.style.left = (e.clientX - gx) + 'px';
+    ghost.style.top = (e.clientY - gy) + 'px';
+    let hit = null;
+    for (const c of opts.container.querySelectorAll('.board-cat')) {
+      const r = c.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right &&
+          e.clientY >= r.top && e.clientY <= r.bottom) { hit = c; break; }
+    }
+    if (over !== hit) {
+      if (over) over.classList.remove('drop-target');
+      over = hit;
+      if (over) over.classList.add('drop-target');
     }
   });
-  row.addEventListener('pointermove', (e) => {
-    if (Math.hypot(e.clientX - sx, e.clientY - sy) >= MOVE_THRESHOLD) { moved = true; clearTimeout(t); }
+  card.addEventListener('pointerup', () => {
+    if (!down) return;
+    down = false;
+    const target = dragging && over ? over.dataset.cat : null;
+    const spent = dragging || longed;  // a drag or a menu consumed this press
+    dragging = false;
+    clearDrag();
+    // A drop is a completed gesture like endDrag — saved immediately, no
+    // delayAction (B18 governs actions-from-taps, not gesture commits).
+    // Releasing over the section the card already lives in is a change of
+    // mind, not a move: no write, no reorder-to-top, no page reset.
+    if (target && target !== catOf(b)) dropBoardCard(b, target);
+    else if (!spent && opts.onTap) delayAction(card, opts.onTap);
   });
-  row.addEventListener('pointerup', () => { clearTimeout(t); if (!longed && !moved) delayAction(row, () => openBoardById(board.id)); });
-  row.addEventListener('pointercancel', () => clearTimeout(t));
+  card.addEventListener('pointercancel', () => { down = false; dragging = false; clearDrag(); });
 }
 // Order (A1 / UIUX §7): non-destructive first, destructive last, hairline
 // between. One call site, so this lights up on both the mobile long-press and
@@ -2511,6 +2740,11 @@ async function deleteBoard(id, row) {
     // interaction dereferences current.notes (review finding 2).
     if (wasCurrent) await ensureCurrentValid();
     renderPane();
+  } else if (listOpen) {
+    // The row's own leave() plays first; the re-render then re-paginates, so a
+    // delete on a full page pulls the next board up instead of leaving a hole
+    // (issue #74 — before categories the flat list could just close the gap).
+    setTimeout(renderList, LEAVE_MS);
   }
   showUndo(async () => {
     await idbPut(snapshot);
@@ -2569,41 +2803,14 @@ async function swapBoard(id) {
   }, SWAP_MS);
 }
 
-/* The rail's three categories (issue #58 / B42): To-Do, Idea, Unsorted — one
-   third each, top to bottom. Category is read-site defaulted, the B21 idiom:
-   a record without one IS Unsorted, so pre-#58 boards and new boards land
-   there by writing nothing — no migration, no DB version bump. In-category
-   order is catStamp (written on drop, = moved-to-top) falling back to
-   createdAt, with B24's immutable comparator as tiebreak. */
-const PANE_CATS = ['todo', 'idea', 'unsorted'];
-const PANE_CAT_COPY = { todo: 'catTodo', idea: 'catIdea', unsorted: 'catUnsorted' };
-const catOf = (b) =>
-  (b.category === 'todo' || b.category === 'idea') ? b.category : 'unsorted';
-const catOrder = (a, b) =>
-  ((b.catStamp || b.createdAt) - (a.catStamp || a.createdAt)) || boardOrder(a, b);
-
-/* Pagination (issue #58): overflow turns pages, never scrolls. Page state is
-   per-category and module-level so a re-render keeps the reader's place;
-   renderPane clamps it so deletes can't strand a page past the end. paneCap
-   is the budget the last render used — applyLayout compares against it. */
-let panePage = { todo: 0, idea: 0, unsorted: 0 };
-let paneCap = 0;                       // 0 = never rendered; the capacity check waits
-let paneDragCancel = null;             // the live card-drag's teardown, if one is mid-flight
-
-function panePageCap() {
-  // A third of the rail, minus the section's fixed furniture, in whole rows.
-  // The pager's slot is reserved even when a single page hides it, so the
-  // budget cannot flap between one-page and many-page states.
-  const catH = el.paneCards.clientHeight / 3;
-  return Math.max(1, Math.floor((catH - PANE_CAT_HEAD - PANE_PAGER_H) /
-                                (PANE_ROW_H + PANE_ROW_GAP)));
-}
-
+/* The rail renders the shared three sections (§11): same law, same paging,
+   same drag as the mobile list — the rail just skins them as a stacked head,
+   cards and pager instead of the list's merged strip (B44). */
 async function renderPane() {
   if (!isDesktop || !el.paneCards) return;
   // A re-render tears the captured card out from under a live drag — pointerup
   // would never arrive, stranding the fixed ghost on screen. Cancel it first.
-  if (paneDragCancel) paneDragCancel();
+  if (dragCancel) dragCancel();
   const all = await idbGetAll();
   const buckets = { todo: [], idea: [], unsorted: [] };
   // The open board buckets from memory, not the snapshot: `current` is
@@ -2613,81 +2820,11 @@ async function renderPane() {
     const rec = (current && b.id === current.id) ? current : b;
     buckets[catOf(rec)].push(rec);
   }
-  paneCap = panePageCap();
+  catCap = catPageCap();
   el.paneCards.textContent = '';
-  for (const cat of PANE_CATS) {
-    const boards = buckets[cat].sort(catOrder);
-    const pages = Math.max(1, Math.ceil(boards.length / paneCap));
-    panePage[cat] = Math.max(0, Math.min(panePage[cat], pages - 1));
-    const page = panePage[cat];
-
-    const sec = document.createElement('div');
-    sec.className = 'pane-cat'; sec.dataset.cat = cat;
-    sec.setAttribute('role', 'group');
-    // Page state rides the group label — the visual indicator is aria-hidden
-    // and a rebuilt node can't announce, so this is where AT hears the page.
-    const name = COPY[PANE_CAT_COPY[cat]];
-    sec.setAttribute('aria-label',
-      pages > 1 ? name + ', page ' + (page + 1) + ' of ' + pages : name);
-
-    // Visual head only — the group's aria-label already says it (the
-    // band-label pattern), so AT doesn't hear every section twice.
-    const head = document.createElement('div');
-    head.className = 'pane-cat-head'; head.setAttribute('aria-hidden', 'true');
-    const label = document.createElement('span');
-    label.textContent = COPY[PANE_CAT_COPY[cat]];
-    head.appendChild(label);
-    if (pages > 1) {
-      const ind = document.createElement('span');
-      ind.className = 'pane-cat-pages';
-      ind.textContent = (page + 1) + '/' + pages;
-      head.appendChild(ind);
-    }
-    sec.appendChild(head);
-
-    const cards = document.createElement('div');
-    cards.className = 'pane-cat-cards'; cards.setAttribute('role', 'list');
-    for (const b of boards.slice(page * paneCap, (page + 1) * paneCap))
-      cards.appendChild(makePaneRow(b));
-    sec.appendChild(cards);
-
-    const pager = document.createElement('div');
-    pager.className = 'pane-pager';
-    pager.hidden = pages === 1;        // one page says nothing (§10's law)
-    pager.appendChild(makePagerBtn('pageFirst', page === 0, () => goPanePage(cat, 0, 'pageFirst')));
-    pager.appendChild(makePagerBtn('pagePrev', page === 0, () => goPanePage(cat, page - 1, 'pagePrev')));
-    pager.appendChild(makePagerBtn('pageNext', page === pages - 1, () => goPanePage(cat, page + 1, 'pageNext')));
-    pager.appendChild(makePagerBtn('pageLast', page === pages - 1, () => goPanePage(cat, pages - 1, 'pageLast')));
-    sec.appendChild(pager);
-
-    el.paneCards.appendChild(sec);
-  }
-}
-
-/* Inert navigation, like selection (B22): a page turn commits nothing, so
-   B18's window does not apply — the pager responds on the click. The render
-   replaces the clicked button, so focus is put back on its successor (or the
-   nearest enabled sibling) — a keyboard reader pages without re-tabbing. */
-async function goPanePage(cat, p, key) {
-  panePage[cat] = p;
-  await renderPane();
-  const sec = el.paneCards.querySelector('.pane-cat[data-cat="' + cat + '"]');
-  if (!sec) return;
-  let b = sec.querySelector('.pager-btn[aria-label="' + COPY[key] + '"]');
-  if (b && b.disabled) b = sec.querySelector('.pager-btn:enabled');
-  if (b) b.focus();
-}
-
-function makePagerBtn(key, disabled, go) {
-  const b = document.createElement('button');
-  b.type = 'button'; b.className = 'pager-btn';
-  b.setAttribute('aria-label', COPY[key]);
-  b.disabled = disabled;
-  const g = document.createElement('span');
-  g.setAttribute('aria-hidden', 'true'); g.textContent = GLYPH[key];
-  b.appendChild(g);
-  b.addEventListener('click', go);
-  return b;
+  for (const cat of BOARD_CATS)
+    el.paneCards.appendChild(
+      makeCatSection(cat, buckets[cat].sort(catOrder), catCap, makePaneRow));
 }
 
 function makePaneRow(b) {
@@ -2712,8 +2849,11 @@ function makePaneRow(b) {
   // Pointer path (issue #58): press-and-move past MOVE_THRESHOLD drags the
   // card between categories; a motionless release keeps the old click
   // behavior (inactive → B18 window → swap). Replaces the bare `click`
-  // listener so a drag's release can't also swap boards.
-  attachPaneCardDrag(card, row, b);
+  // listener so a drag's release can't also swap boards. The active card
+  // drags like any other, but has nothing to swap to.
+  attachBoardCardGestures(card, row, b, {
+    container: el.paneCards, onTap: isActive ? null : () => swapBoard(b.id),
+  });
   // Keyboard activation still arrives as a `click` with no pointer sequence
   // (detail 0) — the swap stays reachable without a mouse.
   if (!isActive) card.addEventListener('click', (ev) => {
@@ -2733,95 +2873,6 @@ function makePaneRow(b) {
     openBoardRowMenu(row, b, x, y);
   });
   return row;
-}
-
-/* Card drag (issue #58): pointer-based, mirroring attachRowGestures — native
-   HTML5 DnD fights the cards' button semantics and paints its own ghost.
-   Movement past MOVE_THRESHOLD turns the press into a drag: the origin row
-   dims in place, a fixed clone rides the pointer, and the category under the
-   cursor frames itself in --accent-page — where the board will land. The
-   active card drags like any other. */
-function attachPaneCardDrag(card, row, b) {
-  let down = false, dragging = false, sx = 0, sy = 0, gx = 0, gy = 0;
-  let ghost = null, over = null;
-  const clearDrag = () => {
-    if (ghost) { ghost.remove(); ghost = null; }
-    row.classList.remove('pane-dragging');
-    if (over) { over.classList.remove('drop-target'); over = null; }
-    paneDragCancel = null;
-  };
-  card.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;        // right-click stays the contextmenu path
-    down = true; dragging = false;
-    sx = e.clientX; sy = e.clientY;
-    const r = card.getBoundingClientRect();
-    gx = sx - r.left; gy = sy - r.top; // grab point, so the ghost doesn't jump
-    card.setPointerCapture(e.pointerId);
-  });
-  card.addEventListener('pointermove', (e) => {
-    if (!down) return;
-    if (!dragging) {
-      if (Math.hypot(e.clientX - sx, e.clientY - sy) < MOVE_THRESHOLD) return;
-      dragging = true;
-      // Register the teardown: a renderPane mid-drag destroys this card and
-      // its capture, so the render must be able to cancel the gesture.
-      paneDragCancel = () => { down = false; dragging = false; clearDrag(); };
-      row.classList.add('pane-dragging');
-      ghost = card.cloneNode(true);
-      ghost.classList.add('pane-drag-ghost');
-      const r = card.getBoundingClientRect();
-      ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
-      document.body.appendChild(ghost);
-    }
-    ghost.style.left = (e.clientX - gx) + 'px';
-    ghost.style.top = (e.clientY - gy) + 'px';
-    let hit = null;
-    for (const c of el.paneCards.querySelectorAll('.pane-cat')) {
-      const r = c.getBoundingClientRect();
-      if (e.clientX >= r.left && e.clientX <= r.right &&
-          e.clientY >= r.top && e.clientY <= r.bottom) { hit = c; break; }
-    }
-    if (over !== hit) {
-      if (over) over.classList.remove('drop-target');
-      over = hit;
-      if (over) over.classList.add('drop-target');
-    }
-  });
-  card.addEventListener('pointerup', () => {
-    if (!down) return;
-    down = false;
-    const target = dragging && over ? over.dataset.cat : null;
-    const dragged = dragging;
-    dragging = false;
-    clearDrag();
-    // A drop is a completed gesture like endDrag — saved immediately, no
-    // delayAction (B18 governs actions-from-taps, not gesture commits).
-    // Releasing over the section the card already lives in is a change of
-    // mind, not a move: no write, no reorder-to-top, no page reset.
-    if (target && target !== catOf(b)) dropPaneCard(b, target);
-    else if (!dragged && !(current && b.id === current.id))
-      delayAction(card, () => swapBoard(b.id));
-  });
-  card.addEventListener('pointercancel', () => { down = false; dragging = false; clearDrag(); });
-}
-
-/* The drop writes category + catStamp = Date.now() — which IS moved-to-top,
-   by the sort key. Whole-record puts (B13) make the write site two-headed:
-   the open board mutates `current` and saves now (putting any snapshot would
-   lose live edits); any other board is fetched fresh and put directly — the
-   debounced persist can't clobber a record it never holds, and a fresh get
-   can't resurrect a board deleted mid-drag. */
-async function dropPaneCard(b, cat) {
-  panePage[cat] = 0;                   // the dropped card lands first — show it
-  if (current && current.id === b.id) {
-    current.category = cat;
-    current.catStamp = Date.now();
-    saveNow();
-  } else {
-    const rec = await idbGet(b.id);
-    if (rec) { rec.category = cat; rec.catStamp = Date.now(); await idbPut(rec); }
-  }
-  renderPane();
 }
 
 /* Live title (issue #14): the active card updates in place per keystroke; a
@@ -2852,8 +2903,11 @@ function goToList() {
 }
 async function showList() {
   listOpen = true;
-  await renderList();
+  // Unhide FIRST: catPageCap() measures #list-rows, and a `hidden` element
+  // measures 0 — rendering before the reveal would page every category to a
+  // single card (issue #74).
   el.listView.hidden = false;
+  await renderList();
 }
 async function ensureCurrentValid() {
   if (current) { const still = await idbGet(current.id); if (still) return; }
