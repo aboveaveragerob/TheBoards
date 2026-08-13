@@ -1211,6 +1211,72 @@ the empty B18 window, and the clipboard round-trip.
 
 ---
 
+## M. The board list's categories (issue #74)
+
+### B44. The list view is the rail's twin: same categories, same paging, and the scroll it gave up buys the drag (extends B42 to mobile; supersedes B24's flat list)
+Issue #58 sorted the desktop rail into To-Do / Idea / Unsorted with a pointer-drag between
+sections and per-category pagination (B42). Mobile kept the pre-#58 screen — one flat,
+scrolling list ordered by `createdAt` — so the same records told two different stories
+depending on which device you picked up. Categorization is a property of the board, not of
+the surface reading it; issue #74 makes the list say what the rail says.
+
+**One law, two skins.** Everything B42 ruled is now surface-neutral and lives beside
+`boardOrder` in §11, not inside the rail's §11.5: `BOARD_CATS`, `CAT_COPY`, `catOf`,
+`catOrder`, the `catPage`/`catCap` pagination state, `catPageCap`, `makeCatSection`,
+`goCatPage`, `makePagerBtn`, `dropBoardCard`. `renderPane` and `renderList` are now the same
+function with a different card-maker, and both emit the identical section — head, cards,
+pager — so what differs between phone and rail is CSS and nothing else. That is the same
+stance the app already took on the recognizer: one code path, `isDesktop` branching inline.
+The read-site default holds unchanged (B21's idiom): a record with no `category` **is**
+Unsorted, so nothing was migrated and no DB version moved. `catPage` is shared by both
+surfaces rather than duplicated, because they are never on screen together — `applyMode`
+pops the list state on the flip to desktop — and each render clamps, so a differing
+per-page budget heals itself instead of stranding a reader past the end.
+
+**The list stops scrolling, and that is what pays for the drag.** B42's "overflow pages,
+never scrolls" arrives on mobile as the removal of the one thing that made a drag ambiguous
+there. With `#list-view` at `touch-action: none` (the board's own stance, B12) there is no
+vertical pan for a press-and-move to be confused with, so the drag needs no long-press to
+arm it: movement past `MOVE_THRESHOLD` is the whole discriminator, exactly as on the rail
+and on the board itself. The press therefore has three readings and they do not overlap —
+**move** drags the card to a category, **hold** opens the board's Export · Delete menu
+(B43/A1 untouched, and movement cancels the timer per B29), **release** opens the board
+through B18's window. Drag start vibrates like the hold does: both are the moment the
+gesture changed meaning. The drop itself is a completed gesture like `endDrag` — written
+immediately, no B18 window — and releasing over the section the card already lives in is a
+change of mind, not a move: no write, no reorder, no page reset.
+
+**Three equal sections, and the furniture pays for the boards.** The rail spends 56px per
+section on furniture (a 24px head above the cards, a 32px pager below). On a 384×846 phone
+that leaves two cards per page. Mobile therefore merges the head and the pager onto one
+48px strip — the same three DOM children, laid out by a grid instead of a column — and gets
+three. The pager's buttons meet the 44px touch floor rather than the rail's B23 24px, and
+share their borders in the seam `.pane-del` already uses: four separate squares at that size
+crowd "Unsorted Boards" off its own strip, and one segmented control reads as one control.
+The `n/m` indicator moved from beside the label to between `‹` and `›` on **both** surfaces:
+it states which page the arrows are on, so it travels with them, and §10's "one page says
+nothing" then falls out of the pager's own `hidden` instead of a second guard that has to
+agree with it.
+
+**Consequences taken deliberately.** Three sections are always drawn, so a phone holding one
+board shows two empty thirds — a category you cannot see is a category you cannot drop into,
+and the drop targets are the feature. The capacity check in `applyLayout` grew a mobile arm,
+so a rotation re-paginates; `showList` now reveals the view *before* rendering, because
+`catPageCap` measures `#list-rows` and a `hidden` element measures zero; and `deleteBoard`
+re-renders the list after the row's `leave`, because a paged section must pull the next board
+up where the flat list could simply close the gap. `test/mobile.js` [19] pins the header
+order, the untouched-storage default, the touch-drag (landing frame, ghost, the write, and
+that it neither opened nor switched a board), all three readings of the press, the pager,
+the 44px floor, and the two assertions the whole ruling rests on — neither the category nor
+the screen may scroll.
+
+**Not ruled here.** Dismissing an open menu is inert only where the press lands on `#board`
+(B30's `swallowTap`), so a dismiss onto a board card still opens that board. That predates
+categories — the flat list behaved the same way — and is left as it is rather than widened
+inside this issue.
+
+---
+
 ### B45. v2 is the design system, and the specification is sized to the change (supersedes the draft that retired this file)
 
 **A specification describes what is changing, not what already runs.** The first v2 draft ran to
