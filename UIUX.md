@@ -26,6 +26,14 @@ And its corollary, which predates this document and survives it:
 > **Identity comes from structure — frame, scratch-out, surface tone — never
 > costume.**
 
+**And the test that separates the two, which a flat surface cannot pass.** A
+gradient present because interfaces have gradients is costume. A gradient that
+encodes something true about the page is structure. The distinction is not the
+technique but the job: the sheet's edge falloff (§2.8) renders the page's bound
+on the mobile path, where `renderScale = 1` leaves no letterbox to draw an edge
+against — a thing the product claims about itself and could not otherwise show.
+**Anything that cannot name its job in one sentence is costume and comes out.**
+
 Two consequences hold throughout, without exception:
 
 - **Never colour alone.** Every state distinguished by colour is also
@@ -66,36 +74,50 @@ choice to make.
 
 ### §2.2 The surface ladder
 
-Six grounds, ordered by luminance. Depth reads as literal darkness.
+**Two of these are not values.** The sheet is a *field* (§2.8) and the shelf is
+a *texture* (§2.9). Both are given as ranges, and **every ratio in this document
+is stated against the worst extreme of its range**, never against a midpoint.
 
 | Token | Value | What it is | Rel. luminance |
 |---|---|---|---|
-| `--letterbox` | `#000000` | the desk, outside the sheet | 0.0000 |
-| `--chrome` | `#031019` | menu, toast, board list, the desktop rail | 0.0046 |
-| `--furniture` | `#041F29` | the title compartment; Components; Requirements | 0.0117 |
-| `--board` | `#3A5958` | the sheet; also rail board cards | 0.0875 |
-| `--shelf` | `#A6AAA9` | the Parking Lot ground | 0.3972 |
-| `--note` | `#89c7c5` | the note — the brightest surface in the app | 0.5020 |
+| `--band` | `#020812` | Components and Requirements — the deepest surface on the page | 0.0023 |
+| `--card` | `#08152c` | the title compartment, sitting just above the band | 0.0077 |
+| `--board` | `#34697f` → `#255265` → `#163646` | **the sheet, as a field** — §2.8 | 0.1237 … 0.0325 |
+| `--frame` | `#698ebf` | the card's border and the full-width rule — §2.5 | 0.2611 |
+| `--note` | `#a0d4da` | the note | 0.5962 |
+| `--shelf` | `#e3d2b5`, with weather | **the Parking Lot, as a texture** — §2.9 | 0.5133 … 0.7333 |
+| `--letterbox` | `#000000` | the desk — **never drawn**, see below | 0.0000 |
 
-**The band recedes; the shelf and the notes are lit.** This inversion inside one
-sheet is deliberate. The band is an inset header — structure you read past. The
-Parking Lot is a shelf — a surface things rest on. And the note is the brightest
-thing on the board because **it is the only thing the person *placed*.**
+`--furniture` is retired; `--band` and `--card` replace it, because the
+compartment and the two zones are no longer one surface. `--line` was already
+deleted (§2.3).
 
-> That last clause is the corrected version of an earlier claim that the note is
-> brightest because it is "the only thing the person made." It isn't — a Parking
-> Lot line is also written by the person, which is why the shelf is the
-> second-brightest ground and not a dark one. What separates a note from a lot
-> line is not authorship but **coordinates** (`PRD §4`): a note has a position,
-> a lot line is an ordered line. The ladder was already right; the sentence
-> justifying it was not.
+**The page reads top to bottom as one scene:** near-black at the top, water
+through the middle, lit sand at the foot. The band is the deepest thing on it —
+an inset header you read past — and the card sits fractionally above the band at
+1.10:1, separated by its border rather than by its fill (§2.5).
 
-**On `--letterbox` being true black.** It is the darkest thing because it is
-furthest from the light — the bottom of the water, in §1.1's register. It is
-*not* black for the OLED power saving sometimes claimed for it: that benefit
-lands on phones, and on the mobile path `renderScale = 1` (B32) means the
-letterbox is never drawn at all. The saving applies where the surface doesn't
-appear, and doesn't apply where it does. Keep the value; drop the argument.
+> **The note is no longer the brightest surface, and that retires a claim this
+> document used to make.** At 0.5962 the note now sits *below* the shelf's
+> 0.6576. The old sentence — "the note is the brightest thing on the board
+> because it is the only thing the person *placed*" — is simply false against
+> these values, and `§1.1`'s "the one lit thing in the room is the note you just
+> wrote" is true only of the canvas, not of the sheet.
+>
+> Nothing is broken by it: the note still separates from the sheet by fill at
+> 3.72:1 and from the shelf by its frame at 1.09:1 fill. But the ladder's
+> ordering argument no longer holds, and **it is an open question** whether the
+> shelf should come down below the note or the claim should be reworded. Not
+> decided here.
+
+**On `--letterbox`.** It is **never drawn.** `applyLayout()` derives both logical
+dimensions by dividing the viewport by the render scale, on *both* paths, so the
+sheet fills its area exactly at every viewport — the code says so in its own
+comments twice. The desk appears for 260ms during a desktop board swap, when
+`#board` crossfades to `opacity: 0`, and nowhere else. The token, its rationale,
+and every row it occupies in §2.5 and §2.7 are therefore specified against a
+condition that does not occur. **Open, and not resolved here:** either the layout
+maths change so the desk is real, or the token and its rows come out.
 
 ### §2.3 Ink — one per surface, not one per app
 
@@ -103,21 +125,25 @@ Two poles:
 
 | Token | Value | Bound on |
 |---|---|---|
-| `--ink-light` | `#f4f5f1` | `--letterbox`, `--chrome`, `--furniture`, `--board` |
+| `--ink-light` | `#f4f5f1` | `--band`, `--card`, `--board`, `--chrome` |
 | `--ink-dark` | `#031019` | `--shelf`, `--note` |
 
-Verified contrast for every text-bearing surface:
+Verified contrast for every text-bearing surface, **each at the worst extreme of
+its range**:
 
 | Ground | Ink | Ratio | Level |
 |---|---|---|---|
-| `--letterbox` `#000000` | light | **19.18:1** | AAA |
-| `--chrome` `#031019` | light | **17.56:1** | AAA |
-| `--furniture` `#041F29` | light | **15.55:1** | AAA |
-| `--board` `#3A5958` | light | **6.97:1** | AA |
-| `--shelf` `#A6AAA9` | dark | **8.19:1** | AAA |
-| `--note` `#89c7c5` | dark | **10.11:1** | AAA |
+| `--band` `#020812` | light | **18.33:1** | AAA |
+| `--card` `#08152c` | light | **16.62:1** | AAA |
+| `--board`, lightest stop `#34697f` | light | **5.52:1** | AA |
+| `--board`, darkest stop `#163646` | light | **11.62:1** | AAA |
+| `--shelf`, base `#e3d2b5` | dark | **12.96:1** | AAA |
+| `--shelf`, darkest wisp `#d4bfa0` | dark | **10.77:1** | AAA |
+| `--note` `#a0d4da` | dark | **11.84:1** | AAA |
 
-Every pairing clears AA for normal text; five of six clear AAA.
+Every pairing clears AA; every one but the sheet's lightest stop clears AAA. The
+sheet is the only surface where the field's extreme matters to text, and 5.52:1
+is that extreme rather than an average.
 
 **`--ink` is no longer a single value.** v1 used one `var(--ink)` for note text,
 lot text, band labels, rules, hairlines and borders alike, which worked only
@@ -164,55 +190,54 @@ the page rather than floating over it. **Notes take no shadow** (§1).
 > **A surface's edge is drawn in that surface's own ink.**
 
 One rule, and it is load-bearing rather than stylistic. Two surfaces that touch
-must separate. Either the **fill** does it (≥3:1) or the **edge** does — and the
-edge always can, because a surface's ink clears at least 6.97:1 against that
-surface by §2.3.
+must separate. Either the **fill** does it (≥3:1) or the **edge** does.
 
-Every adjacency that occurs in the running app:
+Every adjacency that occurs on the sheet, **each at the worst extreme of the
+field** — which for a "is the sheet too light" question means the top stop:
 
 | Touching | Fill | Edge | Separated by |
 |---|---|---|---|
-| sheet / desk | 2.75 | light **6.97** | edge |
-| menu or toast / desk | 1.09 | light **17.56** | edge |
-| title compartment / sheet | 2.23 | light **6.97** | edge |
-| menu or toast / sheet | 2.52 | light **6.97** | edge |
-| note / Parking Lot | 1.23 | dark **8.19** | edge |
-| menu / compartment | 1.13 | light **15.55** | edge |
-| rail card / rail | 2.52 | light **6.97** | edge |
-| **note / note** (overlap) | 1.00 | dark **10.11** | edge |
-| Parking Lot / sheet | **3.25** | — | fill |
-| note / sheet | **4.01** | — | fill |
-| toast / Parking Lot | **8.19** | — | fill |
-| note / compartment | **8.95** | — | fill |
+| **title card / band** | 1.10 | `--frame` **5.39** / **5.95** | **edge** |
+| **note / note** (overlap) | 1.00 | dark ink **11.84** | **edge** |
+| note / Parking Lot | 1.09 | dark ink **11.84** | edge |
+| band / sheet | **3.32** | — | fill |
+| title card / sheet (where it overhangs) | **3.01** | — | fill |
+| Parking Lot / sheet (darkest wisp) | **3.39** | — | fill |
+| note / sheet | **3.72** | — | fill |
 
-Two consequences worth stating out loud:
+Three consequences worth stating out loud:
 
 - **The note's 2px frame is the only thing separating two overlapping notes**
   (1.00:1 fill — they are the same colour). Free overlap with no snapping is a
   core behaviour (`PRD §1.2`, P2), so the frame is not chrome around the note; it is
   what makes overlap legible. This is §1's "identity from structure" doing real
   work rather than asserting itself.
-- **The sheet gets a drawn edge it did not have in v1.** At 2.75:1 the page does
-  not separate from the desk by fill. It appears only where the letterbox is
-  visible — desktop, and any aspect mismatch — because on mobile the sheet *is*
-  the viewport and there is nothing to be an edge against. A bounded page is the
-  product's central claim (`PRD §1.1`); drawing its bound is the thesis, not
-  decoration.
+- **The card's border is the second load-bearing edge.** At 1.10:1 the card does
+  not separate from the band by fill at all, by design — it is meant to be quiet.
+  Its border carries the whole separation, which is why `--frame` is a token and
+  not a decoration.
+- **The full-width rule is *not* load-bearing.** Band and sheet already separate
+  by fill at 3.32:1, so §2.5 is satisfied without it. The rule is a **section
+  mark** — it says where the band ends — and it carries no 3:1 obligation. That
+  is precisely what freed it to stop being white.
 
-**Rules.** `#band-rule` and `#lot-rule` are 1px at full surface ink — 6.97:1 on
-the sheet and 8.19:1 on the shelf. This **supersedes** the proposal to draw them
-in a mid-grey, which would have put them at 1.64:1 and 1.99:1 on the grounds they
-actually sit on.
+**`--frame` `#698ebf`.** One token for the card's border and the full-width rule
+together: they were the only white marks in the band, and colouring one without
+the other clashes. It is a lift of the band's own hue, so the linework belongs to
+the band rather than being applied to it. Clears 5.39:1 on the card, 5.95:1 on
+the band.
 
-> **The lot rule survives the Parking Lot gaining a fill.** Once the shelf has a
-> ground, the fill boundary (3.25:1) already announces the section, and a rule on
-> top of it is two marks doing one job. The resolution is that they are one mark:
-> the rule *is* the shelf's top edge, drawn in the shelf's own ink — which is
-> both the section's rule and the fill's boundary, and satisfies §2.5 without
-> adding anything. B38's "one section grammar on the board" is preserved: the
-> band and the lot each announce themselves with a rule in their own ink.
-> *Impermanent* — if the shelf fill alone proves sufficient in use, the rule is
-> the thing to remove, and the band's rule is not affected either way.
+> **Chosen implicitly.** `#698ebf` was the frame carried by the "A Well"
+> specimen, which was selected for its card fill. It was never picked on its own
+> against the two alternatives that were rendered beside it — muted ink
+> `#727a85` and a sand line `#b29c76`. Recorded as settled, but settled by
+> adoption rather than by choice.
+
+**The lot's top rule is still drawn, and still questionable.** With the shelf at
+3.39:1 against the sheet the fill already announces the section, so a rule on top
+of it is two marks doing one job. *Impermanent* — the case for keeping it is that
+a full-bleed section closed by a rule is a section idiom, while a box is enclosed
+on four sides. **Not decided.**
 
 **Hairlines.** A separator is that surface's ink at the lowest alpha clearing
 3:1 on it — `0.40` on `--chrome`, where the only separators in the app live
@@ -225,14 +250,17 @@ and therefore not earning its place at that weight.
 
 ### §2.6 Accents
 
-| Token | Value | Role | on `--chrome` | on `--furniture` | label when filled |
+| Token | Value | Role | on `--chrome` * | on the old `--furniture` * | label when filled |
 |---|---|---|---|---|---|
 | `--accent-restore` | `#B7E3E1` | Complete / Restore / Undo | 13.82:1 | 12.24:1 | 13.82:1 |
 | `--danger` | `#E2A08C` | Delete | 8.83:1 | 7.82:1 | 8.83:1 |
 | `--accent-page` | `#6E9C9A` | rail pager, drop target | 6.30:1 | 5.58:1 | 6.30:1 |
 
-> **An accent is text only on `--chrome` or `--furniture`. Anywhere else it is a
-> fill carrying `--ink-dark`.**
+> **An accent is text only on a near-black ground — `--chrome`, `--band` or
+> `--card`. Anywhere else it is a fill carrying `--ink-dark`.**
+
+\* The two ratio columns are measured against the **retired** `--furniture` and
+the round-1 `--chrome`, and are carried here unrevised — see the note below.
 
 This rule is the correction to a real hole. `--danger` is 3.51:1 on `--board` and
 `--accent-page` is 2.50:1 — as text those are below AA and below the 3:1 non-text
@@ -241,10 +269,20 @@ is 3.51:1 against it, which is what a UI component needs, and its label rides at
 8.83:1). The placement rule keeps every accent on a ground where it works, and no
 value has to change.
 
-`--danger` is **the only warm hue in the application.** Everything else is cool
-water; the one thing that destroys is the one thing that isn't. It need not
-shout — position (last) and the hairline above it already carry the meaning
-(§7, §1).
+`--danger` is **the only *saturated* warm hue in the application.** The
+qualifier is new and necessary: the Parking Lot is now warm sand (§2.9), so
+"the only warm hue" is no longer true. Sand is warm-neutral at 46% saturation
+and `--danger` is warm-chromatic at 60%; they are never adjacent, since sand is
+a ground and danger is a fill on chrome. The distinction the rule was making —
+*the one thing that destroys is the one thing that isn't cool water* — survives
+with the one word added.
+
+> **The accents in this table have not been re-derived against the navy.**
+> `--accent-restore`, `--danger` and `--accent-page` were tuned against the
+> round-1 teal `--chrome #031019`, and the ratios above are measured against
+> that. `--chrome` itself, the menu, the toast and the desktop rail have not
+> been rendered since the palette moved to navy. **This is the largest open gap
+> in the system** and none of it should be treated as settled.
 
 ### §2.7 Focus
 
@@ -256,21 +294,66 @@ box-shadow: 0 0 0 4px var(--ink-dark);
 outline-offset: 2px;      /* -2px on inset rows */
 ```
 
-No single colour works on all six grounds — `--ink-light` is 2.14:1 on the shelf,
-`--ink-dark` is 1.00:1 on chrome. The two are exactly complementary, so the
-doubled ring clears 3:1 on every ground **by construction**, not by tuning:
+No single colour works on every ground — `--ink-light` is 1.36:1 on the shelf,
+`--ink-dark` is 1.04:1 on the band. The two are exactly complementary, so the
+doubled ring clears 3:1 on every ground **by construction**, not by tuning. Both
+extremes of the field are checked, since the ring can land anywhere on it:
 
 | Ground | light tone | dark tone | best |
 |---|---|---|---|
-| `--letterbox` | 19.18 | 1.09 | **19.18** |
-| `--chrome` | 17.56 | 1.00 | **17.56** |
-| `--furniture` | 15.55 | 1.13 | **15.55** |
-| `--board` | 6.97 | 2.52 | **6.97** |
-| `--shelf` | 2.14 | 8.19 | **8.19** |
-| `--note` | 1.74 | 10.11 | **10.11** |
+| `--band` | 18.33 | 1.04 | **18.33** |
+| `--card` | 16.62 | 1.06 | **16.62** |
+| `--board`, lightest stop | 5.52 | 3.18 | **5.52** |
+| `--board`, darkest stop | 11.62 | 1.51 | **11.62** |
+| `--shelf` | 1.36 | 12.96 | **12.96** |
+| `--note` | 1.48 | 11.84 | **11.84** |
 
 This is B15's "robustness from geometry, not hue," carried into the new palette
-and made total.
+and made total. The sheet's lightest stop is the only ground where *both* tones
+clear 3:1 at once, which is a margin rather than a problem.
+
+### §2.8 The board is a field, not a value
+
+A flat fill cannot carry §1.1's register. Peace is a property of depth, and depth
+is a field. Three layers, and **each one holds a job or it comes out** (§1):
+
+1. **The vertical fall** — `#34697f` → `#255265` → `#163646`, top to bottom.
+   Light from above, depth downward. It also makes the sheet's vertical order
+   mean something: the band is the inset dark end, the lit sand is the floor.
+2. **The edge falloff** — a radial darkening toward the sheet's bounds. This is
+   the layer that earns the most. `PRD` requires the sheet to draw its bound,
+   and **on the mobile path it cannot**: `renderScale = 1`, the sheet *is* the
+   viewport (B32), and there is no letterbox to draw an edge against. A luminance
+   falloff is the only way a bounded page can be felt on the device where nearly
+   all the use happens. That is the product's central claim getting rendered.
+3. **Dither** — noise at anti-banding amplitude. The blue channel travels 45
+   steps across an 846px sheet, one step every 19px, which an 8-bit panel shows
+   as horizontal banding. This is repair, not texture.
+
+**The field is authored as opaque stops**, so its extremes are exactly the
+declared colours rather than something to sample. The falloff and the dither can
+only *darken or perturb below the threshold of a ratio*, so **the top stop is the
+single worst case** for every adjacency in §2.5 — which is what keeps the
+verification tractable now that the ground is not flat.
+
+### §2.9 The shelf is weather
+
+The Parking Lot is a warm sand that is **not** a flat fill either: base
+`#e3d2b5`, running `#eaddc7` → `#dbc7a3`, with wisps in pink `#d7b7ad`, grey
+`#bec3bb` and taupe `#d4bfa0`. Hue 38° at 46% saturation — warm without being
+brown, which it would become at low HSL lightness rather than at low luminance.
+
+The wisps are **stretched turbulence**, not gradients: `feTurbulence` at a low
+horizontal and a high vertical frequency produces long soft filaments where broad
+radial gradients produce blobs that average into cream. One inline SVG, no
+dependency, no build step.
+
+> **Banding comes from long monotonic ramps, not from amplitude.** An earlier
+> pass tightened these striations to 1.17:1 out of a fear of banding, and got a
+> flat cream for it. A smooth run gives the quantiser something to step through;
+> irregular overlapping wisps do not band at *higher* amplitude, because no run
+> is long or smooth enough to step. The correct move was more structure and more
+> amplitude at once.
 
 ---
 
@@ -300,19 +383,65 @@ Two rendering facts belong alongside it:
   *stretch* would distort the frame. Neither is available.
 - **Band geometry is sized by the type it holds, not by the sheet** (B37).
   Across is a fraction of the sheet, because it holds the sheet's own divisions.
-  Down is set by the type. The rule crosses the title compartment at its
-  midpoint, and the band reads **rule → header → content** — the same three-part
-  split the Parking Lot has always used (B38).
+  Down is set by the type.
 
 > The band has been ruled on five times: B33 → B35 → B36 → B37 → B38. Read that
 > chain before changing band geometry. Each ruling corrected a regression the
-> previous one caused. **§13.2 puts a measurement gate on it for v2**, because
-> changing the typeface changes the type, and the band is sized by the type.
+> previous one caused. **§13.2's measurement gate is now discharged** — the
+> results are there.
 
-The title compartment is a *compartment*, not a card: the sheet's own top edge is
-its fourth side, so only three are drawn (B38). It is the one deliberate
-exception to "no empty frames" (§4) — that rule protects the free canvas; the
-compartment is permanent furniture and is always drawn.
+### §3.1 The band, and the two sections that bound the sheet
+
+**The section sits above the rule.** The rule is the band's *bottom edge*, not a
+division inside it — which makes the band the exact mirror of the Parking Lot at
+the other end: a section closed by a full-width rule at each end of the sheet,
+with the free canvas between them.
+
+Reading down: **Components / Requirements content, then its header, then the
+rule.** The header is **centred in its zone and sits on the rule**, at 12px/600
+with 10px of clearance beneath it.
+
+**Both rules run the full width of the sheet** — `left: 0; right: 0`, not inset
+to the gutter. **This supersedes B35 and B38's gutter-inset rule.**
+
+**The band sizes to its tallest zone, from a two-line floor:**
+
+```
+rule-y = 14 + max(2, lines) × 19.5 + 8 + 15.6 + 10
+       = 87px at the floor, 106px at three lines
+```
+
+A fill has to have a bottom edge and the band's content does not have a fixed
+height — at 384 wide the Requirements column is ~101px, so "Under 2k, keep the
+window" sets to three lines. A fixed band left the third line on open water. This
+is deliberately **the same law the Parking Lot uses**, stated once and applied to
+both pieces of furniture rather than two schemes that drift apart.
+
+**The title compartment overhangs the band by 22px and occludes the rule.** That
+is B38 and it has never been in question. The sheet's own top edge is its fourth
+side, so only three are drawn. It is the one deliberate exception to "no empty
+frames" (§4) — that rule protects the free canvas; the compartment is permanent
+furniture and is always drawn.
+
+### §3.2 The Parking Lot is a section, not a box
+
+**Full-bleed**: `left: 0; right: 0; bottom: 0`, with its *content* still on the
+gutter. It lives as a section of the page rather than a box bolted onto it.
+**This supersedes B32's "the sheet keeps one left margin"** as it applied to the
+lot.
+
+**Its height follows its contents, from a two-row floor:**
+
+```
+lot-h = 34 + clamp(2, n, maxRows) × 44
+```
+
+Empty, one row and two rows all draw the same two-row shelf — furniture, not a
+by-product of content. The third row grows it *upward*, since the section is
+anchored to the sheet's bottom edge. `maxRows` is B37's viewport-derived budget,
+retained as a **ceiling** so a long lot cannot swallow the canvas; a row past it
+still exists, still saves and still exports. **This supersedes B37's fixed
+whole-row budget**, keeping only its cap.
 
 ---
 
@@ -591,19 +720,32 @@ Size scale is retained: 11 · 12 · 13 · 14 · 15 · 16 · 17 · 18px; line-hei
 
 Montserrat Alternates has a different apparent x-height from `system-ui`. The
 band is **sized by the type it holds** (B37, §3), so changing the type changes
-the band. Before v2 ships:
+the band. **The gate is discharged.** Measurements taken from the font's own
+`hmtx` advances, with no kerning applied, so every figure is a conservative
+upper bound on what a browser draws:
 
-1. Measure the rendered width of "Requirements" at 12px/600 in Montserrat
-   Alternates. B38 chose 12px because "Requirements" is one word, cannot wrap,
-   and must fit the 100px column `--card-w`'s floor guarantees. If the new
-   measurement exceeds that column, the label size drops — the geometry does not.
-2. Re-measure the two-line title box against `--card-h: 68px` at 15px/600/1.3.
-   `--band-top + --card-h = 82` must still land the type on the same pixel.
-3. Re-check the 11px pager against `PANE_PAGER_H = 32`.
+| # | Measurement | Result | |
+|---|---|---|---|
+| 1 | "Requirements" at 12px/600 against the 100px column `--card-w`'s floor guarantees | **87.9px** | clears, 12.1px spare |
+| 2 | Two-line title box against `--band-top + --card-h = 82` | **79px** | clears |
+| 3 | 11px pager against `PANE_PAGER_H = 32` | **14.3px** | clears |
 
-This is a gate, not a preference: `test/mobile.js` already asserts band and lot
-geometry, so a font change that moves the band **fails the suite**, which is the
-correct outcome.
+x-height is 0.534em and cap height 0.700em at 1000 units per em.
+
+> **The gate clears, and it opens a pixel B38 could not have known about.** B38
+> set the label to 12px because that was "the largest whole px at which the
+> widest measured *Requirements* (~118px at 15px) fits the 100px column" — a
+> measurement taken in `system-ui`. In Montserrat Alternates the same word sets
+> 109.9px at 15px and **95.2px at 13px**, so 13px is now the largest whole px
+> that fits, and B38's own rule applied to the new face returns a different
+> answer than the one in the stylesheet. Nothing is broken at 12px. **It is a
+> live decision, not a defect** — the label can take the pixel back, or the
+> headroom is simply spare. Either way it should be decided rather than
+> inherited.
+
+Still a gate for anything downstream: `test/mobile.js` asserts band and lot
+geometry, so a later font change that moves the band **fails the suite**, which
+is the correct outcome.
 
 ### §13.3 Marks
 
@@ -736,6 +878,42 @@ requirements in `PRD §6` and verified per `PRD §7`.
    rebinding, not a rewrite: downstream rules keep reading `var(--ink)`.
 7. **The marks become SVG** (§13.3), which changes `GLYPH` from a map of strings
    to a map of markup and touches every site that injects one.
+8. **`--furniture` is retired and `--band`, `--card` and `--frame` replace it**
+   (§2.2, §2.5). The band and the compartment are no longer one surface, and the
+   linework is no longer ink.
+9. **Two surfaces stop being values.** `--board` becomes a three-stop field plus
+   a falloff plus dither (§2.8); `--shelf` becomes a base plus turbulence wisps
+   (§2.9). Both are pure CSS and one inline SVG each — no dependency, no build
+   step, paint-only, so `NFR-103`'s one-frame layout budget is untouched.
+10. **`test/tokens.js` cannot stay a pure function over constants.** With a
+    non-flat ground every ratio is a range. The rule becomes: *a non-flat
+    surface declares its extremes, and every adjacency is asserted against the
+    worst one.* Tractable because the field is authored as opaque stops and
+    because the falloff and dither can only darken (§2.8).
+11. **The band and the lot both size to their content** from a two-line and a
+    two-row floor respectively (§3.1, §3.2), and both rules go full width. This
+    supersedes **B32**, **B35/B38** and **B37**; `EXPORT_GEO` and
+    `test/mobile.js`'s geometry assertions both move with it.
+
+### §16.1 What is not settled
+
+Recorded here so it is not mistaken for decided:
+
+- **`--chrome`, the accents, the focus ring, the menu, the toast and the desktop
+  rail have never been re-derived against the navy.** They carry round-1 teal
+  values and have not been rendered since. **The largest open gap.**
+- **The scratch-out is nearly a solid black bar on the new shelf.** Three stroke
+  families at 97% opacity in the surface's own ink (§4.3) was a dark bar on a mid
+  ground; on a 0.66-luminance sand it is the loudest thing on the board. The
+  requirement — ≥90% coverage, text destroyed beneath — survives at a lower alpha
+  on a light ground. Raised three times, never ruled.
+- **`--letterbox` is never drawn** (§2.2). The token, its rationale and its rows
+  in §2.5 and §2.7 describe a surface that does not appear.
+- **The note is no longer the brightest surface** (§2.2); the shelf is. §1.1's
+  "the one lit thing in the room" is true of the canvas, not of the sheet.
+- **Whether the lot keeps its top rule** (§2.5).
+- **`--frame #698ebf` was adopted, not chosen** (§2.5).
+- **The band label could go to 13px** on the new face (§13.2).
 
 ---
 
@@ -764,3 +942,8 @@ why §1–§12 keep their v1 meanings. For completeness:
 | `UIUX §11` — scale to fit | §11 |
 | `UIUX §12` — accessibility | §12 |
 | `styles.css §1` — "identity from structure, never costume" | §1 |
+
+New in this revision, so nothing existing moves: **§2.8** the board as a field,
+**§2.9** the shelf as weather, **§3.1** the band, **§3.2** the Parking Lot as a
+section, **§16.1** what is not settled. Every citation above keeps the meaning it
+already had.
