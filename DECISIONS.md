@@ -11,6 +11,45 @@ question was escalated.
 
 ---
 
+> ## The specification now exists. This file is unchanged by that.
+>
+> A1 and B1–B44 below were ruled against a `PRD.md` / `UIUX.md` pair that did not
+> exist at the time. Both documents now do. **This remains the decision record:**
+> new rulings continue here as `B45`+, citing `UIUX §x` where the rendering detail
+> lives. A specification and a decision log answer different questions, and only
+> one of them records what has already been tried.
+>
+> | Question | Authority |
+> |---|---|
+> | What v2 must be | `PRD.md` |
+> | How it renders and behaves under the hand | `UIUX.md` (wins on any rendering question — see A1) |
+> | Why the app does what it does, and what has already been tried | **this file** |
+>
+> **Append only.** An entry is superseded by a later ruling, never edited away.
+> What v2's design system overturns, by number:
+>
+> - **B16** (the light/dark palette pair) — retired. v2 is dark-only; `PRD §1.5`,
+>   `UIUX §2.1`.
+> - **The `--line` mid-grey introduced with B15/B16** — deleted. It was specified
+>   against surfaces it is not drawn on (1.64:1 on the sheet it rules across);
+>   `UIUX §2.3`, `§2.5`.
+>
+> **B40's accepted anisotropy** ("when the two ratios diverge, vertical clearances
+> can still shift") and **B21's width-only multiplier** still stand. Issues #65 and
+> #75 are the argument against them; they are superseded by whichever ruling lands
+> the similarity transform, which is not this release (`PRD §2.5`).
+>
+> Everything else here stands. In particular the B33 → B35 → B36 → B37 → B38 band
+> chain is **unchanged and still authoritative** — `UIUX §13.2` adds a measurement
+> gate in front of it, because a new typeface changes the type and the band is
+> sized by the type it holds.
+>
+> **Grep this file before changing gesture, layout, band/lot or menu behaviour.**
+> A prior fix in that area very likely already ruled out the approach you are
+> about to take.
+
+---
+
 ## A. Resolved internal conflict
 
 ### A1. Long-press menu order
@@ -1235,3 +1274,148 @@ the screen may scroll.
 (B30's `swallowTap`), so a dismiss onto a board card still opens that board. That predates
 categories — the flat list behaved the same way — and is left as it is rather than widened
 inside this issue.
+
+---
+
+## N. The v2 design system (PRs #76–#81; proof sheets 1–7)
+
+### B45. v2 is the design system, and the specification is sized to the change (supersedes the draft that retired this file)
+
+**A specification describes what is changing, not what already runs.** The first v2 draft ran to
+1,707 lines of `PRD.md`: 87 numbered requirements, of which 64 restated behaviour that already
+ships and is already recorded here, in this file, with the reasoning intact. A second copy with
+nothing keeping it honest is the same defect as the five unsynchronised colour sync points it
+correctly identifies — a value restated in places that cannot see each other — and the copy was
+twenty times the size. It also carried sections that existed only because the scaffold had them:
+an API contract that says "N/A", a dependency list that says "None", a tech stack that says
+"None", a project structure for five files, and a commands section duplicating `CLAUDE.md`, which
+is the file a session loads automatically. `PRD.md` is now §1–§8 and one appendix: the taste
+layer, scope, the data model, the constraints, eighteen design-system requirements, how they are
+verified, the risks, and the citation table. Everything cut is either in this file, in `UIUX.md`,
+or in `CLAUDE.md` already.
+
+**This file stays the decision record.** The draft retired it — "for v2, decisions live in
+`PRD.md` and `UIUX.md`, not in a `B44+` here" — on the reasoning that two records can disagree.
+The reasoning is sound and the conclusion is backwards: a specification says what must be true,
+a decision log says what was tried and rejected, and it is the second that stops a future session
+re-proposing an approach that has already regressed the band four times. B44 was ruled and merged
+to `main` eleven minutes before that sentence was written, which is the practical answer to
+whether the record had stopped being needed. New rulings continue here, citing `UIUX §x` where
+the rendering detail lives rather than restating it.
+
+**Three things are separated out of this release, and none is abandoned.** The fold/rotate
+arrangement bug (issues #65, #75) is the highest-value change outstanding and has nothing to do
+with colour; it needs its own ruling because the similarity transform supersedes B40 and B21, and
+gating it behind a palette serves neither. PDF font embedding is ~150KB per exported file in the
+most intricate code in the app, bought for typographic consistency on a printed sheet. Mobile
+board categories were specified as v2 scope after B44 had already shipped them. What remains is
+one coherent change: the app gets an identity, and nothing it does changes.
+
+**The design work itself is kept whole**, because it is the release. `UIUX.md` §2's ladder, the
+per-surface ink rebinding, the edge rule and its twelve adjacencies, and the two-tone focus ring
+were recomputed independently and every published ratio reproduces. They also caught three real
+defects in the draft that preceded them — a rule at 1.64:1 on the surface it crosses, a border at
+1.00:1 on its own ground, and two accents tabulated below AA as text without being flagged. That
+is the work; the rest was scaffolding around it. One arithmetic slip is corrected in passing:
+`UIUX §13.3` said eight of ten marks fall back to a platform font. Four of the ten are guillemets
+and plausibly in a Latin subset; six fall back.
+
+---
+
+### B46. The surfaces take the scene: seven proof rounds land deep dusk (supersedes B16's poles and the flat sheet; B18's letter bends, its job does not)
+
+The palette was not argued into place; it was rendered into place. Seven proof-sheet
+rounds ran outside the repo — full-board specimens against the live geometry — and the
+final one is committed at `docs/proofs/proof-7-a-well-swapped.html`, carrying its own
+verification table. Round 1's teal ladder, which PRs #76–#80 spent a day documenting
+against each other, was "wrong in almost every value" by round 7. The settled system is
+`UIUX §2.2`: **the band `#020812` is the deepest surface on the page** — sheet 7's one
+change was exchanging the band's and card's fills, so the furniture recedes below the
+title it frames and the card separates by its border alone — the sheet is a three-stop
+water field with an edge falloff and dither (`UIUX §2.8`), the Parking Lot is warm sand
+with weather (`UIUX §2.9`), and the note is `#a0d4da` behind its 2px ink frame.
+
+Two claims died on the way and are reworded rather than defended. *"The note is the
+brightest surface in the app"* is false against the sand; the claim is now scoped to
+where it is true — brightest **on the water** (`PRD §1.4`, `UIUX §2.2`). *"One warm
+hue"* gains a word: one warm **accent** — sand is ground, not signal (`UIUX §2.6`).
+
+B18's grammar keeps its job with one word of its letter bent: acknowledgment is still
+thickening for content and fill for controls, and completion is still texture. The
+resting note now carries a fill, which B18(b) read as forbidden — but what that ruling
+was protecting was the 400ms window's honesty: a fill *as acknowledgment* would be
+indistinguishable from the completion mark. A resting fill is neither a state change
+nor a mark, the pressed state still thickens (2px → 3px), and the scratch-out is still
+ink texture at ≥90% coverage. Nothing in the window lies.
+
+### B47. The band is a section above its rule, and both ends of the sheet close the same way (supersedes B35/B38's gutter-inset rule and B37's fixed budget; keeps B37's law and B38's compartment)
+
+Reading down: **content, then its header sitting on the rule, then the rule as the
+band's bottom edge** — which makes the band the exact mirror of the Parking Lot: one
+section closing each end of the sheet, free canvas between (`UIUX §3.1`). Both rules
+run the full width. The band sizes to its tallest zone from a two-line floor — 87px at
+the floor, 106px at three lines — the same law the lot has always used for its rows;
+the lot itself goes full-bleed with its content on the gutter and keeps B37's
+viewport-derived budget as a **ceiling** only (`UIUX §3.2`).
+
+B37's deeper law — *across is a fraction of the sheet; down is set by the type* —
+survives intact and is what makes the sizing work. What dies is the fixed
+`--rule-y: 48` and the gutter-inset rule. B38's compartment is untouched: it overhangs
+the band by 22px, occludes the rule, and draws three sides with the sheet's own top
+edge as the fourth. `EXPORT_GEO` and the geometry assertions in `test/mobile.js` /
+`test/desktop.js` move **with this ruling when it ships, not before** (`UIUX §16.3`).
+
+### B48. The light theme is retired, not made optional (supersedes B16; halves B11; hardens B34's export palette)
+
+Dark-only, because `PRD §1.2`'s P4 forbids the question a theme asks. The whole light
+`:root` and the `prefers-color-scheme: dark` block are **removed, not overridden**
+(`UIUX §2.1`). B11 splits down the middle: its orientation half stands; its colour half
+collapses — the two per-scheme `theme-color` metas become one value, and
+`manifest.json`'s pair follows. B34's *"paper edge to edge, always light"* already
+ruled that the export ignores the screen; with one dark theme that hardens from a
+preference into a necessity — `PDF_PAPER` / `PDF_INK` / `PDF_SHADE` stop being
+derivable from `:root` and become the export's own named palette (`UIUX §15`). The
+`icons/` motif regenerates from the new poles, as B16 regenerated it under B1.
+
+### B49. The note takes its colour, and the radius moves to 3 (extends B39/B40's homothetic reading; the ring re-derives to 4)
+
+The note rests as `--note` behind its 2px ink frame at radius **3px**. The
+counterargument is recorded because it was good: an earlier draft held the radius at 2
+on the ground that the radius set is three steps — 2 drawn, 3 the selection ring, 8
+elevated transient — and the ring is 3 *because* it sits 1px outside a 2px note. The
+rendered proofs overruled it: at 3px the note still reads as drawn at every scale it
+can take (`NOTE_MIN_W = 60` under the uniform scale keeps it near-square — the B39/B40
+constraint), and the ring re-derives to 4 by the same 1px-outside law.
+`EXPORT_GEO.radius` mirrors the move by hand (`UIUX §16`).
+
+### B50. One typeface, self-hosted; the marks are drawn, not typed
+
+**Montserrat Alternates**, 400/600/800, Latin-subset woff2 — committed in `fonts/`
+(extracted from proof sheet 7's embedded faces), declared and cached only when the
+system ships (`UIUX §13.1`). The re-measurement B37 makes mandatory — the band is sized
+by the type it holds — is discharged in `UIUX §13.2`: every figure clears, and the
+measurement surfaces one question this ruling deliberately leaves open: on the new face
+13px, not 12px, is the largest whole pixel at which the widest label fits the 100px
+column, so B38's own rule returns a different answer than the stylesheet. Decide it;
+don't inherit it.
+
+The ten menu glyphs are **retired as type and redrawn as inline SVG** in the note's own
+stroke weight and corner radius (`UIUX §13.3`). Six of the ten fall back to platform
+fonts under any Latin face — the objection `app.js` already applies to `🗑` alone,
+multiplied by six. A symbol asked to render identically everywhere in one voice is not
+text; type is the wrong medium for that job.
+
+### B51. Three records, one home per value (supersedes B45's document-shape clause)
+
+B45 sized the specification to the change, and half of that ruling stands: restating
+shipped behaviour as numbered requirements was the defect that sank the 1,707-line
+draft. But its shape clause — *"`PRD.md` is now §1–§8 and one appendix"* — is
+superseded, because the cut also destroyed the verified §1–§8 product reconstruction
+that ~20 `PRD §x` citations in the code and in this file resolve against. The
+consolidated shape: **`PRD.md`** restores the reconstruction and holds positions only
+(`PRD §9`; the boundary in `PRD §10`); **`UIUX.md`** holds every enumerable value,
+once; **this file** stays the record. A value with two homes has no home — the v2
+attempt proved it by desynchronising `PRD.md` and `UIUX.md` inside a single PR. The
+four overlapping v2 PRs collapse into one, and the proof sheets gain a committed
+reference (`docs/proofs/`) so the next session reads the render rather than
+re-deriving the design from rival documents.

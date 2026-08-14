@@ -2,7 +2,7 @@
 
 **Status:** v1 of the specification, written after the MVP. The app was built
 first; this document reconstructs its product rules from the working code and
-`DECISIONS.md`, and adds §9, the design system, which is new.
+`DECISIONS.md`, and adds §9, which states the design system's position for v2.
 
 **How to read this with the other records.** `DECISIONS.md` is the binding,
 cumulative record of every UI/interaction ruling (A1, B1–B43+), each resolved
@@ -12,8 +12,13 @@ several of its entries deliberately supersede earlier positions stated here.
 This document exists to say what the app *is* and what it is *for*, so that a
 new ruling has something to resolve against.
 
+`UIUX.md` is the third record and the **rendering authority** (`DECISIONS.md:22`):
+it holds every value the app draws with. This document holds positions; where a
+value appears here it is quoted from `UIUX.md`, never authored here. §9.3 maps
+the two, and §10 states the boundary.
+
 Sections are numbered to match the citations already in `app.js`, `styles.css`,
-`sw.js` and `DECISIONS.md`. §10 maps the `UIUX §x` citations onto §9.
+`sw.js` and `DECISIONS.md`.
 
 ---
 
@@ -50,13 +55,67 @@ return to. Not productive-anxious, not gamified, not neutral-corporate.
 
 The mental imagery is **calm water** — beaches, rivers, brooks. Note the
 register carefully: this is water at depth and at dusk, not noon glare. The
-palette in §9.2 is dark, and that is deliberate. Deep water is peaceful; a
-bright white productivity surface is not. The one lit thing in the room is the
-note you just wrote.
+palette (§9.2, `UIUX §2.1`) is dark, and that is deliberate. Deep water is peaceful; a
+bright white productivity surface is not. The page reads top to bottom as one
+scene — near-black sky, water through the middle, lit sand at the foot — and
+**the note is the one lit thing on the water.**
 
 This identity does **not** license decoration. §1's law still holds: every pixel
 earns its place. Peace is produced by restraint, depth and consistency, not by
 ornament. Where §9 adds something, it is because that thing does a job.
+
+### §1.2 Design principles, numbered
+
+The five principles of §1, named for citation — `P1`…`P5` — each with the
+violation that would break it:
+
+| # | Principle | Example violation |
+|---|---|---|
+| P1 | **Capture precedes structure** | Any mode, dialog, picker or delay between the intent to write and the caret |
+| P2 | **Relationships are asserted, not inferred** | Auto-grouping, tag suggestions, snapping, alignment guides, sorting by anything the person did not choose |
+| P3 | **Positions are permanent — a committed position is data** | Re-clamping notes on resize; rewriting stored `x`/`y` because the viewport changed |
+| P4 | **Zero cognitive tax** | Settings, accounts, sync state, onboarding, a theme switch |
+| P5 | **Work performed stays visible** | Completion that deletes, hides, archives or moves an item out of its place |
+
+### §1.3 What would feel wrong
+
+If v2 ships with any of these it has failed, regardless of technical correctness:
+
+- A **loading state, spinner or skeleton** anywhere. The device is the only copy.
+- **Anything that congratulates the person.** Completing something is a record,
+  not an achievement.
+- A **settings screen.** Even one toggle. P4 is not "few settings"; it is none.
+- The board feeling **bright, clinical, or like a productivity SaaS**.
+- **Decoration that does no job** — a gradient, a radius, an animation present
+  because interfaces have those. (The board's field passes this test by encoding
+  depth — `UIUX §2.8`; a gradient with no such claim does not.)
+- Notes that **move themselves.**
+- An **empty board that looks broken.** A blank page is the correct state of a
+  blank page.
+
+### §1.4 North star
+
+- **Feel:** peaceful fondness. A place you are glad to return to.
+- **Imagery:** calm water, at depth and at dusk, not noon glare. That is why the
+  palette is dark. The page reads top to bottom as one scene — near-black sky,
+  water through the middle, lit sand at the foot — and **the note is the one lit
+  thing on the water.**
+- **Personality:** quiet, exact, unhurried, completely uninterested in your
+  attention.
+- **What this does not license:** decoration. Peace comes from restraint, depth
+  and consistency.
+
+### §1.5 Taste decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Theme | **Dark only.** The light/dark pair (B16) is retired | P4 forbids the setting; a theme is a question the app must not ask |
+| The note's colour | The brightest surface on the water | It is the only thing the person *placed*; the shelf at the foot is furniture, not content |
+| Destructive colour | `--danger` is the only warm **accent** | Among the things that speak, everything is cool water except the one that destroys; the shelf's sand is ground, not signal |
+| Symbols | **Drawn, not typed** (`UIUX §13.3`) | A symbol asked to render identically everywhere in one voice is not text |
+| The page's edge | **Felt, not drawn** — the field darkens toward its own bounds (`UIUX §2.8`) | The sheet fills the viewport on every path, so there is no desk to draw an edge against; the falloff is how a bounded page is felt on the device where nearly all the use happens |
+| Export | **Paper-light, always** | It is a reference sheet *for paper* |
+| Motion | A closed set of five transitions. It does not grow | Nothing else has earned its place |
 
 ---
 
@@ -97,6 +156,17 @@ The app succeeds if a thought reaches the page faster than the person can
 second-guess it, and if opening a board weeks later still shows the same
 arrangement they left. Everything else is secondary.
 
+### §2.5 Deferred, with reason
+
+These are real and are **not** abandoned. They are separate changes, and pinning
+them to the design system would gate a palette on unrelated work.
+
+| Deferred | Why it is not here |
+|---|---|
+| **The fold/rotate arrangement bug — issues #65, #75** | The highest-value change outstanding, and unrelated to colour. v1 maps `x` by `LOGICAL_W/rw` and `y` by `LOGICAL_H/rh` — two ratios — while sizing on the width ratio alone; when those diverge, which is what folding does, arrangement distorts. B40 named and accepted this. The fix is a similarity transform (one ratio for both axes and for size), and it supersedes B40 — which makes it its own ruling, its own branch and its own PR |
+| **PDF font embedding** | ~150KB per exported file, in the most intricate code in the app, so that a printed reference sheet matches the app's typography. Worth doing; not worth blocking a recolor on. The export keeps base-14 Helvetica and stays correct (§9.5.2) |
+| **Board categories on mobile** | **Already shipped** — PR #79, issue #74, ruled B44 |
+
 ---
 
 ## §3 Platform
@@ -125,12 +195,12 @@ export (§7) is the only way data leaves the app.
 
 Vanilla HTML/CSS/JS. No frameworks, no build step, no package manager, no
 dependencies, no backend. Five files are the entire app: `index.html`,
-`styles.css`, `app.js`, `manifest.json`, `sw.js`, plus `icons/` and (per §9.3)
-`fonts/`.
+`styles.css`, `app.js`, `manifest.json`, `sw.js`, plus `icons/` and `fonts/`
+(committed; declared and cached only when the design system ships — §9.5).
 
 This is a hard constraint, not a preference. It is why the PDF exporter is
 hand-rolled (§7), why the icons come from a dependency-free PNG writer (B1), why
-fonts are self-hosted rather than pulled from a CDN (§9.3), and why anything
+fonts are self-hosted rather than pulled from a CDN (§9.2), and why anything
 requiring a compile step must instead be computed once and committed as a
 literal.
 
@@ -420,7 +490,8 @@ Long-press (mobile) or right-click (desktop) on a note, lot line or anchor.
 
 Ordering is navigation first, then the item's own actions in rising severity
 (B43). The destructive action is **always last, in `--danger`, behind a
-hairline** — and, per §9.6, never distinguished by colour alone.
+hairline** — and, per `UIUX §1`, never distinguished by colour alone. The
+menu's geometry and the exhaustive list of its variants are `UIUX §7`.
 
 Every menu says "All boards" (the list view's own heading stays "Boards").
 
@@ -495,7 +566,8 @@ Rules:
 - **A completed item emits no text object at all.** It is drawn scratched out on
   page 1 and its words are absent from the file. §6.4's promise becomes a
   property of the bytes.
-- **The export is always paper-light**, whatever the app looks like. See §9.2.4.
+- **The export is always paper-light**, whatever the app looks like (§9.4). Its
+  palette is named separately from the screen's in `UIUX §15`.
 - Output is **byte-identical for an unchanged board** — which is what makes it
   testable.
 - Non-Latin characters outside the font's encoding export as `?` and raise a
@@ -554,8 +626,13 @@ actually reaches an installed PWA.
 
 ## §9 Design system
 
-New in this document. §1–§8 describe an app that already works; §9 gives it an
-identity. It implements §1.1 under §1's law — every value here does a job.
+New in this document. §1–§8 describe an app that already works; §9 says what it
+should look like and why. It implements §1.1 under §1's law.
+
+**§9 holds positions; `UIUX.md` holds values.** That split is not a filing
+convenience — `DECISIONS.md:22` calls `UIUX.md` "the rendering authority" and
+resolved A1 by following `UIUX §7` over this document's §6.6. Design values
+belong where the rendering authority can be cited against them. §9.3 is the map.
 
 ### §9.1 Position
 
@@ -563,283 +640,99 @@ identity. It implements §1.1 under §1's law — every value here does a job.
 > costume.**
 
 This predates §9 and survives it. §9 changes what the surfaces *are*; it does
-not add ornament on top of them. Where a §9 value is decorative rather than
-structural, it is wrong.
+not add ornament on top of them. **Where a value is decorative rather than
+structural, it is wrong** — and that is the test `UIUX.md` applies to every
+value it carries, including the note's new colour, which earns its place by
+saying *what a note is* (the only thing the person made) rather than by looking
+good.
 
-Two consequences hold throughout:
+### §9.2 What the design system decides
 
-- **Never colour alone.** Every state distinguished by colour is also
-  distinguished by geometry, position or texture: completion is a texture, focus
-  is a ring, destructive is last and behind a hairline, the toast's Undo is
-  underlined, selection is an outline.
-- **Elevation means "temporary, above the page."** Shadow is reserved for
-  transient surfaces — menu, toast, drag ghost. **Notes carry no shadow.** A note
-  is on the page, not floating over it.
+Positions, not values. The values are `UIUX.md`'s — see §9.3.
 
-### §9.2 Colour
+**Dark-only, and not a default with an escape hatch.** §1.4 forbids the setting,
+so there is nothing to escape *to*. The light/dark pair driven by
+`prefers-color-scheme` (B16) is retired. This is the identity: deep water, one
+room, the note as the lit thing in it.
 
-#### §9.2.1 One theme
+**Depth reads as literal darkness, and the page reads as one scene.** Surfaces
+are ordered top to bottom — near-black sky, water through the middle, lit sand
+at the foot (`UIUX §2.2`). The band is the deepest thing on the page because it
+is structure you read past. The Parking Lot is lit sand because it is a shelf
+things rest on — furniture, not a competing voice. **On the water, the note is
+the brightest thing there is**, because it is the only thing the person made —
+if a re-tune ever made some other mark on the field brighter than the note, the
+identity would be wrong even if every contrast ratio still passed.
 
-**The app is dark-only.** The previous light/dark pair driven by
-`prefers-color-scheme` (B16) is retired.
+**One warm accent, and it is the destructive one.** The shelf's sand is warm
+ground, not signal (`UIUX §2.9`); among the things that speak — accents,
+controls, marks — everything is cool water, and the one thing that destroys is
+the one thing that isn't. It need not shout — position and the hairline above
+it already carry the meaning (§6.6).
 
-This is not a default with an escape hatch — §1.4 forbids the setting. It is the
-identity: deep water, one room, the note as the lit thing in it.
+**One typeface, self-hosted, three weights.** Montserrat Alternates. A CDN font
+is a network dependency (§3.3) and an uncacheable hole in an offline-first shell
+(§3.2), so it ships from `fonts/` — the three woff2 weights are committed
+there — and is subject to §8.1's bump when declared.
 
-#### §9.2.2 The surface ladder
+**Notes carry no shadow.** Elevation means "temporary, above the page", so it
+belongs to summoned surfaces only. A note is *on* the page.
 
-Six grounds, ordered by luminance. Depth reads as literal darkness.
+**Never colour alone.** Every state distinguished by colour is also
+distinguished by geometry, position or texture.
 
-| Token | Value | Role | Rel. luminance |
-|---|---|---|---|
-| `--letterbox` | `#000000` | the desk, outside the sheet | 0.0000 |
-| `--chrome` | `#031019` | menus, toast, board list, rail — **and every border and frame line** | 0.0046 |
-| `--furniture` | `#041F29` | title compartment, Components, Requirements | 0.0117 |
-| `--board` | `#3A5958` | the sheet; also rail board cards | 0.0875 |
-| `--shelf` | `#A6AAA9` | Parking Lot ground; `.primary-btn` ground | 0.3972 |
-| `--note` | `#89c7c5` | the note — the brightest surface in the app | 0.5020 |
+### §9.3 Where the values live
 
-**`--letterbox` is true black.** On the mobile path the letterbox is
-`renderScale = 1` and therefore absent, but on desktop and on any aspect
-mismatch it is a large, permanent field. True black switches OLED pixels off:
-the board floats in void, and the largest persistent area costs nothing to
-display.
+Every enumerable value — hexes, ratios, sizes, durations, offsets, thresholds —
+is in `UIUX.md`, which `DECISIONS.md:22` calls the rendering authority. This
+document does not restate them. **A value with two homes has no home**, and this
+repo has already had to arbitrate one document conflict (A1).
 
-**The band recedes; the shelf and the notes are lit.** This inversion within one
-sheet is deliberate. The band is an inset header — structure you read past. The
-Parking Lot is a shelf — a surface things rest on. Notes are the brightest thing
-on the board because they are the only thing the person made.
-
-#### §9.2.3 Two ink poles
-
-| Token | Value | Used on |
-|---|---|---|
-| `--ink-light` | `#f4f5f1` | `--letterbox`, `--chrome`, `--furniture`, `--board` |
-| `--ink-dark` | `#031019` | `--shelf`, `--note` |
-
-Verified contrast, every text-bearing pairing:
-
-| Ground | `--ink-light` | `--ink-dark` | Used |
-|---|---|---|---|
-| `#000000` | **19.18:1** | 1.09:1 | light |
-| `#031019` | **17.56:1** | 1.00:1 | light |
-| `#041F29` | **15.55:1** | 1.13:1 | light |
-| `#3A5958` | **6.97:1** | 2.52:1 | light |
-| `#A6AAA9` | 2.14:1 | **8.19:1** | dark |
-| `#89c7c5` | 1.74:1 | **10.11:1** | dark |
-
-Every pairing in use clears WCAG AA (4.5:1) for normal text; four clear AAA.
-
-`--line: #717575` is the mid grey: rules, hairlines, disabled states, the
-tap-ghost. **It is never a fill and never a text ground** — at that luminance no
-ink in the palette reaches AA on it (`--ink-light` 4.26:1, `--ink-dark` 4.12:1).
-As a 1px line on furniture it is 3.65:1, which is what a rule needs.
-
-#### §9.2.4 Accents
-
-| Token | Value | Role | on `--board` | on `--chrome` |
-|---|---|---|---|---|
-| `--accent-restore` | `#B7E3E1` | Complete / Restore / Undo | 5.49:1 | 13.82:1 |
-| `--danger` | `#E2A08C` | Delete | 3.51:1 | 8.83:1 |
-| `--accent-page` | `#6E9C9A` | rail pager, drop target | 2.50:1 | 6.30:1 |
-
-`--danger` is **the only warm hue in the application.** Everything else is cool
-water; the one thing that destroys is the one thing that isn't. It need not
-shout — position (last) and the hairline above it already carry the meaning
-(§6.6, §9.1).
-
-All accent fills take `--ink-dark`.
-
-**The focus ring is two-tone**, and this is structural rather than stylistic:
-
-```
-outline: 2px solid #f4f5f1;
-box-shadow: 0 0 0 4px #031019;
-outline-offset: 2px;
-```
-
-No single colour works on all six grounds — `#f4f5f1` is 2.14:1 on the shelf and
-`#031019` is 1.00:1 on chrome. They are exactly complementary, so the doubled
-ring clears 3:1 everywhere by construction. This is B15's "robustness from
-geometry, not hue" carried into the new palette.
-
-#### §9.2.5 The ink border rule
-
-> **Every filled control carries a 2px `--chrome` border.**
-
-Accent fills are 1.08–1.69:1 against `--shelf`, and the lot-row action buttons
-sit on exactly that ground. A `#031019` border is 8.19:1 there and legible
-against all six surfaces, so one rule makes every control safe on every ground
-without a per-context exception.
-
-This is why `--chrome` is defined as *"menus … and every border and frame line"*:
-one value is both the deepest surface and the line that separates things from
-whatever they sit on.
-
-### §9.3 Typography
-
-**Montserrat Alternates**, self-hosted, **no CDN**.
-
-A CDN font is a network dependency (§3.3) and an uncacheable hole in an
-offline-first shell (§3.2). Fonts live in `fonts/`, are declared with
-`@font-face`, are listed in `sw.js`'s `ASSETS`, and are subject to §8.1's bump.
-
-**Screen: three weights** — 400, 600, 800 — as Latin-subset `woff2`, with
-`font-display: swap` so capture is never blocked on a font load (§1.1).
-Montserrat Alternates has no variable version, so each weight is a separate
-file; three is the smallest set that covers body, the existing 600 emphasis, and
-the button's heavy label.
-
-The existing size scale is retained: 11 · 12 · 13 · 14 · 15 · 16 · 17 · 18px,
-line-heights 1.3 / 1.4 / 1.45. The typeface's apparent x-height differs from
-`system-ui`, so the 12px band labels and 11px pager must be re-verified against
-B37/B38's type-fitted band geometry before shipping — the band is sized by the
-type it holds, so changing the type changes the band.
-
-**Glyphs.** `✓ ↺ ▦ ⇩ ⧉ 🗑 « ‹ › »`. These are typographic, not assets.
-`🗑` is a known deviation: it is a colour emoji among monochrome geometric marks,
-and `app.js` already reasons against exactly this when it chose `⇩` over `📄`. On
-a near-black palette a colour emoji is a bright foreign object that also
-overrides `--danger`. It should be replaced with a monochrome mark, and each
-glyph verified to render from the self-hosted font rather than falling back to a
-platform emoji font.
-
-### §9.4 The note component
-
-```css
-.note-text {
-  background: var(--note);          /* #89c7c5 */
-  color: var(--ink-dark);           /* #031019 — 10.11:1 */
-  border: 2px solid var(--chrome);
-  border-radius: 3px;
-  padding: 10px 12px;
-  font-size: 17px; line-height: 1.4;
-}
-.note-text:empty { background: transparent; border-color: transparent; }
-```
-
-**The radius stays near-square.** Notes scale (0.5–2.0) and `NOTE_MIN_W = 60`,
-so a large radius inside `transform: scale()` turns a minimum-width note into a
-capsule. This is a geometric constraint, not a taste: 3px reads as *drawn*, not
-as a UI card, at every size the note can be.
-
-**The note carries no shadow** (§9.1).
-
-The 2px frame is load-bearing beyond style. A note dragged over the Parking Lot
-is only 1.23:1 against `--shelf` — but its frame is 8.19:1 there. Where colour
-cannot separate the note from its ground, structure does. This is §9.1 earning
-its keep rather than asserting itself.
-
-Pressed and tapped states thicken the border to 3px with compensating padding,
-so nothing reflows — one state, two moments (§5.6).
-
-The scratch-out (§6.4) uses `--ink-dark` strokes on the note's own ground at
-10.11:1, and its radius tracks the note's.
-
-### §9.5 Controls
-
-Four species. All share one tactile signature; each keeps its own fill.
-
-**Primary** (`New board` — the app's single primary control):
-
-```css
-.primary-btn {
-  background: var(--shelf);
-  color: var(--ink-dark);           /* 8.19:1 */
-  border: 2px solid var(--chrome);
-  border-radius: 0.4em;
-  box-shadow: 0.1em 0.1em var(--chrome);
-  font-size: 16px; font-weight: 800;
-  min-height: 44px; padding: 0 18px;
-}
-@media (hover: hover) {
-  .primary-btn:hover  { transform: translate(-0.05em, -0.05em);
-                        box-shadow: 0.15em 0.15em var(--chrome); }
-}
-.primary-btn:active   { transform: translate(0.05em, 0.05em);
-                        box-shadow: 0.05em 0.05em var(--chrome); }
-```
-
-The offset shadow and press-translate are the **shared tactile signature**
-across all four species — the thing that makes a control feel like a control.
-
-Four corrections against the source reference, each with its reason:
-
-| Source | Corrected | Why |
-|---|---|---|
-| `font-color: #f4f5f1` | `color: var(--ink-dark)` | `font-color` is not a CSS property. And `#f4f5f1` on the original `#717575` was 4.26:1 — below AA. |
-| `font-size: 10px` | `16px` | Below the app's 13–16px control scale and unreadable against a 44px touch floor (§5.3). |
-| `padding: 0.6em 1.3em` | `min-height: 44px; padding: 0 18px` | §5.3. Em-padding on a 16px label does not reach the floor. |
-| bare `:hover` | `@media (hover: hover)` | Mobile is the primary path (§3.1); a bare hover sticks after a touch. |
-| `box-shadow: 0.1em 0.1em` | `… var(--chrome)` | Unqualified, it inherits `currentColor`. |
-
-**Selection buttons** (`.sel-btn` — Complete · Copy · Delete): accent fill or
-`--chrome` for Copy, `--ink-dark` label, 2px `--chrome` border per §9.2.5, same
-shadow geometry. Copy takes plain chrome because it changes nothing — accents
-mark state changes.
-
-**Pager** (`.pager-btn`): `--accent-page`, same construction, `opacity: 0.4` when
-disabled.
-
-**Menu rows and the toast's Undo** carry no fill: menu rows are bare on
-`--chrome` and fill on tap; the toast's Undo is `--accent-restore` text
-distinguished by **underline**, not colour (§9.1).
-
-### §9.6 Elevation, motion, accessibility
-
-**Elevation** applies to transient surfaces only: `#menu`, `#toast`,
-`.pane-drag-ghost`. The desktop rail is the inverse — an *inset* shadow, because
-it is embedded in the page, not floating over it.
-
-**Motion is a closed, justified set.** Six transitions, and nothing else
-animates:
-
-| What | Property |
+| Looking for | `UIUX.md` |
 |---|---|
-| `#menu` | opacity |
-| `.note-scratch` / `.lot-scratch` | opacity |
-| `#toast` | opacity + transform |
-| `.leaving` (note, lot, row, card) | opacity |
-| `html.desktop #board.swapping` | opacity |
+| the surface ladder and the law that generates it | §2.2 |
+| the ink poles, the crossover, the forbidden band | §2.3 |
+| elevation | §2.4 |
+| edges, rules and hairlines | §2.5 |
+| accents | §2.6 |
+| the focus ring | §2.7 |
+| the board's field — the fall, the edge falloff, the dither | §2.8 |
+| the shelf's weather | §2.9 |
+| board geometry — sheet, band, lot, anchors | §3 |
+| the note component, its states, its radius | §4 |
+| gestures and thresholds | §5 |
+| the touch floor | §6 |
+| motion, and the JS durations paired to it | §8 |
+| accessibility | §12 |
+| typography, the size scale, marks | §13 |
+| controls | §14 |
+| the export's paper palette | §15 |
+| retiring v1's thirteen tokens | §16.2 |
 
-§1.1 argues for a slower, water-like settle, and durations should lengthen
-accordingly (roughly 120→200ms and 150→260ms) onto a long-decelerating curve.
-The set itself does **not** grow — no new motion has earned its place, and note
-capture in particular stays instant (§5.6, B27). The button press-translate also
-stays instant: a control that lags feels broken, not calm.
-
-**`prefers-reduced-motion: reduce` is a mandatory global kill-switch**, and the
-board-swap crossfade is sequenced by timeout in JS specifically so it degrades to
-an instant swap rather than breaking.
-
-**Accessibility.** Every editable region carries `role="textbox"` /
-`aria-multiline`. The toast is a polite `role="status"`. Focus is visible on
-every interactive element via §9.2.4's ring, at `outline-offset: 2px` on
-free-standing controls and `-2px` on inset rows. Truncation is always indicated.
-The desktop rail is hidden from assistive technology off-desktop. Keyboard:
-`Esc` deselects or commits an edit, `Delete` removes the selection, `Enter`
-edits it.
-
-### §9.7 Where the identity does not reach
+### §9.4 Where the identity does not reach
 
 **The PDF export stays paper-light.** Dark `--board` prints as a slab of
 near-black and costs a cartridge to discover. The export is a reference sheet
-for paper, and paper is the ground it is designed against — so §9.2's ladder
-does not apply to it, by intent rather than omission.
+for paper, and paper is the ground it is designed against — so the ladder does
+not apply to it, by intent rather than omission. The export's own palette is
+named separately in `UIUX §15`, so retiring the light theme does not leave the
+exporter's three colour constants pointing at tokens that no longer exist.
 
 Montserrat Alternates **does** reach the export: the PDF embeds it, so the
 document is typographically the app's even though it is not chromatically the
-app's. See §9.8.
+app's. See §9.5.2.
 
-### §9.8 Implementation consequences
+### §9.5 Implementation consequences
 
 Named here so the follow-up work is scoped rather than discovered.
 
-1. **Five colour sync points, none automated.** `styles.css :root`;
-   `index.html`'s two `theme-color` metas; `manifest.json`'s `background_color`
-   and `theme_color` (the format has no dark variant, so it becomes a single dark
-   value); and `app.js`'s `PDF_PAPER` / `PDF_INK` / `PDF_SHADE`, which are
-   hand-derived floats. Changing a token in one place silently desynchronises the
+1. **Five sync points, none automated** — enumerated in `UIUX §16`.
+   `styles.css :root`; `index.html`'s two `theme-color` metas; `manifest.json`'s
+   `background_color` and `theme_color` (the format has no dark variant, so both
+   become one dark value); `app.js`'s `PDF_PAPER` / `PDF_INK` / `PDF_SHADE`,
+   which are hand-derived floats and do **not** follow the ladder (§9.4); and
+   `icons/`, whose B1 motif is drawn in the poles and must be regenerated as B16
+   regenerated it. Changing a token in one place silently desynchronises the
    others.
 2. **PDF font embedding is the largest single item.** The exporter uses base-14
    Helvetica with hardcoded base-36 advance-width tables. Embedding requires:
@@ -849,42 +742,105 @@ Named here so the follow-up work is scoped rather than discovered.
    `/WinAnsiEncoding` + CP1252 layer is unaffected. With no build step (§3.3)
    there is no subsetter, so both weights embed whole — roughly 150KB per
    exported PDF. That cost is accepted deliberately.
-3. `EXPORT_GEO.radius` mirrors the CSS radius by hand and moves 2 → 3.
+3. **`EXPORT_GEO.radius` moves with the note: 3px.** An earlier draft held the
+   note at 2px, arguing the radius set is three steps — 2 drawn, 3 the selection
+   ring, 8 elevated transient — and the ring is 3 *because* it sits 1px outside
+   a 2px note. The rendered proofs overruled it: at 3px the note still reads as
+   drawn at every scale a note can take (`NOTE_MIN_W = 60` under
+   `transform: scale()` keeps it near-square, `UIUX §4`), and the ring
+   re-derives to 4px by the same 1px-outside law. The counterargument is
+   recorded with the ruling (B49).
 4. `sw.js` `ASSETS` gains the font files; `CACHE` bumps per §8.1.
 5. The `prefers-color-scheme: dark` block and the entire light `:root` are
-   removed, not overridden.
-6. New `DECISIONS.md` entries are owed for: the band and lot gaining fills (B33–B38
-   territory), the retirement of the light theme (B16), and the note taking colour
-   (§9.1's "never costume").
+   removed, not overridden. `UIUX §16.2` gives every one of v1's thirteen tokens
+   a fate, and `UIUX §2.3` the ground → ink binding for the 60 call sites the
+   two retiring poles carry.
+6. **The band's type metrics must be re-verified against the shipped font files**
+   before release (`UIUX §13.2`). The band is sized by the type it holds (B37)
+   and has been ruled on five times; `--card-h: 68px` and the 12px label's
+   clearance of the 100px `--card-w` floor are both `system-ui` measurements.
+7. **Three JS duration constants are paired to CSS values** and must move
+   together (`UIUX §8`); nothing tests the pairing.
 
 ---
 
-## §10 Cross-reference
+### §9.6 Verification
 
-The codebase cites `UIUX.md` as a separate document. It does not exist; its
-material is §9. Every citation resolves as follows.
+**A token test is written first.** `test/tokens.js` makes the design system
+falsifiable before any of it is built, needs no browser, and is the only part
+of the specification that cannot rot. It parses the shipped files and asserts:
 
-| Citation | Here |
-|---|---|
-| `UIUX §1` — governing law, identity | §1, §9.1 |
-| `UIUX §2` — design tokens | §9.2 |
-| `UIUX §2.4` — elevation | §9.6 |
-| `UIUX §3` — board geometry | §5.1, §5.2 |
-| `UIUX §4` — the note component | §9.4 |
-| `UIUX §4.1` — transform origin, truthful coordinates | §5.1, §6.3 |
-| `UIUX §4.2` — note states, focus | §9.4 |
-| `UIUX §4.3` — the scratch-out | §6.4, §9.4 |
-| `UIUX §4.4` — lot lines are never framed | §6.5 |
-| `UIUX §5` — gestures | §5.4 |
-| `UIUX §6` — the touch floor | §5.3 |
-| `UIUX §7` — the menu, destructive last | §6.6 |
-| `UIUX §8` — motion | §9.6 |
-| `UIUX §9` — the undo toast | §6.6.1 |
-| `UIUX §10` — the board list, truncation | §6.7 |
-| `UIUX §11` — scale to fit | §5.2 |
-| `UIUX §12` — accessibility | §9.6 |
-| `styles.css §1` — "identity from structure, never costume" | §9.1 |
+- **The ladder and every published ratio** — parse `styles.css :root`, compute
+  WCAG relative luminance, reproduce every table in `UIUX §2`. A pure function
+  over constants.
+- **Dark-only** — no `prefers-color-scheme` block survives in `styles.css`
+  (§9.2; the light theme is removed, not overridden).
+- **The five colour sync points agree** (§9.5) — parse `styles.css`,
+  `index.html`, `manifest.json` and `app.js`; assert the colour literals agree
+  with `:root`. The direct fix for the silent divergence those points have
+  already exhibited once.
+- **Accent placement** — assert the rule rather than each case: no accent
+  appears as text on `--board`, `--shelf` or `--note` (`UIUX §2.6`).
+- **Self-hosting** — `sw.js`'s `ASSETS` lists the font files; no CDN URL exists
+  anywhere in the app.
 
-`PRD §x` citations resolve to their own numbers here, with two notes:
-`PRD §6.2`'s predetermined width cap was **superseded by B39** (§6.2), and
-`PRD §6.6`'s menu ordering was **superseded by A1 and then B43** (§6.6).
+The three browser suites remain the gate for everything they already pin. Two
+of their assertion families move **only with the rulings that moved them**: the
+band's geometry (the rule is now the band's bottom edge, and `--rule-y` is set
+by the type it holds — B47) and the note's radius (B49). Updating those
+assertions is part of implementing the ruling, not a test regression;
+everything else in `test/mobile.js`, `test/desktop.js` and `test/sw-update.js`
+must pass unchanged. `test/sw-update.js`'s `CARD_H_RE` reads `--card-h`
+literally out of `styles.css`, so the token block keeps that declaration or the
+regex moves in the same commit.
+
+> **A suite which cannot fail is lying.** `sw-update.js`'s step 2 requires the
+> bug to reproduce before step 3 demonstrates the fix. If step 2 ever passes
+> cleanly, the harness has stopped exercising the service worker.
+
+### §9.7 Risks
+
+| # | Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|---|
+| R1 | **The new typeface moves the band**, regressing the chain that has been ruled five times (B33 → B38) | High | High | `UIUX §13.2`'s measurements are a gate before shipping, and `test/mobile.js` asserts band geometry — a typeface that moves the band fails the suite, which is the correct outcome |
+| R2 | **The five colour sync points diverge silently** | High, historically | Medium | `test/tokens.js` asserts their agreement (§9.6) |
+| R3 | **`EXPORT_GEO` drifts from `styles.css`** as the design system lands | High | High | Assert screen/PDF *agreement* on an observable rather than comparing constants; `DECISIONS.md` marks the duplication impermanent three times (B34, B37, B38). Splitting the exporter out of `app.js` is the structural fix, and is not this release |
+| R4 | **Drawn SVG marks read worse than glyphs at 16px** | Medium | Low | Impermanent (`UIUX §13.3`): a mark that fails is redrawn, not reverted to a code point |
+| R5 | **Removing the light theme upsets a use case** — outdoors, bright light | Low | Medium | Accepted deliberately; P4 forbids the setting. Revisit from use, not from principle |
+| R6 | **A missed `CACHE` bump** means the recolor never reaches the installed app | Medium | High | §8.1 is the ruling (B36), and `pages.yml` asserts the deployed `sw.js` matches the commit |
+
+
+---
+
+## §10 The boundary with `UIUX.md`
+
+`UIUX.md` now exists, at the `§1`–`§12` numbering the codebase already cites
+and that `styles.css:4-5` carries as its own header index (§13–§17 extend it
+for what the citations never named). **Every
+`UIUX §x` citation resolves natively.** The redirect table this section used to
+hold — mapping each citation into a §9 subsection — is gone with the reason for
+it.
+
+The line between the two documents:
+
+| | `PRD.md` | `UIUX.md` |
+|---|---|---|
+| Answers | what it is, who for, why | what it renders, and in what values |
+| Contains | principles, scope, data model, behaviour, release | tokens, geometry, states, thresholds, timings, contrast |
+| Wins on | product intent | rendering |
+| Cited as | `PRD §x` | `UIUX §x` |
+
+Both are bound by `DECISIONS.md`, which resolves what they leave silent and
+supersedes them where a later ruling contradicts an earlier position.
+`UIUX §17` mandates the document prefix on every new citation:
+`styles.css` currently mixes bare `§6.1` (this document's anchors) with bare
+`§6` (`UIUX`'s touch floor) in the same file.
+
+Two `PRD §x` citations in the codebase point at superseded text:
+
+- **`PRD §6.2`**'s predetermined width cap was superseded by B39 — a note wraps
+  at the sheet's right edge (§6.2, `UIUX §4`).
+- **`PRD §6.6`**'s menu ordering was superseded by A1 and then B43 (§6.6,
+  `UIUX §7`).
+
+Every other `PRD §x` citation resolves to its own number here.
