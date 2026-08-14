@@ -524,10 +524,13 @@ never sees its events. Cards are compact and ordered `createdAt` desc with an
 `id` tiebreak — immutable, so a card's slot never moves (§1.3 applied to card
 order).
 
-The rail sorts into three sections — **To-Do / Idea / Unsorted** — and a
+The rail sorts into three sections — **To-Do / Idea / Note** (the third
+renamed at the label only; its storage key remains `unsorted`, B63) — and a
 pointer-drag moves a card between them, with the target section framing itself.
-Overflow **pages** rather than scrolling, and a single page hides its own pager:
-no state, no statement (B42).
+Each section carries its own **New board** control on its head row, and a board
+created there is written into that category and opened (B63; the global create
+controls are gone). Overflow **pages** rather than scrolling, and a single page
+hides its own pager: no state, no statement (B42).
 
 A rail board swap is a 150ms crossfade with **no history push** — B9 is bypassed,
 not touched.

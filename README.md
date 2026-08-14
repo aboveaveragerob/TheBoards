@@ -75,11 +75,10 @@ width, is what keeps tablets in touch mode):
   edit (caret at the end). Click empty canvas to deselect — with nothing
   selected, a click still creates a note. Parking Lot lines select the same
   way, with their buttons at the row's right edge. There is no click-and-hold.
-- A **board rail** on the left sorts every board into the same three
-  categories, a pager per section, newest first within each; drag a card
-  between sections to re-sort it. The open board's card is marked. Click a
-  card to switch (a brief crossfade), **New board** at the top to create,
-  the active card's delete button to delete the open board — or
+- A **board rail** on the left lists every board, newest first, with the open
+  board marked. Click a card to switch (a brief crossfade), a category's own
+  **New board** button to create a board in that section and open it, the
+  active card's 🗑 to delete the open board — or
   **right-click any card** to export or delete it. Deletes keep the 5-second
   Undo; Export writes the board to a PDF, whether or not that board is open.
 - **Esc** deselects (or commits an edit), **Delete** removes the selection,
