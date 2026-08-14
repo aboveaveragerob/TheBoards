@@ -1137,11 +1137,7 @@ Per surface, what would actually fail if the words above were violated today:
 | §2 — every token, every ratio | `test/tokens.js` (`PRD §9.6`): every table here recomputed from the shipped hexes, each range at its worst extreme, plus the sync points, the accent placement rule, self-hosting and B53's pair |
 | §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines) |
 | §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
-<<<<<<< HEAD
-| §4 — wrap, homothetic render, centred text | `test/mobile.js` (B39/B40 scenarios; [18b] computes the alignment, editing and at rest) and `test/desktop.js` [D17b] — the computed style, plus the centring inset parsed out of page 1's content stream (B62) |
-=======
-| §4 — wrap, similarity render | `test/mobile.js` (B39/B40 scenarios; [12c] pins B64's fold/rotate similarity — shape held, size uniform, storage untouched, round trip exact) and `test/desktop.js` [D13] (the silent cross-frame grab folds k) |
->>>>>>> origin/main
+| §4 — wrap, similarity render, centred text | `test/mobile.js` (B39 scenarios; [12c] pins B64's fold/rotate similarity — shape held, size uniform, storage untouched, round trip exact; [18b] computes the alignment, editing and at rest) and `test/desktop.js` [D13] (the silent cross-frame grab folds k) and [D17b] — the computed style, plus the centring inset parsed out of page 1's content stream (B62) |
 | §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |
 | §7 — menu contents and order | `test/mobile.js` [8] |
 | §8 motion, §12 accessibility beyond floors | **nothing** |
