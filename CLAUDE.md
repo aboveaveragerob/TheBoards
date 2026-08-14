@@ -24,6 +24,7 @@ Chromium via Playwright and exits non-zero on failure — there is no test
 runner/framework, just three standalone Node scripts:
 ```
 npm install playwright              # somewhere on NODE_PATH; not committed, no package.json
+node test/tokens.js                 # the design contract: UIUX §2's tables recomputed from the shipped hexes (no browser needed)
 node test/mobile.js                 # touch capture, gesture recognizer, band/lot geometry
 node test/desktop.js                # click/double-click/drag selection grammar, rail, PDF export
 node test/sw-update.js              # asserts a shipped change actually reaches an installed PWA
@@ -54,7 +55,7 @@ Five files are the entire app; there is no `src/` tree:
 | File | Role |
 |---|---|
 | `index.html` | App shell: `#board-view` (the one scaled logical page + desktop `#pane` rail) and `#list-view` (board list), plus transient `#menu`/`#toast`. |
-| `styles.css` | Design tokens (light/dark themes off `--paper`/`--ink` poles), board geometry, note component. Sectioned by `§` markers matching the PRD/UIUX spec numbering. |
+| `styles.css` | Design tokens (dark-only: the `UIUX §2.2` ladder, ink rebound per surface via `.on-dark`/`.on-light`), board geometry, note component. Sectioned by `§` markers matching the PRD/UIUX spec numbering. |
 | `app.js` | Everything else — persistence, layout/scale-to-fit, gesture recognizer, editing/drag/pinch/z-order, undo, long-press/context menu, PDF export, board list + routing, boot/SW registration. Organized into 12 numbered sections (see the header comment at the top of the file) — read that map before searching blind in a 130KB single file. |
 | `manifest.json` / `sw.js` | PWA manifest + stale-while-revalidate offline service worker (`CACHE`/`ASSETS`, see above). |
 | `icons/` | 192/512/maskable app icons. |
@@ -111,7 +112,8 @@ every top-level `§` marker in `styles.css` is a UIUX section number, and its
 header block is that document's table of contents. The v2 design system's
 **rendered reference** is `docs/proofs/proof-7-a-well-swapped.html` (B46) —
 read the render before re-deriving the design from prose. `fonts/` holds
-Montserrat Alternates 400/600/800 (B50): present, wired only when v2 ships.
+Montserrat Alternates 400/600/800 (B50): declared in `styles.css`, listed in
+`sw.js`'s `ASSETS`, shipped with v2.
 
 **Cite with the document prefix** — `PRD §6.2`, `UIUX §4.3`. A bare `§x` is
 ambiguous: `styles.css` uses bare `§6.1`/`§6.2`/`§6.5` for PRD sections and bare

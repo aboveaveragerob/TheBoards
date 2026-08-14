@@ -1518,3 +1518,62 @@ Both sizes were rendered side by side at the committed geometry in round 8;
 sheet 9 renders 13 in place. `test/mobile.js`'s band-geometry assertions move
 with this ruling when it ships, not before (`UIUX §16.3`; B47's clause
 unchanged).
+
+---
+
+## O. The recolor ships (PR #86; the shipped round)
+
+### B55. The platform edge wears the sky: one theme-color, #020812 (completes B48's collapse; extends B52 off the page)
+
+B48 collapsed the two per-scheme `theme-color` metas to one and ordered
+`manifest.json`'s pair to follow, but no ruling named the value — B11's colour
+half died without a successor. The candidates were rendered as launch frames
+and put to Rob beside the alternative (`--card`'s `#08152c`): **the sky wins,
+`#020812`**. The reasoning is B52's, carried one surface further out: the room
+behind the page is the sky, and the OS chrome around the app — the splash
+frame, the status bar's tint, the task-switcher edge — *is* the room behind
+the page. Everything the app draws stays lifted above what the platform draws
+around it. One meta, `background_color` and `theme_color` all read `--chrome`'s
+value; `test/tokens.js` holds the three in agreement and requires the value to
+be a declared token. Ruled by Rob against the rendered pair on the shipped
+round's review sheet.
+
+### B56. The icon grounds the note on the water (B1's motif under B48's regeneration)
+
+B48 ordered the `icons/` motif regenerated from the new poles, as B16
+regenerated it under B1. The motif never moved — the near-square note-frame,
+two text lines, the completion stroke; identity from structure, not costume —
+and the question was its ground. Rendered both ways at 192/512/maskable and
+put to Rob: **the field's own fall wins** over the quieter `#020812`. The
+launcher is where the identity claim meets the person first, and the claim is
+B46's — on the water, the note is the brightest thing there is. A sky ground
+renders a note in a void; the water renders the product. The generator is
+committed this time (`icons/make-icons.js`, dependency-free `node:zlib`,
+`--ground=sky` kept as a flag), so the next regeneration edits a script
+rather than reverse-engineering three PNGs. Ruled by Rob on the shipped
+round's review sheet.
+
+### B57. The cover screen keeps its three lot rows: the ceiling re-derives under full bleed (amends B37's threshold as kept by B47; ratifies the sheets' 166)
+
+Implementation surfaced a genuine conflict between the records. B47 kept
+B37's viewport-derived budget as the lot's ceiling, and B37's letter steps it
+at 900 units — two rows below — which caps the 846-unit cover screen at 122
+with a third item saved but not drawn. Both ratified sheets disagree: proof
+sheets 7 **and** 9 draw exactly that viewport with three rows at 166, and
+sheet 9's own footer says what it renders is what ships. Put to Rob rendered
+both ways rather than decided silently: **the sheets win — three rows on the
+cover screen.**
+
+The repair is a re-instantiation, not a new law. B37's bound was always
+proportional — it accepted `182/900 = 20.2%` of the sheet, measured with the
+16px bottom margin the lot then carried. B47's full bleed killed that margin,
+so three rows now cost 166, and B37's own arithmetic returns a new threshold:
+`166 × 900 / 182 = 821`. **Three rows hold from 821 units and two below** —
+the 846 cover screen draws three (19.6% of the sheet, *less* than B37
+accepted), the short windows in `test/mobile.js` [11b] (715, 600) keep two,
+and desktop keeps three exactly as before (B20 pins ≥1000). The ceiling's
+values stay 2 and 3; nothing opens toward four. `LOT_3ROW_MIN_H` moves
+900 → 821 with the derivation at its declaration, `EXPORT_GEO`'s 1000-unit
+sheet is untouched, and `test/mobile.js` [11d] pins the ratified case: three
+items at 384×846 draw 166 to the sheet's bottom edge. Ruled by Rob on the
+shipped round's review sheet.
