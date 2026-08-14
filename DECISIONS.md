@@ -1419,3 +1419,102 @@ attempt proved it by desynchronising `PRD.md` and `UIUX.md` inside a single PR. 
 four overlapping v2 PRs collapse into one, and the proof sheets gain a committed
 reference (`docs/proofs/`) so the next session reads the render rather than
 re-deriving the design from rival documents.
+
+### B52. The room joins the water: chrome takes the band's value, and the accents re-derive into the settled families (supersedes the round-1 chrome and accent values; discharges `UIUX §16.1`'s "largest open gap")
+
+`--chrome` — the ground under the menu, the toast, the board list and the
+desktop rail — and the three accents were the last round-1 teal survivors,
+tuned against a palette that no longer exists. Round 8 re-derived them the way
+rounds 1–7 settled everything else: by rendering, against every floor in
+`UIUX §2.3.1`–`§2.3.2`, `§2.5` and `§2.6`, each ratio printed against the worst
+extreme of its range.
+
+**Chrome proposes no new hex.** A third hue family needs a third job chrome
+does not have (`UIUX §2.2.1`, rule 2), and a new *rung* lost before rendering:
+chrome touches neither the band nor the card — the menu and the toast float on
+elevation, the list replaces the page, the rail sits beside it — so an eighth
+value would be a rung with no adjacency to earn it, a pixel that cannot name
+its job (`UIUX §1`). Of the two recessed values that exist, the card's
+`#08152c` was rendered and rejected: legal, but every separation lands at
+exactly 3.01 — the floor with nothing to spare, on a full-height seam — and
+the menu stops reading as summoned, reading instead as the compartment,
+detached. **The band's `#020812` wins**: the room behind the page is the sky,
+every surface on the page stays lifted above it, and the margins are real —
+seam 3.32, rail card 3.32, hairline 3.52 (`UIUX §2.2`, `§2.6`). `UIUX §2.5`'s
+0.40 hairline alpha survives unchanged, and `§2.7`'s ring gains the chrome row
+its table never had.
+
+**The accents move into families the scene kept.** Round 1's `#B7E3E1` and
+`#6E9C9A` were hue 177° — the retired teal's kin, relatives of nothing left on
+the page. `--accent-restore #b6dee2` is the note's own hue and saturation
+lifted 74 → 80, the derivation `--frame` used on the band: what restores is
+kin to what returns. `--accent-page #6d9cb0` is the field's hue at the old
+value's depth: the accent about boards, cut from the board's own water.
+`--danger` was re-derived and the derivation did not move it — every floor
+clears with room, hue 14° keeps its distance from the sand it is never
+adjacent to, and it stays the only saturated warm — so `#E2A08C` holds,
+**re-chosen rather than inherited**.
+
+The counterargument is recorded because it was good: the note's exact
+`#a0d4da` as the restore accent — the undo toast offering literally the note
+back. Rejected on `UIUX §1`: a Complete button in the note's own fill and
+frame is a control wearing content's identity, and structure-not-costume cuts
+both ways. A second consequence is accepted rather than hidden: a summoned
+Complete fill (0.677) can outshine the note (0.596) while selection chrome is
+up, exactly as the menu can shadow it — transient surfaces are above the page,
+not part of the scene, so `PRD §9.2`'s brightest-on-the-water claim is
+untouched. One question surfaced by the verification is recorded in
+`UIUX §16.1` rather than ruled: the Delete fill/border handover on the field
+dips to ~2.99 over a narrow reach of the fall — a `UIUX §14` construction
+question, not an accent value.
+
+**Provenance.** Proof sheet 8, "The Room Behind the Page", rendered the
+candidates, the rejections and the maths, and was ruled **not committed** —
+its derivations live in this entry and in `UIUX.md`'s restated tables. Proof
+sheet 9, "A Well, Furnished", renders the ratified system whole, with nothing
+beside it, and is committed at `docs/proofs/proof-9-a-well-furnished.html` as
+the rendered reference alongside sheet 7.
+
+### B53. The strike and its burial are one decision: 0.62 over 0.12 (supersedes `UIUX §4.3`'s 0.97/0.40 letter; keeps its law)
+
+The scratch-out's three stroke families at 0.97 were tuned when the completed
+thing sat on a mid ground; on the 0.66-luminance sand the union read as a slab
+— `UIUX §16.1` carried the complaint three times unruled. The repair axis is
+the one `UIUX §2.3` already sanctions — one ink per surface, expressed at a
+weight — so the geometry never moved: same three families, ≥90% coverage
+(93.6%, measured by rasterising the sheet's own pattern), radius tracking the
+note's.
+
+Rendering then forced a second value to move with the first, which prose alone
+would have missed. The 0.40-ink burial was calibrated for a near-opaque veil:
+at 0.97 the strokes crush what is under them, and the burial only had to kill
+the 10% showing in the gaps. Thin the veil and the words come back *through*
+the strokes — at 0.62 over 0.40 both rendered specimen lines read at 1.3× —
+breaking the invariant P5 rides on: the strike is the record that work
+happened (`PRD §1`), and the content under it is destroyed, on screen as B34
+made it in the bytes. So the veil and the burial move together: **0.62 over
+0.12**. The strike composites to 4.53 / 4.71 / 4.35 against the note, the
+shelf's base and its darkest wisp — a mark everywhere, above the 3:1 floor its
+worst ground demands (0.45 dies there at 2.76 and was rejected on the math
+before taste voted) — and the buried text lands at 1.28:1: a smudge that still
+says *something was here*, with the words gone at any zoom the app can
+produce.
+
+### B54. The band label takes the pixel back: 13px (supersedes B38's 12px letter; keeps B38's rule and B37's law)
+
+B38 chose 12px as "the largest whole px at which the widest measured
+*Requirements* fits the 100px column" — measured in `system-ui`, a face the
+app no longer speaks. In Montserrat Alternates the same word sets 95.2px at
+13px (`hmtx` upper bound; 96px browser-rendered), so B38's own rule applied to
+the committed face returns 13, and `UIUX §13.2`'s open question closes the way
+B50 asked: decided, not inherited. The band is sized by the type it holds
+(B37), so the formula's label term moves 15.6 → 16.9 and the band grows by
+exactly the pixel the label takes — 88 at the floor, 107 at three lines
+(`UIUX §3.1`). The counterargument was real: nothing is broken at 12, and the
+headroom is harmless. Rejected because keeping it inherits a dead face's
+measurement into a face that has already paid the pixel back — and the label
+is the smallest text on the page, read at arm's length on the primary device.
+Both sizes were rendered side by side at the committed geometry in round 8;
+sheet 9 renders 13 in place. `test/mobile.js`'s band-geometry assertions move
+with this ruling when it ships, not before (`UIUX §16.3`; B47's clause
+unchanged).
