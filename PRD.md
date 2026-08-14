@@ -163,7 +163,7 @@ them to the design system would gate a palette on unrelated work.
 
 | Deferred | Why it is not here |
 |---|---|
-| **The fold/rotate arrangement bug — issues #65, #75** | The highest-value change outstanding, and unrelated to colour. v1 maps `x` by `LOGICAL_W/rw` and `y` by `LOGICAL_H/rh` — two ratios — while sizing on the width ratio alone; when those diverge, which is what folding does, arrangement distorts. B40 named and accepted this. The fix is a similarity transform (one ratio for both axes and for size), and it supersedes B40 — which makes it its own ruling, its own branch and its own PR |
+| **The fold/rotate arrangement bug — issues #65, #75** | **Shipped — ruled B64.** The similarity transform landed as its own ruling, its own branch and its own PR, exactly as scoped here: one ratio `min(LOGICAL_W/rw, LOGICAL_H/rh)` for both axes and for size, superseding B40's anisotropic mapping and B21's width-only multiplier (`UIUX §11`) |
 | **PDF font embedding** | ~150KB per exported file, in the most intricate code in the app, so that a printed reference sheet matches the app's typography. Worth doing; not worth blocking a recolor on. The export keeps base-14 Helvetica and stays correct (§9.5.2) |
 | **Board categories on mobile** | **Already shipped** — PR #79, issue #74, ruled B44 |
 

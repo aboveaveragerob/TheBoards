@@ -811,13 +811,16 @@ One logical page, one render scale. Stored coordinates are converted for display
 and **never mutated by a layout change** — a rotation, a fold or a window drag
 changes how a position renders, never what it is.
 
-**A correction is outstanding here, and it is not part of this release.** The
-current mapping is anisotropic: `x` maps by `LOGICAL_W/rw` and `y` by
-`LOGICAL_H/rh` — two ratios — while size maps on the width ratio alone. When
-those ratios diverge, which is exactly what folding a device does, relative
-arrangement distorts. B40 named and accepted this; issues **#65** and **#75**
-report it. The fix is a similarity transform — one ratio for both axes and for
-size — which supersedes B40, and it ships as its own change (`PRD §2.5`).
+**The mapping is a similarity transform (ruled B64; issues #65, #75).** Each
+note renders through one uniform ratio `k = min(LOGICAL_W/rw, LOGICAL_H/rh)`
+— the smaller of the two frame ratios — applied to `x`, `y` **and** size, so
+a fold, a rotation or a window drag maps the arrangement as a figure: pairwise
+angles and distance ratios are preserved, and `min` keeps every authored
+position on the page by construction. The figure is anchored top-left, never
+centred; slack falls to the right and bottom as open canvas. Legacy notes
+(no `rh`) keep B32's rescue exactly — width-ratio `x` and size, `y` through
+`LEGACY_H` with the render-time clamp. This supersedes B40's anisotropic
+mapping and B21's width-only multiplier (B64).
 
 ---
 
@@ -1123,7 +1126,7 @@ Per surface, what would actually fail if the words above were violated today:
 | §2 — every token, every ratio | `test/tokens.js` (`PRD §9.6`): every table here recomputed from the shipped hexes, each range at its worst extreme, plus the sync points, the accent placement rule, self-hosting and B53's pair |
 | §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines) |
 | §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
-| §4 — wrap, homothetic render | `test/mobile.js` (B39/B40 scenarios) |
+| §4 — wrap, similarity render | `test/mobile.js` (B39/B40 scenarios; [12c] pins B64's fold/rotate similarity — shape held, size uniform, storage untouched, round trip exact) and `test/desktop.js` [D13] (the silent cross-frame grab folds k) |
 | §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |
 | §7 — menu contents and order | `test/mobile.js` [8] |
 | §8 motion, §12 accessibility beyond floors | **nothing** |

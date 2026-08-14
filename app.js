@@ -289,14 +289,15 @@ function applyLayout() {
   // Both sections size to their content (B47): the band re-measures because a
   // width change re-wraps the zone anchors, the lot because rows may re-cap.
   updateBoardGeometry();
-  // Re-derive each note's on-sheet x, y AND size (proportional across frames —
-  // the multiplier tracks LOGICAL_W, issue #57) and its decoupled hit area
-  // (physical size changed). Width cap FIRST (issue #53): setHitInset measures
-  // offsetWidth, which the cap changes.
+  // Re-derive each note's on-sheet x, y AND size (one similarity ratio per
+  // note, B64) and its decoupled hit area (physical size changed). The wrap
+  // cap needs no re-derive here: (rw − x)/scale reads stored fields only, so
+  // no layout change can move it (B64's restatement of B39) — it is written
+  // at creation (makeNoteEl) and by the gestures that change its inputs
+  // (rebaseNote, applyNoteScale, the drag).
   noteEls.forEach((node, id) => {
     const note = current && current.notes.find(n => n.id === id);
     if (note) {
-      applyNoteWidth(node, note);
       node.style.left = renderX(note) + 'px';
       node.style.top = renderY(note) + 'px';
       node.style.transform = 'scale(' + effScale(note) + ')';
@@ -332,8 +333,11 @@ function applyLayout() {
    (846 → 450 is the same ratio as B17's 1983 → 1055), but y is now frame-
    relative, so an unguarded keyboard resize would move every note on screen —
    and a gesture grabbing one while the keyboard is up would rebase it, writing
-   rh = the shrunken height into storage permanently. This deferral is the only
-   thing standing between the soft keyboard and that write. Do not weaken it. */
+   rh = the shrunken height into storage permanently. Under B64 it earns a
+   third: one shared k means a keyboard-shrunken height now shrinks x and SIZE
+   too — the whole board would flinch at every keyboard. This deferral is the
+   only thing standing between the soft keyboard and all of that. Do not
+   weaken it. */
 let layoutDeferred = false;
 
 function editingInBoard() {
@@ -352,64 +356,82 @@ const toLogical = (clientX, clientY) => ({
   y: (clientY - offY) / renderScale,
 });
 
-/* Cross-device x (issue #15): note.rw records the LOGICAL_W its x was last
-   written against; rendering scales x proportionally to the current width.
-   The stored x is never mutated by a viewport change — only by the same
-   gestures that already own writes, which rebase to the current frame at grab
-   (visually silent: renderX equals the on-screen position at that instant). */
-const renderX = (note) => note.x * (LOGICAL_W / (note.rw || 900));
+/* The similarity transform (issues #65/#75, B64; supersedes B40's anisotropic
+   mapping and B21's width-only multiplier). note.rw/note.rh record the
+   LOGICAL_W/LOGICAL_H the note's geometry was last written against; ONE
+   uniform ratio k — the smaller of the two frame ratios — maps x, y and size
+   together, so a fold or rotation maps the arrangement as a figure: pairwise
+   angles and distance ratios are preserved where two per-axis ratios sheared
+   them apart the moment the aspect changed. min gives containment by
+   construction (x ≤ rw ⇒ x·k ≤ LOGICAL_W; same for y) — B40's "pushed off
+   the bottom" objection dissolves with zero re-clamps. The figure anchors
+   top-left with NO centering offset: each note carries its own rw/rh, so a
+   centering term would differ per authoring cohort, and a grabbed note
+   rebases to offset 0 while ungrabbed siblings kept a nonzero one —
+   centering would re-shear exactly the arrangements this law preserves.
+   Slack falls to the right/bottom as open canvas. Stored geometry is never
+   mutated by a viewport change (B17/B21/B32): render-time only, written back
+   solely by the gestures that own writes (rebaseNote, at grab). k is never
+   clamped — MIN/MAX_SCALE bound the *authored* scale at gesture time, not
+   this frame mapping.
 
-/* Homothetic size (issue #57, B40): renderX's law, applied to visual scale.
-   Along x, position ×k and width ×k together preserve horizontal overlap
-   exactly for any change of sheet width — resizing the viewport resizes the
-   notes at the same ratio instead of sliding constant-size notes into each
-   other. y stays on renderY's height law, so when the two ratios diverge (an
-   aspect change) vertical clearances can still shift — accepted in B40. The
-   multiplier is never clamped: MIN/MAX_SCALE bound the *authored* scale at
-   gesture time, not this frame mapping. */
-const noteMult = (note) => LOGICAL_W / (note.rw || 900);
-const effScale = (note) => (note.scale || 1) * noteMult(note);   // ‖1: heal a scale-less legacy record
-
-/* Cross-frame y (B32) — the mirror of rw. B21 ruled y needed no counterpart
-   because LOGICAL_H ≥ 1000 everywhere; at 1:1 the mobile height is vh, so that
-   premise is gone and note.rh records the LOGICAL_H its y was last written
-   against. Notes written before B32 have no rh, and unlike rw's legacy 900 it
-   cannot be recovered — the old mobile height was device-dependent — so they
-   are mapped through the height the previous build would have produced here
-   (LEGACY_H) and clamped into the page AT RENDER TIME ONLY. Stored y is never
-   mutated, so B17's "committed positions are permanent" holds; the clamp exists
-   solely so a note authored on the old ~2000-unit sheet stays reachable rather
-   than clipped off a page that will never be that tall again.
-   The clamp is on the legacy branch alone: applied to live notes it would fight
-   createNote's own LOGICAL_H − 4 bottom clamp and rebaseNote would write the
-   pulled-up value back — the silent mutation B21 forbids. */
-const renderY = (note) => note.rh
-  ? note.y * (LOGICAL_H / note.rh)
+   Legacy notes (no rh, pre-B32) keep that ruling's rescue verbatim: x and
+   size on the width ratio alone, y mapped through the height the old build
+   would have produced here (LEGACY_H) and clamped into the page AT RENDER
+   TIME ONLY — the authoring height is device-dependent and unrecoverable,
+   so there is no second ratio to take a min against. The clamp stays on the
+   legacy branch alone: applied to live notes it would fight createNote's own
+   LOGICAL_H − 4 bottom clamp and rebaseNote would write the pulled-up value
+   back — the silent mutation B21 forbids. */
+const noteK = (note) => note.rh
+  ? Math.min(LOGICAL_W / (note.rw || 900), LOGICAL_H / note.rh)
+  : LOGICAL_W / (note.rw || 900);
+const renderX  = (note) => note.x * noteK(note);
+const effScale = (note) => (note.scale || 1) * noteK(note);   // ‖1: heal a scale-less legacy record
+const renderY  = (note) => note.rh
+  ? note.y * noteK(note)
   : clamp(note.y * (LOGICAL_H / LEGACY_H), 0, Math.max(0, LOGICAL_H - HIT_FLOOR));
 
 function rebaseNote(note) {
-  // Fold the homothetic multiplier into the authored scale (issue #57, B40):
-  // effScale before equals note.scale after, so the grab is visually silent —
-  // and with mult ≡ 1 from here on, every gesture (drag footprints, pinch and
-  // resize scaling) runs in current-frame units unmodified. The folded scale
-  // may leave [MIN_SCALE, MAX_SCALE]; the gesture clamps widen to admit it.
-  const m = noteMult(note);
+  // Fold the similarity ratio into the authored scale (B40's fold, on B64's
+  // k): effScale before equals note.scale after, so the grab is silent in
+  // position and size — and with k ≡ 1 once rw/rh equal the live frame,
+  // every gesture (drag footprints, pinch and resize scaling) runs in
+  // current-frame units unmodified. The folded scale may leave
+  // [MIN_SCALE, MAX_SCALE]; the gesture clamps stay widened to admit it
+  // (B40).
+  const m = noteK(note);
   note.x = renderX(note);
   note.y = renderY(note);
   note.scale = (note.scale || 1) * m;  // ‖1 mirrors effScale: never fold NaN into storage
   note.rw = LOGICAL_W;
   note.rh = LOGICAL_H;
+  // The wrap cap is NOT silent here, and that is deliberate (B64): under
+  // min-k, rw = LOGICAL_W can exceed the old rw·k whenever the height ratio
+  // binds, so (rw − x)/scale — B39's cap — can WIDEN at the grab (never
+  // narrow: LOGICAL_W ≥ rw·k). The pickup rebinds the wrap to the live
+  // sheet, which is B39's own "rewraps wider and flatter where it stands"
+  // surfacing at the grab. Re-assert the var here so the element, the drag
+  // guard's caches (g.dragCap/g.dragW measure after this), and the record
+  // agree from the first frame of the gesture — a stale DOM cap would
+  // otherwise snap the note wide at the drop instead.
+  const node = noteEls.get(note.id);
+  if (node) applyNoteWidth(node, note);
 }
 
 /* A note has no predetermined width (issue #53, B39): its text wraps only at
-   the sheet's right edge. The cap is the remaining distance to that edge in
-   the note's own unscaled units — which reduces to (rw − x)/scale in authored
-   units, so it is frame-invariant: wrapping is identical on every device and
-   in the PDF (exportNoteBox restates it against the 900 frame). Floored at
-   NOTE_MIN_W so an edge-adjacent note stays a usable column rather than a
-   zero-width sliver. The old 405/45% cap (PRD §6.2) is superseded. */
+   the sheet's right edge — (rw − x)/scale in authored units, stated directly
+   (B64). The old form (LOGICAL_W − renderX)/effScale was that identity only
+   while position and size shared the width ratio; under B64's min-k it would
+   silently widen the cap whenever the height ratio binds, re-wrapping a
+   cap-wide note across a fold. Frame-invariant: wrapping is identical on
+   every device and in the PDF (exportNoteBox calls this very function), and
+   containment still holds — renderX + cap·effScale =
+   (x + (rw − x))·k = rw·k ≤ LOGICAL_W. Floored at NOTE_MIN_W so an
+   edge-adjacent note stays a usable column rather than a zero-width sliver.
+   The old 405/45% cap (PRD §6.2) is superseded. */
 const noteMaxW = (note) =>
-  Math.max(NOTE_MIN_W, (LOGICAL_W - renderX(note)) / effScale(note));
+  Math.max(NOTE_MIN_W, ((note.rw || 900) - note.x) / (note.scale || 1));
 
 /* The cap lives on the NOTE element (custom properties inherit, so .note-text
    keeps reading the var). Set it BEFORE anything measures offsetWidth — the
@@ -534,7 +556,7 @@ function makeNoteEl(note) {
   applyNoteWidth(node, note);                               // wrap at the sheet edge (issue #53)
   node.style.left = renderX(note) + 'px';
   node.style.top = renderY(note) + 'px';
-  node.style.transform = 'scale(' + effScale(note) + ')';   // homothetic (issue #57)
+  node.style.transform = 'scale(' + effScale(note) + ')';   // the similarity (B64)
 
   const text = document.createElement('div');
   text.className = 'note-text';
@@ -1168,8 +1190,9 @@ function startDrag() {
   g.dragMinY = Math.min(0, note.y);
   g.dragOverY = Math.max(0, note.y + footH - LOGICAL_H);
   // Reflow-guard caches (issue #53): the cap the node is wearing right now
-  // (the grab rebase cannot have changed it — (rw−x)/scale is fold-invariant)
-  // and the size measured under it. settleDragFoot skips the layout-forcing
+  // (the grab rebase re-asserted it — under B64's min-k the rebase can widen
+  // the cap, so rebaseNote writes the var before anything here measures) and
+  // the size measured under it. settleDragFoot skips the layout-forcing
   // write+read while these prove the cap cannot bind.
   g.dragCap = noteMaxW(note);
   g.dragW = node.offsetWidth;
@@ -2267,30 +2290,32 @@ const exportLotH = (rec) => {
   return g.lotHead + g.lotRow * clamp((rec.parkingLot || []).length, 2, g.lotMaxRows);
 };
 
-// The same proportional law as renderX/renderY (issue #15, B32), resolved
-// against the export sheet instead of the viewport. Stored x/y are read only —
-// B21's "committed positions are permanent" is not ours to break.
-const exportX = (n) => n.x * (EXPORT_W / (n.rw || 900));
+// The similarity transform (B64), resolved against the export sheet instead
+// of the viewport — noteK with EXPORT_W/EXPORT_H standing in for the frame.
+// One LAW shared with the screen, not one number: each frame takes its own
+// min, so notes of one authoring cohort keep their figure exactly, while a
+// mixed-cohort board can relate its cohorts differently here than on a given
+// screen — inherent to min-k and owned in B64's costs. Stored x/y are read
+// only — B21's "committed positions are permanent" is not ours to break.
+// Legacy notes (no rh) keep B32's rescue against LEGACY_H, as on screen.
+const exportK = (n) => n.rh
+  ? Math.min(EXPORT_W / (n.rw || 900), EXPORT_H / n.rh)
+  : EXPORT_W / (n.rw || 900);
+const exportX = (n) => n.x * exportK(n);
 const exportY = (n) => n.rh
-  ? n.y * (EXPORT_H / n.rh)
+  ? n.y * exportK(n)
   : clamp(n.y * (EXPORT_H / LEGACY_H), 0, Math.max(0, EXPORT_H - HIT_FLOOR));
-// exportX's law applied to visual scale — noteMult with EXPORT_W standing in
-// for LOGICAL_W. One law shared with the screen (issue #57, B40): the PDF
-// draws the proportions the board shows, instead of drifting whenever a note
-// was authored on a frame other than 900.
-const exportMult = (n) => EXPORT_W / (n.rw || 900);
 
 // Border box of a note, before its own scale — `width: max-content` capped at
 // the export sheet's right edge, height from however many lines that width
-// produces. The cap is noteMaxW's law with the 900 frame standing in for the
-// viewport (issue #53, B39): both reduce to (rw − x)/scale in authored units,
-// floored at NOTE_MIN_W, so the screen's wrap width and the PDF's are the same
-// number by construction — a cap-hitting note cannot disagree between the two.
+// produces. The cap IS noteMaxW (issue #53, B39; B64): since the law became
+// pure authored units — (rw − x)/scale, no frame constant left in it — the
+// export calls the screen's own function rather than restating it, so the
+// two wrap widths cannot drift apart by construction.
 function exportNoteBox(note) {
   const g = EXPORT_GEO;
   const chrome = 2 * g.notePadX + 2 * g.border;
-  const s = (note.scale || 1) * exportMult(note);
-  const cap = Math.max(NOTE_MIN_W, (EXPORT_W - exportX(note)) / s);
+  const cap = noteMaxW(note);
   const maxContent = cap - chrome;
   const content = Math.min(pdfNaturalW(note.text, false, g.noteSize), maxContent);
   const lines = pdfWrap(note.text, false, g.noteSize, content);
@@ -2391,7 +2416,7 @@ function exportBoardPage(rec) {
   // Notes last: array order is z-order, and DOM order mirrors it.
   for (const note of rec.notes || []) {
     const box = exportNoteBox(note);
-    const s = (note.scale || 1) * exportMult(note);   // homothetic (issue #57)
+    const s = (note.scale || 1) * exportK(note);      // the similarity (B64)
     // transform-origin: top left — translate to the note, then scale in place.
     p.q().cm(s, 0, 0, s, exportX(note), exportY(note));
     p.frame(0, 0, box.w, box.h, g.radius, g.border, PDF_PAPER);
