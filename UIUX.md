@@ -62,8 +62,9 @@ productive-anxious, not gamified, not neutral-corporate.
 The imagery is **calm water** — and note the register carefully: water at depth
 and at dusk, not noon glare. That is why the palette is dark. Deep water is
 peaceful; a bright white productivity surface is not. The page reads top to
-bottom as one scene — near-black sky, water through the middle, lit sand at the
-foot — and the note is the one lit thing on the water.
+bottom as one scene — water closing each end of the sheet, the deep between —
+and the note is the one lit thing on the deep (B58, ruled from the rendered
+what-if the way every scene decision before it was ruled).
 
 This does not license decoration. Peace is produced by restraint, depth and
 consistency. Where a value below is decorative rather than structural, it is
@@ -85,52 +86,53 @@ choice to make.
 
 ### §2.2 The surface ladder
 
-**Two of these are not values.** The sheet is a *field* (§2.8) and the shelf is
-a *texture* (§2.9). Both are given as ranges, and **every ratio in this document
-is stated against the worst extreme of its range**, never against a midpoint.
+**One of these is not a value.** The water is a *field* (§2.8), grounding the
+two sections that close the sheet. It is given as a range, and **every ratio in
+this document is stated against the worst extreme of its range**, never against
+a midpoint.
 
 | Token | Value | What it is | Rel. luminance |
 |---|---|---|---|
-| `--band` | `#020812` | Components and Requirements — the deepest surface on the page | 0.0023 |
-| `--chrome` | `#020812` | the room behind the page — the ground under the menu, the toast, the board list and the desktop rail. The band's value doing a second job, off the page (B52) | 0.0023 |
-| `--card` | `#08152c` | the title compartment, sitting just above the band | 0.0077 |
-| `--board` | `#34697f` → `#255265` → `#163646` | **the sheet, as a field** — §2.8 | 0.1237 … 0.0325 |
-| `--frame` | `#698ebf` | the card's border and the full-width rule — §2.5 | 0.2611 |
+| `--deep` | `#020812` | the canvas — the deepest surface on the page (B58) | 0.0023 |
+| `--chrome` | `#020812` | the room behind the page — the ground under the menu, the toast, the board list and the desktop rail. The deep's value doing a second job, off the page (B52/B58) | 0.0023 |
+| `--card` | `#08152c` | the title compartment, sitting just above the deep | 0.0077 |
+| `--water` | `#34697f` → `#255265` → `#163646` | **the water, as a field** — the band and the Parking Lot, closing both ends of the sheet (§2.8) | 0.1237 … 0.0325 |
+| `--frame` | `#698ebf` | the card's border and both full-width rules — §2.5, B61 | 0.2611 |
 | `--note` | `#a0d4da` | the note | 0.5962 |
-| `--shelf` | `#e3d2b5`, with weather | **the Parking Lot, as a texture** — §2.9 | 0.5133 … 0.7333 |
 
-`--furniture` is retired; `--band` and `--card` replace it, because the
-compartment and the two zones are no longer one surface. `--line` was already
+`--furniture` was retired by B46; `--band` and the `--shelf` texture are
+retired by B58 — the second swap renamed the deep's token honestly
+(`--band` → `--deep`, the field's stops → `--water-*`) and removed the sand
+from the application entirely (its fates are in §16.2). `--line` was already
 deleted (§2.3).
 
-**The page reads top to bottom as one scene:** near-black at the top, water
-through the middle, lit sand at the foot. The band is the deepest thing on it —
-an inset header you read past — and the card sits fractionally above the band at
-1.10:1, separated by its border rather than by its fill (§2.5).
+**The page reads top to bottom as one scene:** water at the top, closing the
+band; the deep through the middle, where everything the person makes lives;
+water again at the foot, closing the Parking Lot. The canvas is the deepest
+thing on the page, and the card sits fractionally above it at 1.10:1,
+separated by its border rather than by its fill (§2.5).
 
-**The room behind the page is the sky.** `--chrome` is not a new rung: chrome
-touches neither the band nor the card (the menu and the toast float on
-elevation, the list replaces the page, the rail sits beside it), so an eighth
-value would be a rung with no adjacency to earn it. It takes the band's value,
-and everything on the page stays lifted above the room it sits in: the seam
-against the field's lightest reach holds 3.32:1, a rail card's fill (the
-field's own top stop) holds 3.32:1 behind its 0.40 hairline edge, and light
-ink reads at 18.33:1. Settled by proof rounds 8–9 (B52); the rendered
-reference is `docs/proofs/proof-9-a-well-furnished.html`. **The platform edge
-is the same room** (B55): the one `theme-color` meta and `manifest.json`'s
-`background_color`/`theme_color` all wear `--chrome`'s `#020812` — the OS
-chrome around the app is the room behind the page.
+**The room behind the page is the same deep.** `--chrome` is not a new rung:
+chrome touches neither the water nor the card (the menu and the toast float on
+elevation, the list replaces the page, the rail sits beside it), so a new
+value would be a rung with no adjacency to earn it. It shares the canvas's
+value — a summoned surface over the deep separates by its elevation, which is
+elevation's whole job (§2.4) — a rail card's fill (the water's own top stop)
+holds 3.32:1 behind its 0.40 hairline edge, and light ink reads at 18.33:1.
+Settled by proof rounds 8–9 (B52) and carried through the swap (B58); the
+rendered references are `docs/proofs/proof-9-a-well-furnished.html` and
+`docs/proofs/proof-10-the-second-swap.html`. **The platform edge is the same
+room** (B55): the one `theme-color` meta and `manifest.json`'s
+`background_color`/`theme_color` all wear `#020812`.
 
-> **The note is not the brightest surface — the shelf is — and the identity
-> claim is reworded, not defended.** At 0.5962 the note sits below the shelf's
-> base 0.6576. The old sentence — "the note is the brightest thing on the board
-> because it is the only thing the person *placed*" — was false against these
-> values, so the claim is now scoped to where it is true: **on the water, the
-> note is the brightest thing there is** (`PRD §1.4`, `PRD §9.2`). The shelf is
-> lit sand at the foot of the scene — furniture the notes rest on, not a
-> competing voice. Nothing else moves: the note still separates from the sheet
-> by fill at 3.72:1 and from the shelf by its frame. Settled with the proof
-> sheets; recorded in `DECISIONS.md` (B46).
+> **The note is the brightest surface on the page — without qualification,
+> for the first time.** B46 had to scope the claim to the water because the
+> sand outshone the note at 0.6576; B58 retired the sand, and at 0.5962 over
+> the deep's 0.0023 the note reads at **12.36:1** — the strongest the note
+> has ever been. The old sentence — "the note is the brightest thing on the
+> board because it is the only thing the person *placed*" — is simply true
+> now (`PRD §1.4`, `PRD §9.2`). Transient chrome is above the page, not part
+> of the scene (B52), so nothing summoned counts against it.
 
 **The desk is not a surface, and there is no desk token.** Earlier drafts
 carried one, with an OLED rationale — and it described a condition that does not
@@ -150,25 +152,27 @@ a law, and the values above are its output:
 
 1. **One axis: luminance.** A surface's position in the app is its position on
    the ladder. Nothing is distinguished from another surface by hue alone.
-2. **Two hue families, each with a job.** Water for the page — band, card and
-   field are one blue family at falling luminance — and sand for the shelf,
-   because the shelf is the one surface that is *ground for things at rest*
-   rather than part of the water. A third family must bring a third job with it;
-   `--danger` (§2.6) is the single saturated warm value and it is not a ground.
+2. **One hue family for the page, with a job per depth** (B58 collapsed the
+   second). Everything on the page is one blue family: the deep and the card
+   as the recessed ground, the water as the sections that close the sheet, the
+   note as the lit thing. Sand held the second family while the shelf was
+   *ground for things at rest*; the swap made the water that ground, and the
+   family left with its job. A new family must bring a new job with it;
+   `--danger` (§2.6) is the single warm value and it is not a ground.
 3. **Rungs are separated by their function, not by an interval.** The dark rungs
    sit inside one luminance decade because they are all "behind": the card reads
-   at 1.10:1 against the band *deliberately* — one recessed mass with a seam in
-   it, separated by linework, not by depth (§2.5). The note and the shelf sit an
-   order of magnitude above because they are "in front". The largest gap in the
-   ladder is between the field's top stop (0.1237) and the shelf's darkest wisp,
-   and it is where the ink flips (§2.3.1).
+   at 1.10:1 against the deep *deliberately* — one recessed mass with a seam in
+   it, separated by linework, not by depth (§2.5). The note sits an order of
+   magnitude above because it is "in front". The largest gap in the ladder is
+   between the water's top stop (0.1237) and the note (0.5962), and it is where
+   the ink flips (§2.3.1).
 4. **A new rung must clear the crossover test before it exists** (§2.3.1,
    §2.3.2). Adding a surface means computing its luminance, reading its ink pole
    off the crossover, and confirming it is outside the forbidden band. A value
    that cannot carry text is not a ground; it is a line.
 
 Deriving the rungs from an interval — an even luminance ladder, a fixed OKLCH
-step — was considered and is wrong here: it would push the band and the card far
+step — was considered and is wrong here: it would push the deep and the card far
 enough apart to read as two depths, when their job is to read as one.
 
 **Impermanent:** the hex values. The law is not.
@@ -179,25 +183,23 @@ Two poles:
 
 | Token | Value | Bound on |
 |---|---|---|
-| `--ink-light` | `#f4f5f1` | `--band`, `--card`, `--board`, `--chrome` |
-| `--ink-dark` | `#031019` | `--shelf`, `--note` |
+| `--ink-light` | `#f4f5f1` | `--deep`, `--card`, `--water`, `--chrome` |
+| `--ink-dark` | `#031019` | `--note` |
 
 Verified contrast for every text-bearing surface, **each at the worst extreme of
 its range**:
 
 | Ground | Ink | Ratio | Level |
 |---|---|---|---|
-| `--band` `#020812` | light | **18.33:1** | AAA |
+| `--deep` `#020812` | light | **18.33:1** | AAA |
 | `--card` `#08152c` | light | **16.62:1** | AAA |
-| `--board`, lightest stop `#34697f` | light | **5.52:1** | AA |
-| `--board`, darkest stop `#163646` | light | **11.62:1** | AAA |
-| `--shelf`, base `#e3d2b5` | dark | **12.96:1** | AAA |
-| `--shelf`, darkest wisp `#d4bfa0` | dark | **10.77:1** | AAA |
+| `--water`, lightest stop `#34697f` | light | **5.52:1** | AA |
+| `--water`, darkest stop `#163646` | light | **11.62:1** | AAA |
 | `--note` `#a0d4da` | dark | **11.84:1** | AAA |
 
-Every pairing clears AA; every one but the sheet's lightest stop clears AAA. The
-sheet is the only surface where the field's extreme matters to text, and 5.52:1
-is that extreme rather than an average.
+Every pairing clears AA; every one but the water's lightest stop clears AAA.
+The two sections are the only surfaces where the field's extreme matters to
+text, and 5.52:1 is that extreme rather than an average.
 
 **`--ink` is no longer a single value.** v1 used one `var(--ink)` for note text,
 lot text, band labels, rules, hairlines and borders alike, which worked only
@@ -211,10 +213,11 @@ inherited downward:
 .on-light    { --ink: var(--ink-dark);  --ink-a:   3  16  25; }
 ```
 
-`#board`, `#menu`, `#toast`, `#pane`, `#anchor-title` and the band zones carry
-`.on-dark`; `#lot` and `.note-text` carry `.on-light`. Everything downstream —
-text, caret, rules, hairlines, borders, the scratch-out — keeps reading
-`var(--ink)` and `var(--ink-a)` unchanged.
+`#board`, `#menu`, `#toast`, `#pane`, `#anchor-title`, the band zones and —
+since B58 put it on the water — `#lot` carry `.on-dark`; the note is the one
+`.on-light` island left. Everything downstream — text, caret, rules,
+hairlines, borders, the scratch-out — keeps reading `var(--ink)` and
+`var(--ink-a)` unchanged.
 
 This matters beyond tidiness: it means the v1 stylesheet was **already written
 for this**, and the change is a rebinding rather than a rewrite. `--ink-a` stays
@@ -300,17 +303,19 @@ One rule, and it is load-bearing rather than stylistic. Two surfaces that touch
 must separate. Either the **fill** does it (≥3:1) or the **edge** does.
 
 Every adjacency that occurs on the sheet, **each at the worst extreme of the
-field** — which for a "is the sheet too light" question means the top stop:
+water** — which end of the fall is "worst" depends on the question: a
+separation *against the deep* is worst at the water's darkest reach, and a
+mark *on the water* is worst at its lightest:
 
 | Touching | Fill | Edge | Separated by |
 |---|---|---|---|
-| **title card / band** | 1.10 | `--frame` **5.39** / **5.95** | **edge** |
+| **title card / deep** | 1.10 | `--frame` **5.39** / **5.95** | **edge** |
+| **band / canvas, at the rule** (water's darkest stop) | **1.58** | `--frame` **5.95** / **3.77** | **edge** |
 | **note / note** (overlap) | 1.00 | dark ink **11.84** | **edge** |
-| note / Parking Lot | 1.09 | dark ink **11.84** | edge |
-| band / sheet | **3.32** | — | fill |
-| title card / sheet (where it overhangs) | **3.01** | — | fill |
-| Parking Lot / sheet (darkest wisp) | **3.39** | — | fill |
-| note / sheet | **3.72** | — | fill |
+| note / Parking Lot (water's lightest stop) | **3.72** | — | fill |
+| lot / canvas (water's lightest stop, at the lot's top edge) | **3.32** | — | fill |
+| note / canvas | **12.36** | — | fill |
+| note / water (lightest stop) | **3.72** | — | fill |
 
 Three consequences worth stating out loud:
 
@@ -320,33 +325,26 @@ Three consequences worth stating out loud:
   what makes overlap legible. This is §1's "identity from structure" doing real
   work rather than asserting itself.
 - **The card's border is the second load-bearing edge.** At 1.10:1 the card does
-  not separate from the band by fill at all, by design — it is meant to be quiet.
+  not separate from the deep by fill at all, by design — it is meant to be quiet.
   Its border carries the whole separation, which is why `--frame` is a token and
   not a decoration.
-- **The full-width rule is *not* load-bearing.** Band and sheet already separate
-  by fill at 3.32:1, so §2.5 is satisfied without it. The rule is a **section
-  mark** — it says where the band ends — and it carries no 3:1 obligation. That
-  is precisely what freed it to stop being white.
+- **The band's rule became the third load-bearing edge** (B58 inverted this
+  clause). The band's water darkens to its bottom stop at the rule, meeting
+  the deep at 1.58:1 — under the fill floor — so the rule now *carries* that
+  seam, clearing 5.95:1 on the deep and 3.77:1 on the water's darkest stop.
+  The lot's rule keeps the section-mark reading: the lot's top edge is the
+  water's lightest stop, and that seam separates by fill at 3.32:1.
 
-**`--frame` `#698ebf`.** One token for the card's border and the full-width rule
-together: they were the only white marks in the band, and colouring one without
-the other clashes. It is a lift of the band's own hue, so the linework belongs to
-the band rather than being applied to it. Clears 5.39:1 on the card, 5.95:1 on
-the band.
+**`--frame` `#698ebf`.** One token for the card's border and both full-width
+rules (B61): the two ends of the sheet close with the same line, the same
+idiom at both ends (§3.1). It is a lift of the deep's own hue, so the linework
+belongs to the page rather than being applied to it. Clears 5.39:1 on the
+card, 5.95:1 on the deep, 3.77:1 on the water's darkest stop.
 
 > **Ratified.** `#698ebf` arrived as the frame carried by the "A Well"
-> specimen, which was selected for its card fill — adopted, at first, rather
-> than chosen. Proof sheet 7 then kept it deliberately ("the lifted navy
-> linework it was rendered with") against the alternatives rendered beside it —
-> muted ink and a sand line — and that sheet is the committed reference. Chosen
-> now, not merely inherited.
-
-**The lot's top rule is kept, drawn in the shelf's own ink.** With the shelf at
-3.39:1 against the sheet the fill alone would satisfy separation, so the rule
-carries no 3:1 obligation — like the band's, it is a **section mark**: the two
-ends of the sheet close with one rule each, the same idiom at both ends
-(§3.1). Proof sheet 7 draws it (`border-top: 1px solid var(--ink)` in the
-lot's on-light context) and is the reference. Settled.
+> specimen, kept deliberately by proof sheet 7 against rendered alternatives,
+> and extended to the lot's rule by Rob's B61 pick — both ends matching —
+> from the rendered pair on the second-swap round.
 
 **Hairlines.** A separator is that surface's ink at the lowest alpha clearing
 3:1 on it — `0.40` on `--chrome`, where the only separators in the app live
@@ -363,36 +361,35 @@ and therefore not earning its place at that weight.
 |---|---|---|---|---|---|
 | `--accent-restore` | `#b6dee2` | Complete / Restore / Undo | 13.90:1 | 12.60:1 | 13.31:1 |
 | `--danger` | `#E2A08C` | Delete | 9.22:1 | 8.35:1 | 8.83:1 |
-| `--accent-page` | `#6d9cb0` | rail pager, drop target | 6.72:1 | 6.09:1 | 6.44:1 |
+| `--accent-page` | `#6d9cb0` | the primary (B59), rail pager, drop target | 6.72:1 | 6.09:1 | 6.44:1 |
 
-> **An accent is text only on a near-black ground — `--chrome`, `--band` or
+> **An accent is text only on a near-black ground — `--chrome`, `--deep` or
 > `--card`. Anywhere else it is a fill carrying `--ink-dark`.**
 
 Each value is derived from a family the scene already keeps: `--accent-restore`
 is the note's own hue and saturation lifted 74 → 80 — the derivation `--frame`
-used on the band — because what restores is kin to what returns;
-`--accent-page` is the field's hue at the old value's depth, because the accent
-about boards is cut from the board's own water; `--danger` re-derived to its
-own value and holds it.
+used on the deep — because what restores is kin to what returns;
+`--accent-page` is the water's hue at the old value's depth, because the accent
+about boards is cut from the board's own water — which is why B59 put it on
+the one control that *makes* a board, when the sand left and took the old
+primary fill with it; `--danger` re-derived to its own value and holds it.
 
 This rule is the correction to a real hole. `--danger` is 2.78:1 against the
-field's lightest stop and `--accent-page` is 2.11:1 — as text those are below
+water's lightest stop and `--accent-page` is 2.11:1 — as text those are below
 AA and below the 3:1 non-text floor respectively. As *fills* they work where
-they land: a filled Delete button separates from the field by its fill at
+they land: a filled Delete button separates from the water by its fill at
 3.90:1 from the mid stop down and by its `--ink-dark` border at 3.18:1 at the
 top, with its label riding at 8.83:1 (the fill/border handover dips to ~2.99
 over a narrow reach of the fall — recorded in §16.1); a Complete fill clears
-4.19:1 against the field's worst extreme; the pager and the drop-target frame
-live on `--chrome` at 6.72:1. The placement rule keeps every accent on a
-ground where it works.
+4.19:1 against the water's worst extreme; the primary, the pager and the
+drop-target frame live on `--chrome` at 6.72:1. The placement rule keeps
+every accent on a ground where it works.
 
-`--danger` is **the only *saturated* warm hue in the application.** The
-qualifier is new and necessary: the Parking Lot is now warm sand (§2.9), so
-"the only warm hue" is no longer true. Sand is warm-neutral at 46% saturation
-and `--danger` is warm-chromatic at 60%; they are never adjacent, since sand is
-a ground and danger is a fill on chrome. The distinction the rule was making —
-*the one thing that destroys is the one thing that isn't cool water* — survives
-with the one word added.
+`--danger` is **the only warm hue in the application** — B58 returned the
+sentence to its original, unqualified form. B46 had to add "saturated" because
+the sand was warm ground; the sand is retired, so among everything the app
+draws, the one thing that destroys is the one thing that isn't cool water,
+full stop.
 
 > **Ratified.** The whole family was re-derived against the deep-dusk grounds
 > in proof round 8 — candidates rendered beside the round-1 values, every
@@ -413,67 +410,66 @@ box-shadow: 0 0 0 4px var(--ink-dark);
 outline-offset: 2px;      /* -2px on inset rows */
 ```
 
-No single colour works on every ground — `--ink-light` is 1.36:1 on the shelf,
-`--ink-dark` is 1.04:1 on the band. The two are exactly complementary, so the
-doubled ring clears 3:1 on every ground **by construction**, not by tuning. Both
-extremes of the field are checked, since the ring can land anywhere on it:
+No single colour works on every ground — `--ink-light` is 1.48:1 on the note,
+`--ink-dark` is 1.04:1 on the deep. The two are exactly complementary, so the
+doubled ring clears 3:1 on every ground **by construction**, not by tuning.
+Both extremes of the water are checked, since the ring can land anywhere on
+the two sections:
 
 | Ground | light tone | dark tone | best |
 |---|---|---|---|
-| `--band` | 18.33 | 1.04 | **18.33** |
+| `--deep` | 18.33 | 1.04 | **18.33** |
 | `--chrome` | 18.33 | 1.04 | **18.33** |
 | `--card` | 16.62 | 1.06 | **16.62** |
-| `--board`, lightest stop | 5.52 | 3.18 | **5.52** |
-| `--board`, darkest stop | 11.62 | 1.51 | **11.62** |
-| `--shelf` | 1.36 | 12.96 | **12.96** |
+| `--water`, lightest stop | 5.52 | 3.18 | **5.52** |
+| `--water`, darkest stop | 11.62 | 1.51 | **11.62** |
 | `--note` | 1.48 | 11.84 | **11.84** |
 
 This is B15's "robustness from geometry, not hue," carried into the new palette
-and made total. The sheet's lightest stop is the only ground where *both* tones
+and made total. The water's lightest stop is the only ground where *both* tones
 clear 3:1 at once, which is a margin rather than a problem.
 
-### §2.8 The board is a field, not a value
+### §2.8 The water is a field, not a value
 
-A flat fill cannot carry §1.1's register. Peace is a property of depth, and depth
-is a field. Three layers, and **each one holds a job or it comes out** (§1):
+Since B58 the field belongs to the two sections that close the sheet — the
+band and the Parking Lot — while the canvas between them is the flat deep.
+A flat fill could not carry §1.1's register alone; the water carries the
+depth, and each of its layers holds a job or it comes out (§1):
 
-1. **The vertical fall** — `#34697f` → `#255265` → `#163646`, top to bottom.
-   Light from above, depth downward. It also makes the sheet's vertical order
-   mean something: the band is the inset dark end, the lit sand is the floor.
-2. **The edge falloff** — a radial darkening toward the sheet's bounds. This is
-   the layer that earns the most. `PRD` requires the sheet to draw its bound,
-   and **on the mobile path it cannot**: `renderScale = 1`, the sheet *is* the
-   viewport (B32), and there is no letterbox to draw an edge against. A luminance
-   falloff is the only way a bounded page can be felt on the device where nearly
-   all the use happens. That is the product's central claim getting rendered.
-3. **Dither** — noise at anti-banding amplitude. The blue channel travels 45
-   steps across an 846px sheet, one step every 19px, which an 8-bit panel shows
-   as horizontal banding. This is repair, not texture.
+1. **The vertical fall** — `#34697f` → `#255265` → `#163646`, top to bottom in
+   each section. Light from above, depth downward — and at the band it darkens
+   into the rule, which is what hands that seam to the rule's edge (§2.5).
+2. **The sections' falloff** — the radial darkening each section carries
+   toward its reach. The *sheet-bound* job this layer held in the pre-swap
+   scene died with the water canvas (a near-black ground has nothing darker
+   to fall to); within the sections it keeps the water reading as depth
+   rather than as two flat strips.
+3. **Dither** — noise at anti-banding amplitude over the sections' ramps,
+   which an 8-bit panel would otherwise band. On the deep between, it is the
+   grain the ratified render carries (B58) — the canvas is flat by value,
+   textured by repair.
 
 **The field is authored as opaque stops**, so its extremes are exactly the
-declared colours rather than something to sample. The falloff and the dither can
-only *darken or perturb below the threshold of a ratio*, so **the top stop is the
-single worst case** for every adjacency in §2.5 — which is what keeps the
-verification tractable now that the ground is not flat.
+declared colours rather than something to sample. The falloff and the dither
+can only *darken or perturb below the threshold of a ratio*, so each
+adjacency in §2.5 is asserted against the stop that is worst **for that
+question** — the lightest where a mark must read on the water, the darkest
+where the water must part from the deep.
 
-### §2.9 The shelf is weather
+### §2.9 The sand is retired
 
-The Parking Lot is a warm sand that is **not** a flat fill either: base
-`#e3d2b5`, running `#eaddc7` → `#dbc7a3`, with wisps in pink `#d7b7ad`, grey
-`#bec3bb` and taupe `#d4bfa0`. Hue 38° at 46% saturation — warm without being
-brown, which it would become at low HSL lightness rather than at low luminance.
+The Parking Lot wore warm sand with turbulence weather from B46 to B58, and
+B58's swap retired the family entirely (the six superseded hexes live in that
+entry, as B52's precedent has it): the lot takes the water (§2.8),
+the primary control takes `--accent-page` (B59), and no sand value survives
+anywhere in the application. The full fate table is §16.2. What §2.9 carried
+that outlives the sand is its craft note, which applies to the water's own
+weather wherever a ramp meets a quantiser:
 
-The wisps are **stretched turbulence**, not gradients: `feTurbulence` at a low
-horizontal and a high vertical frequency produces long soft filaments where broad
-radial gradients produce blobs that average into cream. One inline SVG, no
-dependency, no build step.
-
-> **Banding comes from long monotonic ramps, not from amplitude.** An earlier
-> pass tightened these striations to 1.17:1 out of a fear of banding, and got a
-> flat cream for it. A smooth run gives the quantiser something to step through;
-> irregular overlapping wisps do not band at *higher* amplitude, because no run
-> is long or smooth enough to step. The correct move was more structure and more
-> amplitude at once.
+> **Banding comes from long monotonic ramps, not from amplitude.** A smooth
+> run gives the quantiser something to step through; irregular overlapping
+> texture does not band at *higher* amplitude, because no run is long or
+> smooth enough to step.
 
 ---
 
@@ -556,7 +552,7 @@ lot.
 lot-h = 34 + clamp(2, n, maxRows) × 44
 ```
 
-Empty, one row and two rows all draw the same two-row shelf — furniture, not a
+Empty, one row and two rows all draw the same two-row section — furniture, not a
 by-product of content. The third row grows it *upward*, since the section is
 anchored to the sheet's bottom edge. `maxRows` is B37's proportional bound,
 retained as a **ceiling** so a long lot cannot swallow the canvas and
@@ -620,19 +616,21 @@ Nothing here is colour alone (§1): every state has a geometry.
 Completing does not delete and does not hide. Three families of ruled strokes at
 ≥90% coverage (93.6% measured) — **texture, not colour** — in the surface's own
 ink at **0.62**, with the underlying text destroyed to **12% ink** so no
-screenshot or zoom recovers it. The radius tracks the note's. Composited, the
-strike reads as a mark on every ground it can land on: 4.53:1 on a note, 4.71:1
-on the shelf's base, 4.35:1 on its darkest wisp — above the 3:1 mark floor
-everywhere, and no longer a bar anywhere.
+screenshot or zoom recovers it. The radius tracks the note's. B53's pair
+proved pole-independent under B58's swap: the note strikes in dark ink at
+4.53:1; the lot now strikes in light ink on the water at 3.19:1 / 4.08:1 /
+5.47:1 against the fall's three stops — a mark above the 3:1 floor at every
+extreme, on either pole, and no longer a bar anywhere.
 
 **The veil and the burial are one decision** (B53). The old 0.97/0.40 pair was
 tuned for a mid ground: a near-opaque veil destroyed what was under it, and the
 burial only had to kill the 10% showing in the gaps. Thin the veil and the words
 come back *through* the strokes — so as the strike's alpha fell to 0.62, the
-burial deepened to 0.12. The buried text lands at 1.28:1 on either ground — a
-smudge where words were. **That is the target, not a failure:** the content is
-deliberately illegible, and legibility minima do not apply to something the
-person has asked the app to strike out.
+burial deepened to 0.12. The buried text lands at 1.28:1 on the note and
+1.29:1 at the water's worst extreme — a smudge where words were. **That is
+the target, not a failure:** the content is deliberately illegible, and
+legibility minima do not apply to something the person has asked the app to
+strike out.
 
 Completion is reversible. In the PDF export a completed item is drawn scratched
 out and **emits no text object at all** — the on-screen promise becomes a
@@ -776,7 +774,7 @@ Back is never intercepted, shadowed or disabled.
 
 **Desktop:** an always-visible 300px rail (B24) — **sunken, not floating** (§2.4),
 sitting outside `#board` so the recognizer never sees its events. Cards are
-`--board` on `--chrome`, compact, ordered `createdAt` desc with an `id` tiebreak:
+the water's upper fall on `--chrome`, compact, ordered `createdAt` desc with an `id` tiebreak:
 immutable, so a card's slot never moves.
 
 The rail sorts into **To-Do / Idea / Unsorted**, and a pointer-drag moves a card
@@ -920,11 +918,13 @@ Guillemets read as "page", not "play".
 
 B1's motif, unchanged — the note-frame, two text lines, the completion
 stroke — drawn in what a note now *is*: `--note` `#a0d4da` behind its 2px
-`--ink-dark` frame, **on the field's own fall** (B56), because on the water
-the note is the brightest thing there is and the launcher is where that claim
-meets the person first. Generated by the committed, dependency-free
-`icons/make-icons.js`; the maskable variant keeps the motif inside the ~80%
-safe zone with the water bleeding to the mask's edge.
+`--ink-dark` frame, **on the deep** (B60, re-ruled when B58 moved the notes'
+ground; supersedes B56's water). The launcher is where the identity claim
+meets the person first, and the claim is the canvas the note actually lives
+on — at 12.36:1, the strongest it has ever read. Generated by the committed,
+dependency-free `icons/make-icons.js` (the water kept as a `--ground` flag);
+the maskable variant keeps the motif inside the ~80% safe zone with the deep
+bleeding to the mask's edge.
 
 ---
 
@@ -934,13 +934,15 @@ safe zone with the water bleeding to the mask's edge.
 
 Four species. All share one tactile signature; each keeps its own fill.
 
-**Primary** (`New board` — the app's single primary control):
+**Primary** (`New board` — the app's single primary control; refilled by B59
+when the sand retired — the accent about boards, on the control that makes
+one):
 
 ```css
 .primary-btn {
-  background: var(--shelf);
-  color: var(--ink-dark);              /* 8.19:1 */
-  border: 2px solid var(--ink-dark);   /* §2.5 — the shelf's own ink */
+  background: var(--accent-page);
+  color: var(--ink-dark);              /* 6.44:1 */
+  border: 2px solid var(--ink-dark);   /* §2.5 */
   border-radius: 0.4em;
   box-shadow: 0.1em 0.1em var(--ink-dark);
   font-size: 16px; font-weight: 800;
@@ -1081,6 +1083,17 @@ stated fate is a call site nobody knows how to edit.
 | `--elevation` | 3 | **kept** (§2.4), gains an inset variant for `#pane` |
 | `--pane` | 1 | **retired** → `--chrome` (§2.2, B52) |
 | `--accent-page` | 2 | **kept**, re-derived to the field's family (§2.6, B52) |
+
+**And the second swap's fates (B58–B61)** — the same discipline applied to the
+tokens the swap moved:
+
+| Pre-swap token | Fate |
+|---|---|
+| `--band` | **renamed** → `--deep`: the value moved from the band to the canvas, and the name follows the surface it grounds (§2.2) |
+| `--board-top/-mid/-bot` (+ `-a`) | **renamed** → `--water-top/-mid/-bot` (+ `-a`): the field grounds the two sections now, not the board (§2.8) |
+| `--sand-light/-base/-dark` | **retired** — the lot takes the water (§2.8); the primary takes `--accent-page` (B59) |
+| `--sand-taupe`, the three wisps | **retired with their ground** — the turbulence weather leaves with the sand (§2.9) |
+| `--chrome`, `--card`, `--frame`, `--note`, inks, accents, elevations | **kept**, unmoved — the swap trades surfaces, not values |
 
 ### §16.3 What pins this document
 

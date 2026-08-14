@@ -57,8 +57,8 @@ The mental imagery is **calm water** — beaches, rivers, brooks. Note the
 register carefully: this is water at depth and at dusk, not noon glare. The
 palette (§9.2, `UIUX §2.1`) is dark, and that is deliberate. Deep water is peaceful; a
 bright white productivity surface is not. The page reads top to bottom as one
-scene — near-black sky, water through the middle, lit sand at the foot — and
-**the note is the one lit thing on the water.**
+scene — water closing each end of the sheet, the deep between (B58) — and
+**the note is the one lit thing on the deep.**
 
 This identity does **not** license decoration. §1's law still holds: every pixel
 earns its place. Peace is produced by restraint, depth and consistency, not by
@@ -97,9 +97,9 @@ If v2 ships with any of these it has failed, regardless of technical correctness
 
 - **Feel:** peaceful fondness. A place you are glad to return to.
 - **Imagery:** calm water, at depth and at dusk, not noon glare. That is why the
-  palette is dark. The page reads top to bottom as one scene — near-black sky,
-  water through the middle, lit sand at the foot — and **the note is the one lit
-  thing on the water.**
+  palette is dark. The page reads top to bottom as one scene — water closing
+  each end of the sheet, the deep between (B58) — and **the note is the one
+  lit thing on the deep.**
 - **Personality:** quiet, exact, unhurried, completely uninterested in your
   attention.
 - **What this does not license:** decoration. Peace comes from restraint, depth
@@ -110,10 +110,10 @@ If v2 ships with any of these it has failed, regardless of technical correctness
 | Decision | Choice | Rationale |
 |---|---|---|
 | Theme | **Dark only.** The light/dark pair (B16) is retired | P4 forbids the setting; a theme is a question the app must not ask |
-| The note's colour | The brightest surface on the water | It is the only thing the person *placed*; the shelf at the foot is furniture, not content |
-| Destructive colour | `--danger` is the only warm **accent** | Among the things that speak, everything is cool water except the one that destroys; the shelf's sand is ground, not signal |
+| The note's colour | The brightest surface on the page (B58) | It is the only thing the person *placed*; with the sand retired, the claim needs no scoping |
+| Destructive colour | `--danger` is the only warm hue (B58) | Everything the app draws is cool water or the deep, except the one thing that destroys |
 | Symbols | **Drawn, not typed** (`UIUX §13.3`) | A symbol asked to render identically everywhere in one voice is not text |
-| The page's edge | **Felt, not drawn** — the field darkens toward its own bounds (`UIUX §2.8`) | The sheet fills the viewport on every path, so there is no desk to draw an edge against; the falloff is how a bounded page is felt on the device where nearly all the use happens |
+| The page's edge | **Closed by its sections** (B58) — water at both ends, and the deep needs no falloff | The sheet fills the viewport on every path; the two water sections are what bound the page's reading, and a near-black canvas has nothing darker to fall to |
 | Export | **Paper-light, always** | It is a reference sheet *for paper* |
 | Motion | A closed set of five transitions. It does not grow | Nothing else has earned its place |
 
@@ -656,19 +656,19 @@ so there is nothing to escape *to*. The light/dark pair driven by
 room, the note as the lit thing in it.
 
 **Depth reads as literal darkness, and the page reads as one scene.** Surfaces
-are ordered top to bottom — near-black sky, water through the middle, lit sand
-at the foot (`UIUX §2.2`). The band is the deepest thing on the page because it
-is structure you read past. The Parking Lot is lit sand because it is a shelf
-things rest on — furniture, not a competing voice. **On the water, the note is
-the brightest thing there is**, because it is the only thing the person made —
-if a re-tune ever made some other mark on the field brighter than the note, the
-identity would be wrong even if every contrast ratio still passed.
+are ordered top to bottom — water closing the band, the deep through the
+middle, water closing the Parking Lot (`UIUX §2.2`, B58). The canvas is the
+deepest thing on the page because it is the ground everything the person makes
+sits on; the two sections are water because they are structure you read past,
+closing the sheet's ends. **The note is the brightest thing on the page**,
+without qualification since B58 retired the sand, because it is the only thing
+the person made — if a re-tune ever made some other mark brighter than the
+note, the identity would be wrong even if every contrast ratio still passed.
 
-**One warm accent, and it is the destructive one.** The shelf's sand is warm
-ground, not signal (`UIUX §2.9`); among the things that speak — accents,
-controls, marks — everything is cool water, and the one thing that destroys is
-the one thing that isn't. It need not shout — position and the hairline above
-it already carry the meaning (§6.6).
+**One warm hue, and it is the destructive one.** Everything the app draws is
+cool water or the deep — the sand left with B58 — except the one thing that
+destroys. It need not shout — position and the hairline above it already
+carry the meaning (§6.6).
 
 **One typeface, self-hosted, three weights.** Montserrat Alternates. A CDN font
 is a network dependency (§3.3) and an uncacheable hole in an offline-first shell
@@ -696,8 +696,8 @@ repo has already had to arbitrate one document conflict (A1).
 | edges, rules and hairlines | §2.5 |
 | accents | §2.6 |
 | the focus ring | §2.7 |
-| the board's field — the fall, the edge falloff, the dither | §2.8 |
-| the shelf's weather | §2.9 |
+| the water's field — the fall, the sections' falloff, the dither | §2.8 |
+| the sand's retirement | §2.9 |
 | board geometry — sheet, band, lot, anchors | §3 |
 | the note component, its states, its radius | §4 |
 | gestures and thresholds | §5 |

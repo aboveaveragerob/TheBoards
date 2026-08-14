@@ -1577,3 +1577,87 @@ values stay 2 and 3; nothing opens toward four. `LOT_3ROW_MIN_H` moves
 sheet is untouched, and `test/mobile.js` [11d] pins the ratified case: three
 items at 384×846 draw 166 to the sheet's bottom edge. Ruled by Rob on the
 shipped round's review sheet.
+
+---
+
+## P. The second swap (the ruled what-if; proof sheet 10)
+
+### B58. The scene inverts: the canvas takes the deep, the sections take the water (supersedes B46's surface assignment; keeps every geometry ruling; inverts §2.5's rule clause; retires the sand)
+
+Rob saw the shipped v2 on the final-gate sheet, asked for one throwaway
+render — the band's dark and the board's water exchanged, the lot joining
+the water — and ruled on the render: **this is the one.** The scene
+reads water closing each end of the sheet, the deep between, and the
+note as the one lit thing on the deep. Ruled the way every scene
+decision before it was ruled: from a render, not prose; the ratified
+reference is `docs/proofs/proof-10-the-second-swap.html`.
+
+**No value moved; every surface did.** The palette is unchanged — the
+swap trades grounds, and the token names follow the surfaces so they do
+not lie (`UIUX §16.2`'s discipline): `--band` → `--deep`, the field's
+stops → `--water-*`. The sand family had no surface left to ground and
+is retired entirely — lot to the water, primary to `--accent-page`
+(B59); the six superseded hexes, recorded here as B52's precedent has
+it: base `#e3d2b5`, run `#eaddc7` → `#dbc7a3`, wisps
+`#d7b7ad`/`#bec3bb`/`#d4bfa0`. The retirement returns two claims B46
+had to qualify to their original,
+unqualified form: **the note is the brightest surface on the page**
+(12.36:1 over the deep, the strongest it has ever read), and
+**`--danger` is the only warm hue in the application**.
+
+**The maths inverted one law's letter.** The band's water darkens into
+its rule, meeting the deep at 1.58:1 — under `UIUX §2.5`'s 3:1 fill
+floor — so the `--frame` rule the recolor called "not load-bearing" now
+carries that seam (5.95:1 on the deep, 3.77:1 on the water's darkest
+stop). The lot's seam is the water's lightest stop against the deep,
+3.32:1: fill separates, and its rule stays a section mark. B53's
+scratch pair proved pole-independent: the lot's strike flips to light
+ink and still clears the mark floor at every stop (3.19/4.08/5.47),
+the burial still a smudge (1.29). The radial falloff's sheet-bound job
+died with the water canvas — a near-black ground has nothing darker to
+fall to — and the falloff survives only inside the sections, where the
+water still ramps. The dither stays: anti-banding over the sections'
+ramps, ratified grain over the deep.
+
+**Sequencing, ruled by Rob:** the finished recolor landed first
+(PR #86, merged on his word), and the swap ships as its own release —
+each release matches its own paperwork, and the record stays honest
+about the order in which the design was found.
+
+### B59. The primary takes the accent about boards (supersedes §14's sand fill; completes the sand's retirement)
+
+The `New board` button wore `--sand-base` because the shelf was sand
+and the control that makes shelf-space wore the shelf's material. B58
+took the reasoning's ground away. Rendered both ways on the swapped
+rail and put to Rob: **`--accent-page` wins** over keeping the sand as
+a control-only warm. The derivation was already in the record —
+`--accent-page` is "the accent about boards, cut from the board's own
+water" (B52) — and New board is the accent-about-boards job itself.
+6.72:1 on chrome, 6.44:1 under its `--ink-dark` label; the tapped
+drain becomes the accent as text on a near-black ground, exactly
+§2.6's placement. With the sand gone nowhere survives it, and the
+application's one warm hue is the destructive one.
+
+### B60. The icon follows the note's ground: the deep (supersedes B56)
+
+B56 ruled "the note on the water" when the note lived on the water.
+Nineteen minutes of shipped v2 later, B58 moved the note's ground to
+the deep, and the icon's claim pointed at the wrong surface. Re-put to
+Rob with both renders — the water kept, or the canvas matched — and
+**the deep wins**: the launcher shows exactly what the app opens onto,
+the pale note blazing on the near-black at 12.36:1. The generator's
+default flips (`icons/make-icons.js --ground=deep`; the water stays a
+flag), and the three PNGs regenerate. B56's water render remains in
+the record as the shipped v2 icon it briefly was.
+
+### B61. Both ends close with the same line: the lot's rule takes --frame (supersedes §2.5's "shelf's own ink" clause; completes §3.1's idiom)
+
+§3.1 has said since B47 that the two ends of the sheet close the same
+way — yet the recolor drew the band's rule in `--frame` and the lot's
+in its surface ink, an asymmetry the sand's on-light context excused.
+The swap removed the excuse: both sections are water now. Rendered
+both ways and put to Rob: **`--frame` at both ends.** One line, one
+idiom, and the lawfulness is already proven — the band's rule carries
+its seam at 5.95/3.77 (B58), and the lot's, a section mark over a
+3.32:1 fill separation, wears the same line without an obligation to
+carry.
