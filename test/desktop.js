@@ -515,13 +515,14 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D13] A cross-frame grab is visually silent and folds the multiplier (issue #57)');
+  console.log('\n[D13] A cross-frame grab is visually silent and folds the similarity ratio (issue #57, B64)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await page.evaluate(async () => {
       const rec = newBoardRecord();
       rec.title = 'Grab fixture';
-      // Authored on a 384-unit phone frame: mult here is ~3.3.
+      // Authored on a 384x846 phone frame: k here is min(lw/384, 1000/846)
+      // ≈ 1.182 — the height ratio binds (B64).
       rec.notes = [{ id: 'g1', text: 'grab', x: 50, y: 380, rw: 384, rh: 846,
                      scale: 1, state: 'active' }];
       await idbPut(rec);
@@ -541,9 +542,11 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       document.querySelector('[data-id="g1"]').getBoundingClientRect().width);
     ok('visual width unchanged across the grab (<1px)',
       Math.abs(after - before.w) < 1, before.w + ' -> ' + after);
-    // rebaseNote folded the multiplier: scale becomes old·mult, rw the current
-    // frame. At 1440x900, LOGICAL_W = (1440-300)/0.9 = 1266.67.
+    // rebaseNote folded the similarity ratio (B64): scale becomes old·k,
+    // rw/rh the current frame. At 1440x900, LOGICAL_W = (1440-300)/0.9 =
+    // 1266.67 and LOGICAL_H = 1000, so k = min(lw/384, 1000/846) ≈ 1.182.
     const lw = (1440 - 300) / 0.9;
+    const k = Math.min(lw / 384, 1000 / 846);
     const stored = await page.evaluate(() => new Promise(res => {
       const rq = indexedDB.open('boards-db');
       rq.onsuccess = () => {
@@ -551,10 +554,12 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
         all.onsuccess = () => res(all.result.flatMap(b => b.notes).find(n => n.id === 'g1'));
       };
     }));
-    ok('stored scale ≈ old·mult after the grab',
-      !!stored && Math.abs(stored.scale - lw / 384) < 0.001, stored && String(stored.scale));
+    ok('stored scale ≈ old·k after the grab',
+      !!stored && Math.abs(stored.scale - k) < 0.001, stored && String(stored.scale));
     ok('rw rebased to the current frame',
       !!stored && Math.abs(stored.rw - lw) < 0.01, stored && String(stored.rw));
+    ok('rh rebased to the current frame',
+      !!stored && stored.rh === 1000, stored && String(stored.rh));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
