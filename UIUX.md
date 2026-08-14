@@ -788,10 +788,26 @@ sitting outside `#board` so the recognizer never sees its events. Cards are
 the water's upper fall on `--chrome`, compact, ordered `createdAt` desc with an `id` tiebreak:
 immutable, so a card's slot never moves.
 
-The rail sorts into **To-Do / Idea / Unsorted**, and a pointer-drag moves a card
-between sections with the target section framing itself in `--accent-page`.
-Overflow **pages** rather than scrolling, and a single page hides its own pager:
-no state, no statement (B42).
+Both surfaces sort into **To-Do / Idea / Note** (B63 renamed the third at the
+label only — its storage key remains `unsorted`), and a pointer-drag moves a
+card between sections with the target section framing itself in
+`--accent-page`. Overflow **pages** rather than scrolling, and a single page
+hides its own pager: no state, no statement (B42).
+
+**Each section lays out as one grid, on both surfaces** (B63): a head row —
+the category's display label left, and the section's **own `New board`
+control** right, the two boxes one height — then the cards, then the pager
+row **below the cards, centred**. The header sits at §13.1's 24px display
+step on mobile and at the scale's own top step, 18px, on the rail — at 24px
+the longest name sets 215px and the rail's 276px cannot hold it beside any
+legible control (B63's measurement; the name is never crowded off its own
+row). The rows are 48px on mobile (a 44px control, §6's floor, its label at
+14px) and 32px on desktop (a 32px control, its label at 13px). The global
+New board controls are **removed** — creation lives in the categories: a
+section's control writes `category` (+ `catStamp`, so the new card lands
+first, like a drop) and **opens the new board at once**. Consequence, taken
+deliberately: two 44px-floor furniture rows leave a 384×846 phone **two
+cards per page** where B44's merged strip held three.
 
 **Truncation is always indicated** — `text-overflow: ellipsis`, never a hard cut.
 
@@ -857,7 +873,8 @@ the smallest set covering body, the existing 600 emphasis, and the button's heav
 label.
 
 Size scale is retained: 11 · 12 · 13 · 14 · 15 · 16 · 17 · 18px; line-heights
-1.3 / 1.4 / 1.45.
+1.3 / 1.4 / 1.45 — and one display step above it: **24px** (the mobile
+category header, B63; the rail's header takes the scale's own 18).
 
 ### §13.2 The band measurement gate
 
@@ -945,9 +962,11 @@ bleeding to the mask's edge.
 
 Four species. All share one tactile signature; each keeps its own fill.
 
-**Primary** (`New board` — the app's single primary control; refilled by B59
-when the sand retired — the accent about boards, on the control that makes
-one):
+**Primary** (`New board` — the per-category create control, one on every
+section's head row since B63; refilled by B59 when the sand retired — the
+accent about boards, on the controls that make one; the construction below is
+unchanged, except that the category instance sizes its label to its row:
+14px mobile, 13px desktop, B63):
 
 ```css
 .primary-btn {

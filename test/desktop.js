@@ -111,7 +111,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     const n0 = await page.evaluate(() => document.querySelectorAll('#pane-cards .pane-card').length);
-    await page.click('#pane-new');
+    await page.click('.board-cat[data-cat="unsorted"] .cat-add');
     await page.waitForTimeout(700);
     const n1 = await page.evaluate(() => document.querySelectorAll('#pane-cards .pane-card').length);
     ok('new board added a card', n1 === n0 + 1, n0 + ' -> ' + n1);
@@ -131,7 +131,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
   console.log('\n[D6] Right-click a card opens the danger menu; keyboard still works');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
-    await page.click('#pane-new');
+    await page.click('.board-cat[data-cat="unsorted"] .cat-add');
     await page.waitForTimeout(700);
     await page.evaluate(() => {
       const c = document.querySelector('#pane-cards .pane-card');
@@ -364,7 +364,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.reload();
     await page.waitForTimeout(600);
     // A second board becomes `current`, so Alpha's card is now inactive.
-    await page.click('#pane-new');
+    await page.click('.board-cat[data-cat="unsorted"] .cat-add');
     await page.waitForTimeout(700);
     await page.evaluate(() => { current.notes.push(
       { id: 'b1', text: 'BETAMARKER', x: 80, y: 300, rw: 900, rh: 1000, scale: 1, state: 'active' }); });
@@ -392,7 +392,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
   console.log('\n[D11] Export the open board, including unsaved edits');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
-    await page.click('#pane-new');
+    await page.click('.board-cat[data-cat="unsorted"] .cat-add');
     await page.waitForTimeout(700);
     // Straight into `current`, with no time for the debounced save to land —
     // this is the stale-snapshot case the rail's closure would otherwise hit.
@@ -602,22 +602,28 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D16] Rail categories: To-Do / Idea / Unsorted, drag between, pager (issue #58)');
+  console.log('\n[D16] Rail categories: To-Do / Idea / Note, drag between, pager (issue #58)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     const heads = await page.evaluate(() =>
       [...document.querySelectorAll('#pane-cards .cat-head span:first-child')].map(s => s.textContent));
     ok('three category headers in order', heads.length === 3 &&
-       heads[0] === 'To-Do Boards' && heads[1] === 'Idea Boards' && heads[2] === 'Unsorted Boards',
+       heads[0] === 'To-Do Boards' && heads[1] === 'Idea Boards' && heads[2] === 'Note Boards',
        JSON.stringify(heads));
 
-    // A board created from the rail auto-categorizes to Unsorted.
-    await page.click('#pane-new');
+    // A board created from a section's own control lands in that section, and
+    // the write is explicit now (issue #88): category + catStamp on the record.
+    await page.click('.board-cat[data-cat="unsorted"] .cat-add');
     await page.waitForTimeout(700);
-    ok('new board appears in Unsorted', await page.evaluate(() =>
+    ok('new board appears in Note Boards', await page.evaluate(() =>
       document.querySelectorAll('.board-cat[data-cat="unsorted"] .pane-card').length === 2 &&
       !document.querySelector('.board-cat[data-cat="todo"] .pane-card') &&
       !document.querySelector('.board-cat[data-cat="idea"] .pane-card')));
+    ok('the created record carries category:"unsorted" + catStamp', await page.evaluate(async () => {
+      const all = await idbGetAll();
+      const rec = all.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
+      return rec.category === 'unsorted' && typeof rec.catStamp === 'number';
+    }));
 
     // Pointer-drag the inactive card onto To-Do.
     const beforeId = await page.evaluate(() => current.id);
@@ -1002,6 +1008,100 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(550);
     ok('Copy with two selected joins the texts, primary first', await page.evaluate(() =>
       navigator.clipboard.readText().then(t => t === 'two\none', () => false)));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  console.log('\n[D20] Per-category New board on the rail: head row, pager below, create-in-category (issue #88)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    // Seed enough that Note Boards pages — the pager row is under test too.
+    await page.evaluate(async () => {
+      for (let i = 0; i < 5; i++) {
+        const r = newBoardRecord();
+        r.title = 'Fill ' + i;
+        r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
+        await idbPut(r);
+      }
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+
+    ok('the global New board buttons are gone', await page.evaluate(() =>
+      !document.querySelector('#new-board') && !document.querySelector('#pane-new')));
+    const heads = await page.evaluate(() =>
+      [...document.querySelectorAll('#pane-cards .cat-head span')].map(s => s.textContent));
+    ok('labels read To-Do / Idea / Note Boards',
+       heads.join('|') === 'To-Do Boards|Idea Boards|Note Boards', JSON.stringify(heads));
+
+    const geo = await page.evaluate(() =>
+      [...document.querySelectorAll('#pane-cards .board-cat')].map(sec => {
+        const s = sec.getBoundingClientRect();
+        const adds = sec.querySelectorAll('.cat-add');
+        const a = adds[0] && adds[0].getBoundingClientRect();
+        const h = sec.querySelector('.cat-head').getBoundingClientRect();
+        const cards = sec.querySelector('.cat-cards');
+        const pager = sec.querySelector('.cat-pager');
+        const kids = pager && !pager.hidden
+          ? [...pager.children].map(k => k.getBoundingClientRect()) : null;
+        return {
+          adds: adds.length,
+          addRight: a ? Math.abs(a.right - s.right) : 99,
+          headH: h.height, addH: a ? a.height : 0,
+          headOverflow: sec.querySelector('.cat-head span').scrollWidth >
+                        sec.querySelector('.cat-head span').clientWidth + 1,
+          pagerVisible: !!kids,
+          pagerBelow: kids
+            ? pager.getBoundingClientRect().top >= cards.getBoundingClientRect().bottom : null,
+          pagerCentre: kids
+            ? Math.abs((Math.min(...kids.map(k => k.left)) +
+                        Math.max(...kids.map(k => k.right))) / 2 - (s.left + s.width / 2))
+            : null,
+          clip: cards.scrollHeight <= cards.clientHeight + 1,
+        };
+      }));
+    ok('one New board per section, anchored right (±1)', geo.length === 3 &&
+       geo.every(g => g.adds === 1 && g.addRight <= 1),
+       JSON.stringify(geo.map(g => [g.adds, g.addRight])));
+    ok('the head row is one box: header height = button height',
+       geo.every(g => Math.abs(g.headH - g.addH) < 0.5),
+       JSON.stringify(geo.map(g => [g.headH, g.addH])));
+    ok('the control clears B23\'s 24px floor', geo.every(g => g.addH >= 24),
+       JSON.stringify(geo.map(g => g.addH)));
+    ok('no header truncates beside its control', geo.every(g => !g.headOverflow),
+       JSON.stringify(geo.map(g => g.headOverflow)));
+    const paged = geo.filter(g => g.pagerVisible);
+    ok('a visible pager is under test', paged.length >= 1, String(paged.length));
+    ok('the pager sits below the cards', paged.every(g => g.pagerBelow));
+    ok('and centres on its section (±1)', paged.every(g => g.pagerCentre <= 1),
+       JSON.stringify(paged.map(g => g.pagerCentre)));
+    ok('no section overflows its clip', geo.every(g => g.clip));
+    ok('the rail itself does not scroll', await page.evaluate(() => {
+      const p = document.querySelector('#pane-cards');
+      return p.scrollHeight <= p.clientHeight + 1;
+    }));
+
+    // Click To-Do's own control: B18's window, then the swap opens it IN To-Do.
+    const before = await page.evaluate(() => current.id);
+    await page.click('.board-cat[data-cat="todo"] .cat-add');
+    await page.waitForTimeout(80);
+    ok('acknowledged inside the window: .cat-add.tapped, no swap yet (B18)',
+       await page.evaluate((id) =>
+         !!document.querySelector('.cat-add.tapped') && current.id === id, before));
+    await page.waitForTimeout(700);                      // delayAction 400 + swap 260
+    const rec = await page.evaluate(async () => {
+      const all = await idbGetAll();
+      const newest = all.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
+      const first = document.querySelector('.board-cat[data-cat="todo"] .pane-card');
+      return { cat: newest.category, stamp: typeof newest.catStamp,
+               opened: newest.id === current.id,
+               firstInTodo: !!first && first.dataset.id === newest.id };
+    });
+    ok('the record is written into To-Do, stamped, and open',
+       rec.cat === 'todo' && rec.stamp === 'number' && rec.opened, JSON.stringify(rec));
+    ok('and its card lands first in To-Do', rec.firstInTodo, JSON.stringify(rec));
+    ok('and it is a new board, not the one that was open',
+       await page.evaluate(() => current.id) !== before);
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
