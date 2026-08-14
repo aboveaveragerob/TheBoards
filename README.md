@@ -71,8 +71,9 @@ mouse-and-keyboard grammar (tablets stay in touch mode):
   selected, a click still creates a note. Parking Lot lines select the same
   way, with their buttons at the row's right edge. There is no click-and-hold.
 - A **board rail** on the left lists every board, newest first, with the open
-  board marked. Click a card to switch (a brief crossfade), **New board** at
-  the top to create, the active card's 🗑 to delete the open board — or
+  board marked. Click a card to switch (a brief crossfade), a category's own
+  **New board** button to create a board in that section and open it, the
+  active card's 🗑 to delete the open board — or
   **right-click any card** to export or delete it. Deletes keep the 5-second
   Undo; Export writes the board to a PDF, whether or not that board is open.
 - **Esc** deselects (or commits an edit), **Delete** removes the selection,

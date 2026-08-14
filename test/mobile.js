@@ -1058,7 +1058,7 @@ const activeIsNoteText = page => page.evaluate(() =>
   // The mobile twin of desktop's [D16]. Everything here rides genuine touch
   // events, never synthesized clicks (B27b): the drag IS the feature, and it
   // is the browser's touch pipeline that has to deliver it.
-  console.log('\n[19] List categories: To-Do / Idea / Unsorted, touch-drag between, pager (issue #74)');
+  console.log('\n[19] List categories: To-Do / Idea / Note, touch-drag between, pager (issue #74)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     // A second board, so Unsorted holds one the drag can move without it also
@@ -1077,7 +1077,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     const heads = await page.evaluate(() =>
       [...document.querySelectorAll('#list-rows .cat-head span')].map(s => s.textContent));
     ok('three category headers in order', heads.length === 3 &&
-       heads[0] === 'To-Do Boards' && heads[1] === 'Idea Boards' && heads[2] === 'Unsorted Boards',
+       heads[0] === 'To-Do Boards' && heads[1] === 'Idea Boards' && heads[2] === 'Note Boards',
        JSON.stringify(heads));
 
     // Category is read-site defaulted (B21 idiom): a record that never had one
@@ -1254,6 +1254,112 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('a page turn opened no board',
        await page.evaluate(() => document.querySelector('#list-view').hidden === false));
 
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 20. per-category creation (issue #88, B63) -------------------------
+  // Each section carries its own New board control on the head row; the pager
+  // moved below the cards, centred; the global buttons are gone. Creating
+  // rides genuine touch events like everything mobile (B27b).
+  console.log('\n[20] Per-category New board: head row, pager below, create-in-category (issue #88)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    // Seed enough that Note Boards pages — the pager row is under test too.
+    await page.evaluate(async () => {
+      for (let i = 0; i < 5; i++) {
+        const r = newBoardRecord();
+        r.title = 'Fill ' + i;
+        r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
+        await idbPut(r);
+      }
+    });
+    await page.reload();
+    await page.waitForTimeout(500);
+    await page.evaluate(() => goToList());
+    await page.waitForTimeout(300);
+
+    ok('the global New board buttons are gone', await page.evaluate(() =>
+      !document.querySelector('#new-board') && !document.querySelector('#pane-new')));
+    const heads = await page.evaluate(() =>
+      [...document.querySelectorAll('#list-rows .cat-head span')].map(s => s.textContent));
+    ok('labels read To-Do / Idea / Note Boards',
+       heads.join('|') === 'To-Do Boards|Idea Boards|Note Boards', JSON.stringify(heads));
+
+    const geo = await page.evaluate(() =>
+      [...document.querySelectorAll('#list-rows .board-cat')].map(sec => {
+        const s = sec.getBoundingClientRect();
+        const adds = sec.querySelectorAll('.cat-add');
+        const a = adds[0] && adds[0].getBoundingClientRect();
+        const h = sec.querySelector('.cat-head').getBoundingClientRect();
+        const cards = sec.querySelector('.cat-cards');
+        const pager = sec.querySelector('.cat-pager');
+        const kids = pager && !pager.hidden
+          ? [...pager.children].map(k => k.getBoundingClientRect()) : null;
+        return {
+          adds: adds.length,
+          addRight: a ? Math.abs(a.right - s.right) : 99,
+          headH: h.height, addH: a ? a.height : 0, addW: a ? a.width : 0,
+          headOverflow: sec.querySelector('.cat-head span').scrollWidth >
+                        sec.querySelector('.cat-head span').clientWidth + 1,
+          pagerVisible: !!kids,
+          pagerBelow: kids
+            ? pager.getBoundingClientRect().top >= cards.getBoundingClientRect().bottom : null,
+          pagerCentre: kids
+            ? Math.abs((Math.min(...kids.map(k => k.left)) +
+                        Math.max(...kids.map(k => k.right))) / 2 - (s.left + s.width / 2))
+            : null,
+          clip: cards.scrollHeight <= cards.clientHeight + 1,
+        };
+      }));
+    ok('one New board per section, anchored right (±1)', geo.length === 3 &&
+       geo.every(g => g.adds === 1 && g.addRight <= 1),
+       JSON.stringify(geo.map(g => [g.adds, g.addRight])));
+    ok('the head row is one box: header height = button height',
+       geo.every(g => Math.abs(g.headH - g.addH) < 0.5),
+       JSON.stringify(geo.map(g => [g.headH, g.addH])));
+    ok('the control clears the 44px touch floor',
+       geo.every(g => g.addH >= 44 && g.addW >= 44),
+       JSON.stringify(geo.map(g => [g.addW, g.addH])));
+    ok('no header truncates beside its control', geo.every(g => !g.headOverflow),
+       JSON.stringify(geo.map(g => g.headOverflow)));
+    const paged = geo.filter(g => g.pagerVisible);
+    ok('a visible pager is under test', paged.length >= 1, String(paged.length));
+    ok('the pager sits below the cards', paged.every(g => g.pagerBelow));
+    ok('and centres on its section (±1)', paged.every(g => g.pagerCentre <= 1),
+       JSON.stringify(paged.map(g => g.pagerCentre)));
+    ok('no section overflows its clip', geo.every(g => g.clip));
+    ok('the list view itself does not scroll', await page.evaluate(() => {
+      const v = document.querySelector('#list-view');
+      return v.scrollHeight <= v.clientHeight + 1;
+    }));
+
+    // Tap To-Do's own control: B18's window, then the board opens IN To-Do.
+    const before = await page.evaluate(() => current.id);
+    const btn = await page.evaluate(() => {
+      const r = document.querySelector('.board-cat[data-cat="todo"] .cat-add')
+        .getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await tap(page, btn.x, btn.y);
+    await page.waitForTimeout(80);
+    ok('acknowledged inside the window: .cat-add.tapped, list still up (B18)',
+       await page.evaluate(() =>
+         !!document.querySelector('.cat-add.tapped') &&
+         document.querySelector('#list-view').hidden === false));
+    await page.waitForTimeout(600);
+    ok('the window closed onto the new board', await page.evaluate(() =>
+      document.querySelector('#list-view').hidden !== false));
+    const rec = await page.evaluate(async () => {
+      const all = await idbGetAll();
+      const newest = all.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
+      return { cat: newest.category, stamp: typeof newest.catStamp,
+               opened: newest.id === current.id };
+    });
+    ok('the record is written into To-Do, stamped, and open',
+       rec.cat === 'todo' && rec.stamp === 'number' && rec.opened, JSON.stringify(rec));
+    ok('and it is a new board, not the one that was open',
+       await page.evaluate(() => current.id) !== before);
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

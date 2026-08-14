@@ -32,13 +32,14 @@ const LONGPRESS_MS = 500;
 const HIT_FLOOR = 44;                // px physical (PRD §5.3, UIUX §6) — mobile
 const HIT_FLOOR_DESKTOP = 24;        // WCAG 2.5.8 AA; a 44px collar swallows dismiss clicks (issue #12)
 const PANE_W = 300;                  // CSS px; unscaled width of the desktop board rail
-const PANE_CAT_HEAD = 24;            // .cat-head flex-basis, desktop (issue #58)
-const PANE_PAGER_H = 32;             // .cat-pager flex-basis, desktop (issue #58)
-// Mobile stacks the same three children into two rows: label and pager share one
-// strip so the third that is left goes to boards (B44). 48 = HIT_FLOOR's 44px
-// pager button plus the 2px above and below that keeps it off the cards — the
-// constant covers the whole strip, so catPageCap()'s budget stays exact.
-const LIST_CAT_STRIP = 48;           // .board-cat head/pager row, mobile (issue #74)
+const PANE_CAT_HEAD = 32;            // .cat-head/.cat-add row, desktop (issue #88)
+const PANE_PAGER_H = 32;             // .cat-pager row, desktop (issue #58)
+// Mobile spends two of these rows per section (B63): the head row — label
+// left, the category's own New board control right — above the cards, and the
+// pager row below them. 48 = HIT_FLOOR's 44px control plus the 2px above and
+// below that keeps it off the cards — the constant covers the whole row, so
+// catPageCap()'s budget stays exact.
+const LIST_CAT_ROW = 48;             // .board-cat head/pager rows, mobile (issues #74, #88)
 const PANE_ROW_H = 56;               // .pane-card / .board-row min-height
 const PANE_ROW_GAP = 8;              // .cat-cards flex gap
 const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
@@ -70,8 +71,12 @@ const COPY = {
   exportLossy: 'Some characters aren’t in the PDF font.',
   saveError: 'Couldn’t save — retrying.',
   untitled: 'What’s up?',
-  // The rail's three categories (issue #58) and its pager's aria-labels.
-  catTodo: 'To-Do Boards', catIdea: 'Idea Boards', catUnsorted: 'Unsorted Boards',
+  // The three categories (issue #58; the third renamed at the label only —
+  // its storage key stays 'unsorted', B63) and their controls' labels. catNew
+  // is generic on purpose: the enclosing group's aria-label disambiguates the
+  // three, the same way it disambiguates the pager's twelve.
+  catTodo: 'To-Do Boards', catIdea: 'Idea Boards', catUnsorted: 'Note Boards',
+  catNew: 'New board',
   pageFirst: 'First page', pagePrev: 'Previous page',
   pageNext: 'Next page', pageLast: 'Last page',
 };
@@ -209,11 +214,9 @@ const el = {
   lot: document.getElementById('lot'),
   listView: document.getElementById('list-view'),
   listRows: document.getElementById('list-rows'),
-  newBoard: document.getElementById('new-board'),
   menu: document.getElementById('menu'),
   toast: document.getElementById('toast'),
   pane: document.getElementById('pane'),
-  paneNew: document.getElementById('pane-new'),
   paneCards: document.getElementById('pane-cards'),
 };
 const anchorEls = {
@@ -2586,12 +2589,14 @@ function fillRowContent(node, b) {
 }
 
 /* The three categories (issue #58 / B42, extended to the list view by issue #74
-   / B44): To-Do, Idea, Unsorted — one third each, top to bottom, on whichever
+   / B44): To-Do, Idea, Note — one third each, top to bottom, on whichever
    surface is showing. Category is read-site defaulted, the B21 idiom: a record
-   without one IS Unsorted, so pre-#58 boards and new boards land there by
-   writing nothing — no migration, no DB version bump. In-category order is
-   catStamp (written on drop, = moved-to-top) falling back to createdAt, with
-   B24's immutable comparator as tiebreak. */
+   without one IS the third bucket (storage key 'unsorted'; B63 renamed only
+   its label), so pre-#58 boards need no migration and no DB version bump.
+   Since B63 every new board writes its category (+ catStamp) explicitly at
+   creation — the read-site default now covers only the legacy records.
+   In-category order is catStamp (written on drop or create, = moved-to-top)
+   falling back to createdAt, with B24's immutable comparator as tiebreak. */
 const BOARD_CATS = ['todo', 'idea', 'unsorted'];
 const CAT_COPY = { todo: 'catTodo', idea: 'catIdea', unsorted: 'catUnsorted' };
 const catOf = (b) =>
@@ -2613,17 +2618,17 @@ function catPageCap() {
   const host = isDesktop ? el.paneCards : el.listRows;
   if (!host) return 1;
   // A third of the surface, minus the section's own furniture, in whole rows.
-  // Desktop stacks the head above the cards and the pager below; mobile merges
-  // both into one strip (B44). The pager's slot is reserved even when a single
+  // Both surfaces stack the head row above the cards and the pager row below
+  // (B63 unmerges B44's strip). The pager's slot is reserved even when a single
   // page hides it, so the budget cannot flap between one- and many-page states.
   const catH = (host.clientHeight - PANE_ROW_GAP * (BOARD_CATS.length - 1)) / BOARD_CATS.length;
-  const furniture = isDesktop ? PANE_CAT_HEAD + PANE_PAGER_H : LIST_CAT_STRIP;
+  const furniture = isDesktop ? PANE_CAT_HEAD + PANE_PAGER_H : LIST_CAT_ROW * 2;
   return Math.max(1, Math.floor((catH - furniture) / (PANE_ROW_H + PANE_ROW_GAP)));
 }
 
-/* One section, both surfaces: head, cards, pager — the same three children
-   everywhere, so the merged mobile strip is a CSS grid decision and not a
-   second DOM shape. `makeCard` is what differs (a rail card or a list row). */
+/* One section, both surfaces: head, add, cards, pager — the same four children
+   everywhere, so the two skins are a CSS grid decision and not a second DOM
+   shape. `makeCard` is what differs (a rail card or a list row). */
 function makeCatSection(cat, boards, cap, makeCard) {
   const pages = Math.max(1, Math.ceil(boards.length / cap));
   catPage[cat] = Math.max(0, Math.min(catPage[cat], pages - 1));
@@ -2646,6 +2651,16 @@ function makeCatSection(cat, boards, cap, makeCard) {
   label.textContent = name;
   head.appendChild(label);
   sec.appendChild(head);
+
+  // The category's own create control (issue #88 / B63): a grid sibling of
+  // the head, never a child — .cat-head is aria-hidden, and a button inside
+  // it would be unreachable to AT. Its name is generic three times over, like
+  // the pager's: the group's aria-label says which section it makes boards in.
+  const add = document.createElement('button');
+  add.type = 'button'; add.className = 'primary-btn cat-add';
+  add.textContent = COPY.catNew;
+  add.addEventListener('click', () => delayAction(add, () => newBoardIn(cat)));
+  sec.appendChild(add);
 
   const cards = document.createElement('div');
   cards.className = 'cat-cards'; cards.setAttribute('role', 'list');
@@ -2699,6 +2714,20 @@ function makePagerBtn(key, disabled, go) {
   return b;
 }
 
+/* A re-render rebuilds every node — including a focused .cat-add, which lives
+   inside the rebuilt host unlike the retired global buttons. Both renderers
+   put focus back on its successor, goCatPage's stance exactly: a keyboard
+   user creates (and rides the follow-up re-render) without re-tabbing. */
+function focusedCatAdd() {
+  const a = document.activeElement;
+  return a && a.classList && a.classList.contains('cat-add')
+    ? a.closest('.board-cat').dataset.cat : null;
+}
+function refocusCatAdd(host, cat) {
+  const b = cat && host.querySelector('.board-cat[data-cat="' + cat + '"] .cat-add');
+  if (b) b.focus();
+}
+
 /* The drop writes category + catStamp = Date.now() — which IS moved-to-top,
    by the sort key. Whole-record puts (B13) make the write site two-headed:
    the open board mutates `current` and saves now (putting any snapshot would
@@ -2730,10 +2759,12 @@ async function renderList() {
     buckets[catOf(rec)].push(rec);
   }
   catCap = catPageCap();
+  const focusCat = focusedCatAdd();
   el.listRows.textContent = '';
   for (const cat of BOARD_CATS)
     el.listRows.appendChild(
       makeCatSection(cat, buckets[cat].sort(catOrder), catCap, makeListRow));
+  refocusCatAdd(el.listRows, focusCat);
 }
 
 function makeListRow(b) {
@@ -2886,12 +2917,27 @@ function openBoardObj(board) {
   renderBoard();
 }
 
-async function newBoard() {
+/* Creation lives in the categories (issue #88 / B63): each section's own New
+   board control writes the category it sits in — explicitly, 'unsorted'
+   included (dropBoardCard's precedent; catOf stays a read-site default) — and
+   stamps catStamp so the new board lands first, like a drop. The board opens
+   at once, on either surface: a control that made something you then had to
+   go find would tax the very moment it exists to serve. */
+async function newBoardIn(cat) {
   finalizeItemUndo();                                   // see swapBoard (finding 1)
   const board = newBoardRecord();
+  board.category = cat;
+  board.catStamp = Date.now();                          // lands first by catOrder, like a drop
   await idbPut(board);
+  catPage[cat] = 0;                                     // the new card's page — show it
+  // The branch is the routing invariant, not the mode: history.back() is only
+  // lawful while the list's pushed state is still on the stack. An OS back
+  // gesture or a mode flip inside delayAction's window clears listOpen before
+  // this fires — then the swap opens the board without popping an entry the
+  // list no longer owns (B9 untouched; the swap's renderPane no-ops off-desktop).
+  if (!listOpen) { swapBoard(board.id); return; }
   current = board;
-  history.back();                                       // page-turn back to the board
+  history.back();                                       // page-turn back to the board (B9)
 }
 
 /* --- 11.5 Desktop board pane (issues #9 / #10 / #14) ---------------------- */
@@ -2924,8 +2970,8 @@ async function swapBoard(id) {
 }
 
 /* The rail renders the shared three sections (§11): same law, same paging,
-   same drag as the mobile list — the rail just skins them as a stacked head,
-   cards and pager instead of the list's merged strip (B44). */
+   same drag, same head/add/cards/pager grid as the mobile list (B63) — the
+   rail's skin only tightens the row heights and the control's label. */
 async function renderPane() {
   if (!isDesktop || !el.paneCards) return;
   // A re-render tears the captured card out from under a live drag — pointerup
@@ -2941,10 +2987,12 @@ async function renderPane() {
     buckets[catOf(rec)].push(rec);
   }
   catCap = catPageCap();
+  const focusCat = focusedCatAdd();
   el.paneCards.textContent = '';
   for (const cat of BOARD_CATS)
     el.paneCards.appendChild(
       makeCatSection(cat, buckets[cat].sort(catOrder), catCap, makePaneRow));
+  refocusCatAdd(el.paneCards, focusCat);
 }
 
 function makePaneRow(b) {
@@ -3007,15 +3055,6 @@ function updateActiveCardTitle() {
   titleEl.classList.toggle('untitled', !titled);
 }
 
-/* Desktop new-board: same filled control as the list view (shared class), its
-   own listener — the mobile path ends in history.back(), which desktop never
-   pushed. The new board's card appears at the top (createdAt order). */
-el.paneNew.addEventListener('click', () => delayAction(el.paneNew, async () => {
-  const board = newBoardRecord();
-  await idbPut(board);
-  swapBoard(board.id);
-}));
-
 function goToList() {
   if (listOpen) return;
   history.pushState({ v: 'list' }, '');
@@ -3048,8 +3087,6 @@ window.addEventListener('popstate', () => {
   if (history.state && history.state.v === 'list') { showList(); }
   else { showBoardFromList(); }
 });
-
-el.newBoard.addEventListener('click', () => delayAction(el.newBoard, newBoard));
 
 /* --- 12. Boot + service worker ------------------------------------------- */
 window.addEventListener('resize', onViewportResize);

@@ -565,12 +565,12 @@ body {
   padding: 16px 20px;
 }
 #list-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
-/* The app's single primary control (UIUX §14, refilled by B59): the accent
-   about boards on the control that makes one — --accent-page behind
-   --ink-dark, wearing the shared tactile signature — offset shadow and
-   press-translate — that makes a control feel like a control. Instant
-   (UIUX §8). Shared by the list view's New board and the desktop pane's
-   (issue #10). */
+/* The primary species (UIUX §14, refilled by B59; moved into the categories
+   by B63): the accent about boards on the controls that make one —
+   --accent-page behind --ink-dark, wearing the shared tactile signature —
+   offset shadow and press-translate — that makes a control feel like a
+   control. Instant (UIUX §8). Worn by every category's own New board control
+   (.cat-add), on both surfaces; the globals it dressed are gone. */
 .primary-btn {
   min-height: 44px;                    /* UIUX §6 */
   padding: 0 18px;
@@ -650,25 +650,26 @@ body {
   color: var(--ink);
 }
 
-/* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44) ----------------
-   Three equal sections — To-Do, Idea, Unsorted — on both the mobile list and
-   the desktop rail, from one DOM shape: head, cards, pager. Overflow turns
+/* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44, issue #88 / B63) --
+   Three equal sections — To-Do, Idea, Note — on both the mobile list and the
+   desktop rail, from one DOM shape: head, add, cards, pager. Overflow turns
    pages, never scrolls, so .cat-cards clips and the pager below navigates.
 
-   Mobile merges the head and the pager onto one LIST_CAT_STRIP (44px) row so
-   the rest of each third goes to boards — three per page instead of two (B44).
-   Desktop stacks them, and restates its own fixed heights below; those numbers
-   are shared law with app.js, where catPageCap() derives the card budget from
-   them (head 24 + pager 32, or the 44px strip). ---- */
+   One grid on both surfaces (B63): the head row holds the category's label
+   left and its own New board control right, one box height; the pager row
+   sits below the cards, centred. The fixed row heights are shared law with
+   app.js, where catPageCap() derives the card budget from them — mobile
+   spends LIST_CAT_ROW (48) twice, desktop PANE_CAT_HEAD + PANE_PAGER_H
+   (32 + 32), restated below. ---- */
 .board-cat {
   flex: 1 1 0;
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: 48px 1fr;        /* = LIST_CAT_STRIP in app.js */
-  grid-template-areas: "head pager" "cards cards";
+  grid-template-rows: 48px 1fr 48px;   /* = LIST_CAT_ROW in app.js, twice */
+  grid-template-areas: "head add" "cards cards" "pager pager";
   align-items: center;
-  column-gap: 8px;                     /* the label never touches the pager */
+  column-gap: 8px;                     /* the label never touches the control */
 }
 /* Mid-drag landing frame: the section under the pointer is where the board
    will move on release. Drawn just inside the section — the surface clips (it
@@ -681,8 +682,10 @@ body {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  font-size: 12px;
+  min-height: 44px;                    /* one box with the control beside it (B63) */
+  font-size: 24px;                     /* the display step (UIUX §13.1, B63) */
   font-weight: 600;
+  line-height: 1;                      /* one line; the row, not the type, sets the box */
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ink);                   /* the ground's pole (UIUX §16.2) */
@@ -692,6 +695,16 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;             /* truncation always indicated (§10) */
   white-space: nowrap;
+}
+/* The per-category create control (issue #88 / B63): the primary species,
+   sized to the head row it shares with the label — its own label steps to
+   14px (§13.1) so the 24px header keeps its whole name beside it at B32's
+   384px floor. */
+.cat-add {
+  grid-area: add;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 14px;
 }
 .cat-cards {
   grid-area: cards;
@@ -708,12 +721,14 @@ body {
    its edge against both the fill and the surface. The n/m indicator sits
    between ‹ and ›: it says which page the arrows are on, so it travels with
    them, and one page hides the whole strip at once (§10: no state, no
-   statement). Mobile sizes to HIT_FLOOR; desktop to B23's 24px floor. */
+   statement). Centred on its own row below the cards (B63 — the issue's word
+   over the mockups' right lean). Mobile sizes to HIT_FLOOR; desktop to B23's
+   24px floor. */
 .cat-pager {
   grid-area: pager;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 0;
 }
 /* Adjacent buttons share their border, the seam .pane-del already uses: at
@@ -808,25 +823,27 @@ html.desktop #pane {
   gap: 8px;
 }
 
-/* ---- Rail categories: the desktop skin of the shared §10.5 section. Same
-   three children, restacked — head above the cards, pager below — and sized
-   for the desktop pointer rather than a fingertip. The fixed heights here are
-   shared law with app.js: head = PANE_CAT_HEAD (24), pager = PANE_PAGER_H
-   (32), row = 56 + 8 gap; catPageCap() derives the card budget from them. ---- */
+/* ---- Rail categories: the desktop skin of the shared §10.5 grid. Same four
+   children, same areas — only the row heights and the control's size step
+   down, for the desktop pointer rather than a fingertip. The fixed heights
+   here are shared law with app.js: head row = PANE_CAT_HEAD (32), pager row
+   = PANE_PAGER_H (32), row = 56 + 8 gap; catPageCap() derives the card
+   budget from them. ---- */
 html.desktop .board-cat {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  grid-template-rows: 32px 1fr 32px;   /* = PANE_CAT_HEAD / PANE_PAGER_H in app.js */
 }
-html.desktop .cat-head {
-  flex: 0 0 24px;                      /* = PANE_CAT_HEAD in app.js */
+/* The header steps back to the scale's own top step on the rail (B63): at
+   24px the longest name sets 215px, and the rail's 276px cannot hold that
+   beside any legible control — the category name is never crowded off its
+   own row (B44's refusal, restated). The control's label steps to 13px
+   beside it — one box height either way. */
+html.desktop .cat-head { min-height: 32px; font-size: 18px; }
+html.desktop .cat-add {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
 }
-html.desktop .cat-pager {
-  flex: 0 0 32px;                      /* = PANE_PAGER_H in app.js */
-  align-items: flex-end;
-  justify-content: center;
-  gap: 8px;
-}
+html.desktop .cat-pager { gap: 8px; }
 html.desktop .cat-pages { font-size: 11px; letter-spacing: 0; padding: 0 2px; }
 /* Past WCAG 2.5.8's 24px floor (B23) — a fingertip's 44px is not needed here,
    and four of them would crowd a 300px rail. The rail has the room to space
