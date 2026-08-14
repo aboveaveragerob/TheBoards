@@ -42,10 +42,13 @@ const LIST_CAT_STRIP = 48;           // .board-cat head/pager row, mobile (issue
 const PANE_ROW_H = 56;               // .pane-card / .board-row min-height
 const PANE_ROW_GAP = 8;              // .cat-cards flex gap
 const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
-const SWAP_MS = 150;                 // board-swap crossfade; sequenced by timeout (§8-safe)
+// Three durations paired to styles.css §8 values — they move together
+// (PRD §9.5): the 200ms set and the 260ms board swap, on §8's one curve.
+const SWAP_MS = 260;                 // board-swap crossfade; sequenced by timeout (§8-safe)
 const SAVE_DEBOUNCE = 300;
 const UNDO_MS = 5000;
-const LEAVE_MS = 120;
+const LEAVE_MS = 200;
+const TOAST_HIDE_MS = 210;           // just past the toast's 200ms fade before hidden lands
 const ACTION_DELAY = 400;            // click → action; the window is acknowledged, not idle
 
 const COPY = {
@@ -72,15 +75,34 @@ const COPY = {
   pageFirst: 'First page', pagePrev: 'Previous page',
   pageNext: 'Next page', pageLast: 'Last page',
 };
-// ⇩ is "out of the app, down to the device". Not ↓ (the browser-download
-// convention, borrowed rather than reasoned) and not 📄, which restates the
-// noun and puts a colour emoji against ▦'s geometric weight.
-// ⧉ is "this, again, elsewhere" — two frames, one content; the note motif
-// doubled, in the set's geometric weight.
-const GLYPH = { complete: '✓', restore: '↺', boards: '▦', export: '⇩', copy: '⧉', delete: '🗑',
-                // Pager arrows (issue #58): guillemets read as "page" not
-                // "play", and they carry no emoji colour against the rail.
-                pageFirst: '«', pagePrev: '‹', pageNext: '›', pageLast: '»' };
+/* The marks are drawn, not typed (UIUX §13.3, B50): inline SVG in
+   currentColor, at the note's own stroke weight and corner radius, so the
+   icon set is literally in the same hand as the board. A typed symbol falls
+   back to whatever the platform supplies — Android, iOS and Windows drawing
+   the app's marks in three different voices — which is the objection this
+   file already raised against 🗑 alone, multiplied by six.
+
+   Semantics carried forward unchanged: export is "out of the app, down to
+   the device", not a borrowed browser-download arrow; copy is "this, again,
+   elsewhere" — two frames, one content; guillemets read as "page", not
+   "play". Drawn whole, guillemets included: one voice beats one saved path.
+   Impermanent — a mark that proves unreadable at 16px is redrawn, not
+   swapped back to a code point. */
+const MARK = (w, d) =>
+  `<svg width="${w}" height="${w}" viewBox="0 0 16 16" fill="none" stroke="currentColor" ` +
+  `stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const GLYPH = {
+  complete: MARK(16, '<path d="M2.5 9l4 4L13.5 3.5"/>'),
+  restore:  MARK(16, '<path d="M1.5 2.5v4h4"/><path d="M2.3 10a6 6 0 1 0 1.4-6.2L1.5 6.5"/>'),
+  boards:   MARK(16, '<rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M8 1.5V14.5M1.5 8H14.5"/>'),
+  export:   MARK(16, '<path d="M8 1.5V9M5 6.5L8 9.5 11 6.5"/><path d="M2 12.5h12"/>'),
+  copy:     MARK(16, '<path d="M3 10.5V3.5a2 2 0 0 1 2-2h7"/><rect x="5.5" y="5.5" width="9" height="9" rx="2"/>'),
+  delete:   MARK(16, '<path d="M2 4.5h12M5.5 4.5V3a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 10.5 3v1.5M3.8 4.5l.6 8.6a1.5 1.5 0 0 0 1.5 1.4h4.2a1.5 1.5 0 0 0 1.5-1.4l.6-8.6"/>'),
+  pageFirst: MARK(14, '<path d="M12.5 2.5L7 8l5.5 5.5"/><path d="M8 2.5L2.5 8 8 13.5"/>'),
+  pagePrev:  MARK(14, '<path d="M10 2.5L4.5 8 10 13.5"/>'),
+  pageNext:  MARK(14, '<path d="M6 2.5L11.5 8 6 13.5"/>'),
+  pageLast:  MARK(14, '<path d="M3.5 2.5L9 8l-5.5 5.5"/><path d="M8 2.5L13.5 8 8 13.5"/>'),
+};
 
 // contenteditable mode: prefer plaintext-only (Chromium/Samsung Internet — the
 // Z Fold target); fall back to "true" where unsupported so text still captures.
@@ -261,7 +283,9 @@ function applyLayout() {
   el.board.style.setProperty('--rs', renderScale);
   el.board.style.setProperty('--offx', offX + 'px');
   el.board.style.setProperty('--offy', offY + 'px');
-  el.board.style.setProperty('--lot-h', lotH() + 'px');
+  // Both sections size to their content (B47): the band re-measures because a
+  // width change re-wraps the zone anchors, the lot because rows may re-cap.
+  updateBoardGeometry();
   // Re-derive each note's on-sheet x, y AND size (proportional across frames —
   // the multiplier tracks LOGICAL_W, issue #57) and its decoupled hit area
   // (physical size changed). Width cap FIRST (issue #53): setHitInset measures
@@ -391,15 +415,49 @@ function applyNoteWidth(node, note) {
   node.style.setProperty('--note-max-w', noteMaxW(note) + 'px');
 }
 
-/* The Parking Lot's visible row budget (B37, issue #49). Whole rows only: a row
-   is a 44px hit target (§6) and #lot-items clips, so a fraction of the sheet
-   would draw a row cut in half. Three rows plus the 16px bottom margin is 182 —
-   fine on the 1000-unit reference sheet at 18%, a quarter of a 737-unit phone.
-   Below 900 the lot drops to two. It is chosen here rather than in CSS for the
-   same reason --note-max-w is: CSS cannot step a length by whole rows.
-   Desktop always takes three — B20 pins LOGICAL_H >= 1000. */
-const LOT_HEAD = 34, LOT_ROW = 44, LOT_3ROW_MIN_H = 900;
-const lotH = () => LOT_HEAD + LOT_ROW * (LOGICAL_H >= LOT_3ROW_MIN_H ? 3 : 2);
+/* Both ends of the sheet close the same way (B47, UIUX §3.1/§3.2): a section
+   sized by its content from a floor, whole units only, chosen here rather
+   than in CSS because CSS cannot step a length by lines or rows.
+
+   The band: rule-y = 14 + max(2, lines) x 19.5 + 8 + 16.9 + 10 — band-top,
+   the tallest zone's line count at 15px/1.3, the gap, B54's 13px/1.3 label,
+   and its 10px clearance above the rule. 88 at the two-line floor, 107 at
+   three lines, rounded to the pixel sheet 9 ships. */
+const BAND_TOP = 14, BAND_LINE = 19.5, BAND_GAP = 8, BAND_LABEL = 16.9, BAND_CLEAR = 10;
+function bandRuleY() {
+  let lines = 2;                       // the two-line floor
+  for (const key of ['components', 'requirements']) {
+    const node = anchorEls[key];
+    // scrollHeight is content + padding; the band anchor carries none, so it
+    // reads as whole line boxes (min-height 44 keeps the floor's answer 2).
+    if (node) lines = Math.max(lines, Math.round(node.scrollHeight / BAND_LINE));
+  }
+  return Math.round(BAND_TOP + lines * BAND_LINE + BAND_GAP + BAND_LABEL + BAND_CLEAR);
+}
+
+/* The Parking Lot's height follows its contents from a two-row floor:
+   34 + clamp(2, n, maxRows) x 44 (UIUX §3.2). Empty, one row and two rows
+   all draw the same two-row shelf — furniture, not a by-product of content.
+   B37's proportional bound survives as the CEILING, re-instantiated under
+   B47's full-bleed geometry (B57): B37 accepted 182 of a 900-unit sheet
+   with the old 16px margin, and three full-bleed rows are 166, so three
+   rows hold from 166 x 900 / 182 = 821 units — the cover screen included,
+   as both ratified proof sheets draw it — and two below. A row past the
+   ceiling still exists, still saves and still exports; it is simply not
+   drawn. */
+const LOT_HEAD = 34, LOT_ROW = 44, LOT_3ROW_MIN_H = 821;
+const lotMaxRows = () => (LOGICAL_H >= LOT_3ROW_MIN_H ? 3 : 2);
+const lotH = () => {
+  const n = current ? current.parkingLot.length : 0;
+  return LOT_HEAD + LOT_ROW * clamp(n, 2, lotMaxRows());
+};
+
+/* One site sets both sections' geometry, called wherever their content
+   changes: layout, anchor input, and every lot insertion/removal. */
+function updateBoardGeometry() {
+  el.board.style.setProperty('--rule-y', bandRuleY() + 'px');
+  el.board.style.setProperty('--lot-h', lotH() + 'px');
+}
 
 function setHitInset(node, note) {
   const w = node.offsetWidth, h = node.offsetHeight;   // logical (transform-independent)
@@ -465,7 +523,9 @@ function renderBoard() {
 
 function makeNoteEl(note) {
   const node = document.createElement('div');
-  node.className = 'note' + (note.state === 'complete' ? ' complete' : '');
+  // .on-light: the ink pole flips at the note's boundary (UIUX §2.3), and the
+  // scratch-out inside strikes in the note's own dark ink.
+  node.className = 'note on-light' + (note.state === 'complete' ? ' complete' : '');
   node.dataset.id = note.id;
   node.setAttribute('tabindex', '0');
   applyNoteWidth(node, note);                               // wrap at the sheet edge (issue #53)
@@ -901,6 +961,7 @@ function createLotItem() {
   current.parkingLot.push(item);
   const node = makeLotEl(item);
   el.lotItems.appendChild(node);
+  updateBoardGeometry();               // the shelf follows its rows (UIUX §3.2)
   const text = node.querySelector('.lot-text');
   enableEditing(text); text.focus(); caretToEnd(text);
   if (document.activeElement !== text) removeLotSilently(item, node);
@@ -1000,6 +1061,8 @@ el.board.addEventListener('input', (e) => {
     t.classList.toggle('filled', !!t.textContent.length);
     if (t.dataset.anchor === 'title') {
       if (isDesktop) updateActiveCardTitle();
+    } else {
+      updateBoardGeometry();           // the band sizes to its tallest zone, live (B47)
     }
     scheduleSave();
   }
@@ -1032,12 +1095,14 @@ function removeLotSilently(item, node) {
   const i = current.parkingLot.indexOf(item);
   if (i >= 0) current.parkingLot.splice(i, 1);
   node.remove(); lotEls.delete(item.id);
+  updateBoardGeometry();               // the shelf follows its rows (UIUX §3.2)
   saveNow();
 }
 function commitAnchor(node) {
   current[node.dataset.anchor] = node.textContent;
   node.classList.toggle('filled', !!node.textContent.length);
   if (isDesktop && node.dataset.anchor === 'title') renderPane(); // reconcile the date line
+  if (node.dataset.anchor !== 'title') updateBoardGeometry();     // the band follows its zones (B47)
   saveNow();
 }
 
@@ -1523,13 +1588,14 @@ function deleteLot(node) {
   const index = current.parkingLot.indexOf(item);
   const snapshot = JSON.parse(JSON.stringify(item));
   current.parkingLot.splice(index, 1);
-  leave(node, () => { node.remove(); lotEls.delete(item.id); });
+  leave(node, () => { node.remove(); lotEls.delete(item.id); updateBoardGeometry(); });
   saveNow();
   showUndo(() => {
     current.parkingLot.splice(index, 0, snapshot);
     const newNode = makeLotEl(snapshot);
     const ref = el.lotItems.children[index] || null;
     el.lotItems.insertBefore(newNode, ref);
+    updateBoardGeometry();             // the restored row regrows the shelf (UIUX §3.2)
     saveNow();
   });
 }
@@ -1615,7 +1681,7 @@ function hideToast() {
   delete el.toast.dataset.scope;
   delete el.toast.dataset.seq;
   el.toast.classList.remove('show');
-  setTimeout(() => { if (!el.toast.classList.contains('show')) el.toast.hidden = true; }, 160);
+  setTimeout(() => { if (!el.toast.classList.contains('show')) el.toast.hidden = true; }, TOAST_HIDE_MS);
 }
 /* A message with no action. `save` is persistent (hideSaveError clears it when
    the write lands); `export` and `copy` carry a ttl, because nothing later will
@@ -1778,7 +1844,8 @@ function buildMenu(items, clientX, clientY) {
     b.type = 'button';
     b.setAttribute('role', 'menuitem');
     if (it.danger) b.className = 'danger';
-    const g1 = document.createElement('span'); g1.className = 'glyph'; g1.setAttribute('aria-hidden', 'true'); g1.textContent = it.glyph;
+    // Drawn marks (UIUX §13.3): GLYPH holds app-owned SVG markup, not text.
+    const g1 = document.createElement('span'); g1.className = 'glyph'; g1.setAttribute('aria-hidden', 'true'); g1.innerHTML = it.glyph;
     const lb = document.createElement('span'); lb.textContent = it.label;
     b.appendChild(g1); b.appendChild(lb);
     // The menu holds open with the chosen item filled for the window, then
@@ -1873,14 +1940,17 @@ const PDF_ASC = 0.718, PDF_DESC = 0.207;   // Helvetica em box, for baselines
    them would make the same board a different document on every device. */
 const EXPORT_W = 900, EXPORT_H = 1000;
 
-/* Always the light palette. Dark mode is a screen affordance; --paper at
-   #1A161C prints as a slab of near-black and costs a cartridge to find out. */
-const PDF_PAPER = [0.933, 0.922, 0.937];   // --paper  #EEEBEF
-const PDF_INK   = [0.133, 0.110, 0.141];   // --ink    #221C24
-const PDF_SHADE = [0.514, 0.482, 0.533];   // --ink-shadow #837B88
-// The scratch-out is 0.97 opaque over paper; mixing it down beats carrying an
-// ExtGState object just to say so.
-const PDF_SCRATCH = PDF_INK.map((c, i) => c * 0.97 + PDF_PAPER[i] * 0.03);
+/* The export's OWN named palette — paper-light, deliberately NOT derived from
+   :root (UIUX §15, B48): the app is dark-only now, and a dark board prints as
+   a slab of near-black that costs a cartridge to discover. The export is a
+   reference sheet for paper, and paper is the ground it is designed against. */
+const PDF_PAPER = [0.933, 0.922, 0.937];
+const PDF_INK   = [0.133, 0.110, 0.141];
+const PDF_SHADE = [0.514, 0.482, 0.533];
+// The scratch-out at B53's 0.62 veil over paper; mixing it down beats carrying
+// an ExtGState object just to say so. (The burial half of B53's pair has no
+// print analogue: a completed item emits no text object at all — B34.)
+const PDF_SCRATCH = PDF_INK.map((c, i) => c * 0.62 + PDF_PAPER[i] * 0.38);
 
 /* Helvetica / Helvetica-Bold advance widths, WinAnsi 32..255, two base-36
    digits each. The PDF viewer sets in ITS Helvetica, not the browser's system
@@ -2158,19 +2228,40 @@ function pdfAssemble(streams, title) {
    order is the stacking order — the card must cover the band rule (B33), and
    notes sit above every piece of furniture. */
 const EXPORT_GEO = {
-  gutter: 24, ruleY: 48,                // --band-top + --card-h / 2 (B37)
+  gutter: 24,
+  // B47's band formula, the same law the screen derives --rule-y from:
+  // rule-y = bandTop + max(2, lines) x headLH + bandGap + labelLH + bandClear,
+  // resolved per record in exportRuleY() against THIS sheet's zone widths.
+  bandTop: 14, bandGap: 8, bandClear: 10,
   compL: 24, compR: 272, reqL: 628, reqR: 876,
-  // The compartment starts at the sheet's own top edge (B38, issue #52);
-  // cardPadTop is its top padding, cardPad its bottom/side padding.
-  cardL: 280, cardW: 340, cardTop: 0, cardMinH: 82, cardPad: 12, cardPadTop: 28,
-  zoneHeaderY: 8, zoneItemsY: 34,      // mirrors lotHeaderY / lotItemsY (B38)
-  // The export sheet is 1000 units tall, so it keeps the three-row lot (B37).
-  lotTop: EXPORT_H - 16 - 166, lotH: 166, lotHeaderY: 8, lotItemsY: 34, lotRow: 44,
+  // The compartment starts at the sheet's own top edge (B38, kept by B47) and
+  // overhangs the rule by 22; cardPadTop is its top padding (band-top + 6).
+  cardL: 280, cardW: 340, cardTop: 0, cardOverhang: 22, cardPad: 12, cardPadTop: 20,
+  // Both sections size to their content from a floor (UIUX §3.1/§3.2); the
+  // 1000-unit export sheet keeps B37's three-row budget as the lot's ceiling.
+  lotHead: 34, lotRow: 44, lotMaxRows: 3, lotHeaderY: 8, lotItemsY: 34,
   headSize: 15, headLH: 19.5,          // title, anchor text, lot header
-  labelSize: 12, labelLH: 15.6,        // the band's nomenclature (12 x 1.3, B38)
+  labelSize: 13, labelLH: 16.9,        // the band's nomenclature (13 x 1.3, B54)
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
   noteSize: 17, noteLH: 23.8,          // 17px / 1.4
-  border: 2, radius: 2, notePadX: 12, notePadY: 10,
+  border: 2, radius: 3, notePadX: 12, notePadY: 10,   // radius mirrors B49 by hand
+};
+
+/* The band sizes to its tallest zone (B47), on the export's own frame: line
+   counts come from pdfWrap against the 248-unit zones — the same law as the
+   screen, not the same number, because the export is its own sheet (B34). */
+function exportRuleY(rec) {
+  const g = EXPORT_GEO;
+  let lines = 2;
+  for (const z of [{ text: rec.components, w: g.compR - g.compL },
+                   { text: rec.requirements, w: g.reqR - g.reqL }]) {
+    if (z.text) lines = Math.max(lines, pdfWrap(z.text, true, g.headSize, z.w).length);
+  }
+  return Math.round(g.bandTop + lines * g.headLH + g.bandGap + g.labelLH + g.bandClear);
+}
+const exportLotH = (rec) => {
+  const g = EXPORT_GEO;
+  return g.lotHead + g.lotRow * clamp((rec.parkingLot || []).length, 2, g.lotMaxRows);
 };
 
 // The same proportional law as renderX/renderY (issue #15, B32), resolved
@@ -2222,35 +2313,35 @@ function exportBoardPage(rec) {
   p.cm(scale, 0, 0, scale, mx, my);
   p.fill(PDF_PAPER).rect(0, 0, EXPORT_W, EXPORT_H).raw('f');   // the sheet itself
 
-  // The band rule, then the two zones, then the card on top of the rule.
-  p.fill(PDF_INK).rect(g.gutter, g.ruleY, EXPORT_W - 2 * g.gutter, 1).raw('f');
-
+  // The band reads content, then its header sitting on the rule, then the
+  // rule as the band's bottom edge — full width (B47). The card draws last,
+  // on top of the rule.
+  const ruleY = exportRuleY(rec);
   const zones = [
-    { text: rec.components, label: 'Components', l: g.compL, r: g.compR, align: 'left' },
-    { text: rec.requirements, label: 'Requirements', l: g.reqL, r: g.reqR, align: 'right' },
+    { text: rec.components, label: 'Components', l: g.compL, r: g.compR },
+    { text: rec.requirements, label: 'Requirements', l: g.reqL, r: g.reqR },
   ];
-  // The label sits under the rule at a fixed offset (B38 — .band-label's own
-  // `top: 8px`, no longer hanging off the card), so it draws independently of
-  // the card's height.
-  const labelTop = g.ruleY + g.zoneHeaderY;
   for (const z of zones) {
     const w = z.r - z.l;
     if (z.text) {
-      // .anchor has padding 2px 0 4px. Not clipped to the zone: on screen the
-      // zone sets no overflow, so a long entry flows down over the canvas, and
-      // the export draws what the screen draws (B34).
-      p.lines(pdfWrap(z.text, true, g.headSize, w), z.l, w, g.ruleY + g.zoneItemsY + 2,
+      // Content hangs from the band's top (B47). Not clipped to the zone: on
+      // screen the zone sets no overflow, so a long entry flows down over the
+      // canvas, and the export draws what the screen draws (B34).
+      p.lines(pdfWrap(z.text, true, g.headSize, w), z.l, w, g.bandTop,
               g.headSize, g.headLH, true, 'left');
     }
-    p.lines([z.label], z.l, w, labelTop, g.labelSize, g.labelLH, true, z.align);
+    // The header sits ON the rule, centred in its zone, 10px clear (B54).
+    p.lines([z.label], z.l, w, ruleY - g.bandClear - g.labelLH,
+            g.labelSize, g.labelLH, true, 'center');
   }
+  p.fill(PDF_INK).rect(0, ruleY, EXPORT_W, 1).raw('f');
 
   const title = rec.title || '';
   const cardContentW = g.cardW - 2 * g.cardPad - 2 * g.border;
   const titleLines = title ? pdfWrap(title, true, g.headSize, cardContentW) : [];
   // One border now, not two — the compartment's border-top is no longer drawn
-  // (B38, issue #52).
-  const cardH = Math.max(g.cardMinH,
+  // (B38, issue #52). It overhangs the band's rule by 22 and occludes it (B47).
+  const cardH = Math.max(ruleY + g.cardOverhang,
                          titleLines.length * g.headLH + g.cardPadTop + g.cardPad + g.border);
   p.frameOpenTop(g.cardL, g.cardTop, g.cardW, cardH, g.border, PDF_PAPER);
   if (titleLines.length) {
@@ -2263,14 +2354,18 @@ function exportBoardPage(rec) {
             g.headSize, g.headLH, true, 'center');
   }
 
-  // Parking Lot. #lot-items is overflow:hidden, so the export clips too —
-  // otherwise a long lot walks off the bottom of the page.
+  // Parking Lot: full-bleed to the sheet's bottom with its content on the
+  // gutter (UIUX §3.2), sized by its rows from the two-row floor. #lot-items
+  // is overflow:hidden, so the export clips too — otherwise a long lot walks
+  // off the bottom of the page.
+  const lotH = exportLotH(rec);
+  const lotTop = EXPORT_H - lotH;
   const lotW = EXPORT_W - 2 * g.gutter;
-  p.fill(PDF_INK).rect(g.gutter, g.lotTop, lotW, 1).raw('f');
-  p.lines(['Parking Lot'], g.gutter, lotW, g.lotTop + g.lotHeaderY,
+  p.fill(PDF_INK).rect(0, lotTop, EXPORT_W, 1).raw('f');       // full width (B47)
+  p.lines(['Parking Lot'], g.gutter, lotW, lotTop + g.lotHeaderY,
           g.headSize, g.headLH, true, 'left');
-  const itemsTop = g.lotTop + g.lotItemsY;
-  const itemsH = g.lotH - g.lotItemsY;
+  const itemsTop = lotTop + g.lotItemsY;
+  const itemsH = lotH - g.lotItemsY;
   p.q().rect(g.gutter, itemsTop, lotW, itemsH).clip();
   let ly = itemsTop;
   for (const item of rec.parkingLot || []) {
@@ -2573,7 +2668,7 @@ function makePagerBtn(key, disabled, go) {
   b.setAttribute('aria-label', COPY[key]);
   b.disabled = disabled;
   const g = document.createElement('span');
-  g.setAttribute('aria-hidden', 'true'); g.textContent = GLYPH[key];
+  g.setAttribute('aria-hidden', 'true'); g.innerHTML = GLYPH[key];   // drawn mark (UIUX §13.3)
   b.appendChild(g);
   b.addEventListener('click', go);
   return b;
@@ -2842,7 +2937,7 @@ function makePaneRow(b) {
     const del = document.createElement('button');
     del.type = 'button'; del.className = 'pane-del';
     del.setAttribute('aria-label', 'Delete board');
-    del.textContent = GLYPH.delete;
+    del.innerHTML = GLYPH.delete;                    // drawn mark (UIUX §13.3)
     del.addEventListener('click', () => delayAction(del, () => deleteBoard(b.id, row)));
     row.appendChild(del);
   }

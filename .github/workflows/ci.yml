@@ -49,6 +49,12 @@ jobs:
             sleep 0.5
           done
 
+      # tokens.js needs no browser and no server: it parses the shipped files
+      # and reproduces every UIUX §2 table from the declared hexes (PRD §9.6).
+      # First, so a broken design contract fails before a Chromium ever boots.
+      - name: tokens.js
+        run: node test/tokens.js
+
       # sw-update.js serves its own throwaway copy on SW_TEST_PORT; it doesn't
       # use the server above.
       - name: mobile.js

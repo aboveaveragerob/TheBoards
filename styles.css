@@ -1,54 +1,88 @@
 /* ============================================================================
    To-Do Boards — styles.css
-   Identity comes from structure (frame, scratch-out, paper tone), never costume.
-   See UIUX.md: §2 tokens, §3 geometry, §4 note, §6 touch floor, §7 menu,
-   §8 motion, §9 toast, §10 list, §12 a11y.
+   Identity comes from structure (frame, scratch-out, surface tone), never
+   costume. See UIUX.md: §2 tokens, §3 geometry, §4 note, §6 touch floor,
+   §7 menu, §8 motion, §9 toast, §10 list, §12 a11y, §13 type, §14 controls.
    ========================================================================== */
 
-/* --- §2 Design tokens — light ("paper") theme, default ------------------- */
-:root {
-  --paper:           #EEEBEF;
-  --ink:             #221C24;
-  --ink-rgb:         34, 28, 36;   /* --ink as channels, for the scratch text */
-  --ink-shadow:      #837B88;
-  --letterbox:       #34303B;
-  --surface-raised:  #FBFAFC;
-  --hairline:        rgb(0 0 0 / 0.12);
-  --danger:          #8A3550;
-  --accent-restore:  #4A5A44;
-  --focus-ring:      #4A4E82;
-  --elevation:       0 2px 8px rgb(0 0 0 / 0.25);
-  --pane:            #E2DEE4;   /* slightly darker paper: the sunken desktop rail */
-  --accent-page:     #4E5F80;   /* muted blue: the rail's pager + drop frame (issue #58) */
+/* --- UIUX §13.1 The typeface: Montserrat Alternates, self-hosted, no CDN --
+   Three weights, Latin-subset woff2, committed in fonts/ (B50). font-display:
+   swap so capture is never blocked on a font load. */
+@font-face {
+  font-family: 'Montserrat Alternates';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url(fonts/MontserratAlternates-400.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Montserrat Alternates';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: url(fonts/MontserratAlternates-600.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Montserrat Alternates';
+  font-style: normal; font-weight: 800; font-display: swap;
+  src: url(fonts/MontserratAlternates-800.woff2) format('woff2');
 }
 
-/* --- §2.2 Dark theme ----------------------------------------------------- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper:          #1A161C;
-    --ink:            #E6E1E8;
-    --ink-rgb:        230, 225, 232;
-    --ink-shadow:     #948E99;
-    --letterbox:      #100D12;
-    --surface-raised: #29232F;
-    --hairline:       rgb(255 255 255 / 0.14);
-    --danger:         #E0A3B4;
-    --accent-restore: #AEC7A6;
-    --focus-ring:     #A0A2D8;
-    --pane:           #141118;
-    --accent-page:    #A8B6D6;
-  }
+/* --- §2 Design tokens — one theme, dark-only (UIUX §2.1, B48) -------------
+   The page reads top to bottom as one scene, inverted by B58's second swap:
+   water closing both ends of the sheet, the deep between, and the note as
+   the one lit thing on the deep (UIUX §2.2). One rung is not a value — the
+   water is a field (UIUX §2.8 — the --water-* stops, grounding the band and
+   the Parking Lot) — and every ratio the record publishes is stated against
+   the worst extreme of its range. */
+:root {
+  --deep:            #020812;   /* the canvas — the deepest surface on the page (B58) */
+  --chrome:          #020812;   /* the room behind the page — the deep's value doing a second job, off the page (B52/B58) */
+  --card:            #08152c;   /* the title compartment, above the deep at 1.10:1: its border separates, not its fill */
+  --frame:           #698ebf;   /* the card's border and both full-width rules — the deep's own hue, lifted (UIUX §2.5, B61) */
+  --note:            #a0d4da;   /* the note — on the deep, the brightest thing on the page (B58) */
+  /* The water's vertical fall, authored as opaque stops so the extremes are
+     exactly these declared colours (UIUX §2.8). It grounds the two sections
+     that close the sheet; its darkest reach meets the deep at 1.58, which is
+     what makes the band's rule load-bearing (UIUX §2.5, B58). */
+  --water-top:       #34697f;
+  --water-mid:       #255265;
+  --water-bot:       #163646;
+  --water-bot-a:     22 54 70;      /* the darkest stop as channels, for the sections' falloff */
+  /* Ink — one per surface, not one per app (UIUX §2.3). The poles; the
+     binding is .on-dark/.on-light below. */
+  --ink-light:       #f4f5f1;
+  --ink-dark:        #031019;
+  /* That surface's ink at the lowest alpha clearing 3:1 on it (UIUX §2.5). */
+  --hairline:        rgb(var(--ink-a) / 0.4);
+  /* Accents (UIUX §2.6, B52): text only on a near-black ground; anywhere else
+     a fill carrying --ink-dark. With the sand retired (B58/B59), --danger is
+     the only warm hue left in the application — the one thing that destroys
+     is the one thing that isn't cool water. */
+  --accent-restore:  #b6dee2;   /* the note's own hue and saturation, lifted 74 -> 80 */
+  --accent-page:     #6d9cb0;   /* the water's hue at the old value's depth — and B59's primary fill */
+  --danger:          #E2A08C;   /* the only warm hue in the application (B58 removed the qualifier's need) */
+  --elevation:       0 2px 8px rgb(0 0 0 / 0.45);
+  --elevation-inset: inset -3px 0 8px rgb(0 0 0 / 0.16), inset 0 2px 4px rgb(0 0 0 / 0.10);
 }
+
+/* The ink pole flips at the surface boundary and inherits downward
+   (UIUX §2.3): everything downstream keeps reading var(--ink)/var(--ink-a).
+   Channels are space-separated — v1 declared comma channels and used them
+   with slash alpha, which CSS Color 4 rejects, so the buried scratch text may
+   never have rendered (UIUX §16.2, the --ink-rgb row). */
+.on-dark  { --ink: var(--ink-light); --ink-a: 244 245 241; }
+.on-light { --ink: var(--ink-dark);  --ink-a: 3 16 25; }
 
 /* --- Global -------------------------------------------------------------- */
 * { box-sizing: border-box; }
 
 html, body { margin: 0; height: 100%; width: 100%; }
 
+/* The desk is not a surface and there is no desk token (UIUX §2.2): the page
+   behind a desktop board swap keeps a plain black background, a one-line fact
+   about html rather than a rung on the ladder. */
+html { background: #000; }
+
 body {
-  background: var(--letterbox);
   color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Montserrat Alternates', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-feature-settings: "kern" 1;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -69,8 +103,7 @@ body {
 #board-view {
   position: fixed;
   inset: 0;
-  overflow: hidden;
-  background: var(--letterbox);       /* the desk, outside the page */
+  overflow: hidden;                   /* the desk behind it is html's black (UIUX §2.2) */
 }
 
 /* The single logical page. Width is a fixed 900-unit reference; height grows to
@@ -83,7 +116,11 @@ body {
   height: var(--logical-h, 1000px);
   transform-origin: 0 0;
   transform: translate(var(--offx, 0px), var(--offy, 0px)) scale(var(--rs, 1));
-  background: var(--paper);
+  /* The canvas is the deep (B58): flat #020812 under the dither below. The
+     radial edge falloff died with this swap — its one UIUX §1 job was
+     drawing the mobile sheet's bound in water, and a near-black ground has
+     nothing darker to fall to. */
+  background: var(--deep);
   touch-action: none;
 
   /* The band's geometry, declared once and derived from here (B35). Every edge
@@ -101,34 +138,29 @@ body {
   --card-l: calc((100% - var(--card-w)) / 2);
 
   /* The band's *vertical* geometry is sized by the type it holds, not by the
-     sheet (B37, issue #49). B36 tied it to --logical-h to match the horizontal
-     axis, and that is the wrong axis: on mobile renderScale is 1 (B32), so the
-     15px title does not grow with the sheet — only the box around it did. At
-     0.2 * a 737-unit phone the rule landed at 147 and the card ran to 185,
-     a quarter of the sheet spent framing two lines of text.
-
-     So the card is its content box and everything else follows from it. The
-     rule crosses the card at its *midpoint*, which is how the reference board
-     draws it — B33's 1.26 overhang put 76% of the card above the rule and
-     called the remainder an overhang, which is the gap issue #49 names.
-
-     B38 (issues #51/#52) keeps this vertical geometry — the rule stays at 48,
-     the compartment's content still sits at the same pixel — but redraws the
-     compartment from the sheet's own top edge instead of 14px below it, and
-     moves the band's header from below the compartment to between the rule
-     and the content it names. --band-top is now pure spacing: the compartment's
-     min-height and top padding both add it in, so the type lands unmoved. */
+     sheet — B37's law, kept by B47, which retires the fixed rule: the section
+     sits ABOVE its rule, reading content, then its header sitting on the
+     rule, then the rule as the band's bottom edge (UIUX §3.1). The rule's y
+     is set in JS from the tallest zone's line count —
+     14 + max(2, lines) x 19.5 + 8 + 16.9 + 10 — 88 at the two-line floor,
+     107 at three lines (B47's formula with B54's 16.9 label term). The 88px
+     here is the floor, standing until applyLayout speaks. */
   --band-top: 14px;
-  /* Legacy sizing constant, value unchanged: two lines of title (15px x 1.3 =
-     39) + 12px padding x2 + 2px border x2 summed to 68 when the card was its
-     own box at top: band-top. B38 folds --band-top into the compartment's top
-     padding instead of its position, so --card-h no longer decomposes on its
-     own — band-top + card-h = 82 is what matters now, and stays the
-     compartment's min-height so the type lands on the same pixel. Two lines,
-     not one: a phone card is ~145 units wide and most titles wrap. A longer
-     one grows the compartment downward from here (min-height, not height). */
-  --card-h:   68px;
-  --rule-y:   calc(var(--band-top) + var(--card-h) / 2);
+  --rule-y:   88px;
+}
+
+/* Dither at anti-banding amplitude (UIUX §2.8): the water sections' ramps
+   are what an 8-bit panel would band, and this overlay covers them both;
+   on the deep between, it is the grain the ratified render carries (B58).
+   Never an event target: a pseudo-element is not in the DOM, so the
+   recognizer still sees bare canvas beneath it. */
+#board::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='4' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
 }
 
 /* ---- §3 / §6.1 Anchors (furniture; render beneath notes) ---------------- */
@@ -145,63 +177,84 @@ body {
   outline: none;
   line-height: 1.3;
 }
-/* Shadow placeholder only when empty and unfocused; vanishes on focus with
-   no select-and-delete; returns on empty blur (UIUX §3). */
+/* Placeholder only when empty and unfocused; vanishes on focus with no
+   select-and-delete; returns on empty blur (UIUX §3). It takes the ground's
+   own pole — the retired mid-grey had --line's defect (UIUX §16.2). */
 .anchor:not(.filled):not(:focus)::before {
   content: attr(data-placeholder);
-  color: var(--ink-shadow);
+  color: var(--ink);
 }
-.anchor:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Editing wears UIUX §2.7's two-tone ring: no single hue works on six
+   grounds, so the doubled ring clears 3:1 everywhere by construction. */
+.anchor:focus {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark);
+}
 
-/* ---- §3 The top band (B33, issue #38; reworked B38, issues #51/#52) -----
-   Drawn furniture, not a by-product of content: one rule across the sheet, a
-   compartment bounded by the sheet's own top edge, and a header per side zone.
-   The band reads rule → header → content, the same three-part split #lot has
-   always used (B38). Replaces the old content-gated `.anchor.filled`
-   border-bottom, which made a blank board draw nothing and a filled board
-   lose its headers.
+/* ---- §3 The top band (B33/B38; resettled B47, UIUX §3.1) ----------------
+   Drawn furniture, not a by-product of content. The section sits ABOVE the
+   rule: reading down, Components/Requirements content, then its header
+   sitting on the rule, then the rule as the band's bottom edge — the exact
+   mirror of the Parking Lot at the other end, one section closing each end
+   of the sheet with the free canvas between. Both rules run the full width
+   of the sheet (B47, superseding B35/B38's gutter inset).
 
    Every edge here is derived from #board: --gutter / --card-w / --card-l
-   across, --band-top / --card-h / --rule-y down. Across is a fraction of the
-   sheet (B32/B35); down is fixed units, because down is set by the type (B37).
-   Desktop restates only --gutter and --card-w — the vertical values are already
-   right at any sheet size, which is the point of B37. ---- */
-#band-rule {                           /* same weight and idiom as #lot-rule */
+   across, --band-top / --rule-y down. Across is a fraction of the sheet
+   (B32/B35); down is set by the type (B37, content-derived since B47).
+   Desktop restates only --gutter and --card-w. ---- */
+#band-fill {
   position: absolute;
-  left: var(--gutter); right: var(--gutter); top: var(--rule-y);
-  height: 1px; background: var(--ink);
-  z-index: 0;                          /* under the anchors: the card occludes it */
+  left: 0; right: 0; top: 0;
+  height: var(--rule-y);
+  /* The band takes the water (B58): the fall under the sections' own
+     falloff, light from above, darkening to the rule. */
+  background:
+    radial-gradient(118% 76% at 50% 24%, rgb(0 0 0 / 0) 32%, rgb(var(--water-bot-a) / 0.72) 128%),
+    linear-gradient(180deg, var(--water-top) 0%, var(--water-mid) 46%, var(--water-bot) 100%);
+  z-index: 0;                          /* above the canvas, below the zones */
+  pointer-events: none;
+}
+#band-rule {                           /* same weight and idiom as #lot-rule (B61) */
+  position: absolute;
+  left: 0; right: 0; top: var(--rule-y);
+  height: 1px; background: var(--frame);
+  /* LOAD-BEARING since B58: the band's water darkens to 1.58:1 against the
+     deep at this seam, under the 3:1 fill floor, so this rule is what
+     separates the two — clearing 5.95 on the deep and 3.77 on the water's
+     darkest stop (UIUX §2.5). Same z-plane as the anchors, DOM-later: it
+     draws over a zone's overflowing content, and the card (DOM-latest)
+     occludes it. */
+  z-index: 1;
 }
 /* The zone is a positioning frame only — pointer-events:none keeps it and its
    label out of hitTest, so the recognizer still sees `.anchor` (and bare canvas
    in the rest of the band, where the reference puts notes). */
 .band-zone {
   position: absolute;
-  /* The zone begins at its rule and reads rule → header → content, the same
-     three-part split #lot has always used (B38). It was the card's own box
-     until B37, which put the header *below* the text it names (issue #51).
-     Height 0: the children are absolutely positioned off this top edge, and
-     nothing measures the zone itself any more. */
-  top: var(--rule-y); height: 0;
+  /* The zone IS the band's depth now (B47): content hangs from its top at
+     --band-top, the label sits on the rule at its bottom. */
+  top: 0; height: var(--rule-y);
   pointer-events: none;
+  z-index: 1;
 }
 .band-zone .anchor {
-  left: 0; right: 0; top: 34px;   /* #lot-items' own offset: below the header */
+  left: 0; right: 0; top: var(--band-top);
   width: auto;
+  min-height: 44px;                    /* stays long-pressable when empty (PRD §6.1) */
+  padding: 0;                          /* the box is the type: B47's formula counts lines, nothing else */
   pointer-events: auto;
   font-size: 15px; font-weight: 600;
 }
-/* Below the rule, above the content — #lot-header's own idiom (B38). Pinned to
-   the sheet's outer gutters so it never moves and never disappears, whatever
-   the anchor holds. */
+/* The header sits ON the rule — centred in its zone with 10px of clearance
+   beneath it, at the pixel the committed face pays back: 13px/600 (B54,
+   closing UIUX §13.2's question; supersedes B38's 12px letter). */
 .band-label {
   position: absolute;
-  top: 8px;                    /* #lot-header's own offset under its rule */
-  width: max-content;          /* the box is the ink; alignment rules below */
-  /* Nomenclature of the section, not a claim about its size — and the largest
-     whole px at which the widest measured "Requirements" (~118px at 15px)
-     fits the 100px column --card-w's floor guarantees (B38). */
-  font-size: 12px; font-weight: 600;
+  left: 0; right: 0; bottom: 10px;
+  text-align: center;
+  font-size: 13px; font-weight: 600;
   color: var(--ink);
   line-height: 1.3;
 }
@@ -209,10 +262,8 @@ body {
    neither column depends on the card being centred (B35). */
 #zone-components   { left: var(--gutter);
                      right: calc(100% - var(--card-l) + var(--card-gap)); }
-#zone-components   .band-label { left: 0; }
 #zone-requirements { left: calc(var(--card-l) + var(--card-w) + var(--card-gap));
                      right: var(--gutter); }
-#zone-requirements .band-label { right: 0; }
 
 /* The card is a compartment, not a card (B38, issue #52): the sheet's own top
    edge is its fourth side, so only three are drawn and the box starts at 0 —
@@ -225,18 +276,19 @@ body {
    it downward. */
 #anchor-title {
   left: var(--card-l); width: var(--card-w);   /* centred by construction */
-  top: 0; min-height: calc(var(--band-top) + var(--card-h));   /* 82 */
+  /* Overhangs the band by 22px and occludes the rule (B38, kept by B47). */
+  top: 0; min-height: calc(var(--rule-y) + 22px);
   /* Column, not row: a contenteditable's line breaks arrive as sibling nodes,
      and row flex would lay a wrapped title out sideways. */
   display: flex;
   flex-direction: column; justify-content: center;
-  /* --band-top + the 2px border-top no longer drawn + the 12px it always had:
-     the type sits exactly where it did, centred on the rule at 48. */
-  padding: calc(var(--band-top) + 14px) 12px 12px;
-  border: 2px solid var(--ink);
+  padding: calc(var(--band-top) + 6px) 12px 12px;
+  /* The card does not separate from the band by fill — 1.10:1, deliberately
+     quiet — so this border carries the whole separation (UIUX §2.5). */
+  border: 2px solid var(--frame);
   border-top: 0;
-  border-radius: 0 0 2px 2px;                  /* only the corners that exist */
-  background: var(--paper);
+  border-radius: 0 0 3px 3px;                  /* only the corners that exist */
+  background: var(--card);
   text-align: center;
   /* The card is the hierarchy, not the type — so the title sets at the section
      headers' size, as the reference draws it. At 24px the 220-wide card broke
@@ -246,33 +298,55 @@ body {
   font-size: 15px; font-weight: 600; line-height: 1.3;
 }
 
-/* ---- §3 / §6.5 Parking Lot --------------------------------------------- */
+/* ---- §3 / §6.5 Parking Lot (resettled B47/UIUX §3.2: a section, not a box)
+   Full-bleed — left 0, right 0, bottom 0 — with its CONTENT still on the
+   gutter: it lives as a section of the page, the exact mirror of the band at
+   the other end. This supersedes B32's one-left-margin as it applied to the
+   lot. Height follows its contents from a two-row floor,
+   34 + clamp(2, n, maxRows) x 44, set in applyLayout — B37's viewport-derived
+   budget survives as a CEILING only, so a long lot cannot swallow the canvas;
+   a row past it still exists, still saves and still exports. ---- */
 #lot {
   position: absolute;
-  z-index: 1;
-  /* Same gutter as the anchors, so the sheet keeps one left margin (B32);
-     identical to left:24/width:852 at the 900 sheet. */
-  left: var(--gutter); right: var(--gutter); bottom: 16px;
-  /* A whole-row budget: 34 header + n·44, three rows on a tall sheet and two on
-     a phone (B37). Not a fraction of the sheet — rows have a 44px hit floor
-     (§6) and #lot-items is overflow:hidden, so a proportional height would draw
-     a row cut off at the knees. n is chosen in applyLayout because CSS cannot
-     step a length by whole rows; the fallback is the three-row sheet. A row
-     past the budget still exists, still saves and still exports — it is simply
-     not drawn (B35). */
-  height: var(--lot-h, 166px);
+  z-index: 1;                          /* furniture plane; notes (z-2) stay above */
+  left: 0; right: 0; bottom: 0;
+  height: var(--lot-h, 122px);
+  /* The lot takes the water too (B58) — the exact mirror of the band: the
+     same fall, the same falloff, closing the sheet's other end. Its lightest
+     reach meets the deep at 3.32:1, so this seam separates by fill and the
+     rule above stays a section mark. */
+  background:
+    radial-gradient(118% 76% at 50% 24%, rgb(0 0 0 / 0) 32%, rgb(var(--water-bot-a) / 0.72) 128%),
+    linear-gradient(180deg, var(--water-top) 0%, var(--water-mid) 46%, var(--water-bot) 100%);
+  background-size: 100% 100%;
 }
-#lot-rule {                            /* the single drawn 1px ink rule */
+/* The lot's own dither, kept at its 0.05 — the fall beneath it still ramps. */
+#lot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.05;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='4' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+}
+#lot-rule {                            /* the same line at both ends of the
+                                          sheet (B61): --frame, full width — a
+                                          section mark here, since this seam
+                                          separates by fill (UIUX §2.5) */
   position: absolute; left: 0; right: 0; top: 0;
-  height: 1px; background: var(--ink);
+  height: 1px; background: var(--frame);
+  z-index: 1;
 }
 #lot-header {
-  position: absolute; left: 0; top: 8px;
+  position: absolute; left: var(--gutter); top: 8px;
   font-size: 15px; font-weight: 600; color: var(--ink);
+  z-index: 1;
 }
 #lot-items {
-  position: absolute; left: 0; right: 0; top: 34px; bottom: 0;
+  position: absolute; left: var(--gutter); right: var(--gutter); top: 34px; bottom: 0;
   overflow: hidden;
+  z-index: 1;
 }
 /* Unframed text lines — the one place text is never framed (§4.4 / §6.5). */
 .lot-item {
@@ -294,7 +368,11 @@ body {
   outline: none;
   padding: 2px 0;
 }
-.lot-text:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.lot-text:focus {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark);
+}
 
 /* ============================================================================
    §4 The note component
@@ -322,9 +400,12 @@ body {
      the distance from the note's left edge to the sheet's right edge. */
   max-width: var(--note-max-w, none);
   padding: 10px 12px;
-  border: 2px solid var(--ink);
-  border-radius: 2px;                  /* near-square: reads as drawn, not card */
-  background: var(--paper);
+  border: 2px solid var(--ink);        /* dark on this surface — the only thing
+                                          separating two overlapping notes (UIUX §2.5) */
+  /* 3px holds the drawn reading against the 2px frame at every scale a note
+     can take (B49); EXPORT_GEO.radius mirrors it by hand. */
+  border-radius: 3px;
+  background: var(--note);             /* the note takes its colour (B49) */
   color: var(--ink);
   caret-color: var(--ink);
   font-size: 17px; line-height: 1.4;
@@ -337,8 +418,12 @@ body {
   border-color: transparent;
   background: transparent;
 }
-/* Creating/editing: focus ring + caret (focus never color-alone, §4.2). */
-.note-text:focus { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Creating/editing: UIUX §2.7's two-tone ring + caret (never color alone). */
+.note-text:focus {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark);
+}
 
 /* Pressed (drag/pinch engaged) and tapped (the action window is open): border
    thickens to 3px, padding compensates so nothing reflows — the "picked up" /
@@ -356,7 +441,7 @@ body {
   position: absolute;
   inset: 0;
   z-index: 2;                          /* above the opaque text so it truly destroys it */
-  border-radius: 2px;
+  border-radius: 3px;                  /* tracks the note's (B49) */
   pointer-events: none;
   opacity: 0;                          /* active: invisible */
   background:
@@ -364,13 +449,15 @@ body {
     repeating-linear-gradient(-14deg, var(--ink) 0 4px, transparent 4px 7px),
     repeating-linear-gradient( 79deg, var(--ink) 0 3px, transparent 3px 5px);
 }
+/* The veil and the burial are ONE decision — 0.62 over 0.12, never moved
+   separately (B53). Three stroke families at >=90% coverage, in the surface's
+   own ink: a mark on every ground it can land on (4.53 / 4.71 / 4.35), and
+   the buried text a 1.28:1 smudge that says something was here with the words
+   gone at any zoom the app can produce. */
 .note.complete .note-scratch,
-.lot-item.complete .lot-scratch { opacity: 0.97; }   /* ≥90% coverage, texture not color */
-
-/* Belt-and-suspenders: underlying text is also destroyed to 40% ink so no
-   screenshot/zoom recovers it (§4.3). */
+.lot-item.complete .lot-scratch { opacity: 0.62; }
 .note.complete .note-text,
-.lot-item.complete .lot-text { color: rgb(var(--ink-rgb) / 0.4); }
+.lot-item.complete .lot-text { color: rgb(var(--ink-a) / 0.12); }
 
 /* ============================================================================
    §7 Long-press menu (elevation = "temporary, above the page")
@@ -380,7 +467,7 @@ body {
   z-index: 1000;
   min-width: 184px;
   padding: 6px 0;
-  background: var(--surface-raised);
+  background: var(--chrome);           /* summoned over the page, on the room's own ground (B52) */
   border-radius: 8px;
   overflow: hidden;                    /* a tapped item's fill clips to the radius */
   box-shadow: var(--elevation);
@@ -402,9 +489,16 @@ body {
   text-align: left;
   cursor: pointer;
 }
-#menu button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
-#menu .glyph { flex: 0 0 20px; text-align: center; font-size: 16px; }
-#menu .danger { color: var(--danger); }
+#menu button:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: -2px;                          /* inset row (UIUX §2.7) */
+  box-shadow: inset 0 0 0 4px var(--ink-dark);
+}
+/* The marks are drawn, not typed (UIUX §13.3): inline SVG in currentColor at
+   the note's own stroke weight and corner radius, from app.js's GLYPH map. */
+#menu .glyph { flex: 0 0 20px; display: flex; align-items: center; justify-content: center; }
+#menu .glyph svg { display: block; }
+#menu .danger { color: var(--danger); }      /* an accent as text, on chrome (UIUX §2.6) */
 #menu .sep { height: 1px; margin: 6px 0; background: var(--hairline); }
 
 /* ============================================================================
@@ -421,7 +515,7 @@ body {
   gap: 16px;
   max-width: calc(100vw - 24px);
   padding: 8px 8px 8px 16px;
-  background: var(--surface-raised);
+  background: var(--chrome);           /* the room's ground, under elevation (B52) */
   color: var(--ink);
   border-radius: 8px;
   box-shadow: var(--elevation);
@@ -433,12 +527,16 @@ body {
   min-width: 48px; min-height: 48px;
   padding: 0 12px;
   background: none; border: none;
-  color: var(--accent-restore);
+  color: var(--accent-restore);        /* an accent as text, on chrome (UIUX §2.6) */
   font: inherit; font-size: 16px; font-weight: 600;
   text-decoration: underline;
   cursor: pointer;
 }
-#toast button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+#toast button:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark);
+}
 
 /* ============================================================================
    §10 Board list view (the only other screen)
@@ -452,7 +550,7 @@ body {
   position: fixed;
   inset: 0;
   z-index: 500;
-  background: var(--paper);
+  background: var(--chrome);           /* the list replaces the page: the room's ground (B52) */
   overflow: hidden;
   touch-action: none;
   display: flex;
@@ -467,20 +565,40 @@ body {
   padding: 16px 20px;
 }
 #list-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
-/* The app's single primary control (Von Restorff): looks like a control.
-   Shared by the list view's New board and the desktop pane's (issue #10). */
+/* The app's single primary control (UIUX §14, refilled by B59): the accent
+   about boards on the control that makes one — --accent-page behind
+   --ink-dark, wearing the shared tactile signature — offset shadow and
+   press-translate — that makes a control feel like a control. Instant
+   (UIUX §8). Shared by the list view's New board and the desktop pane's
+   (issue #10). */
 .primary-btn {
-  min-height: 44px;
+  min-height: 44px;                    /* UIUX §6 */
   padding: 0 18px;
-  background: var(--ink);
-  color: var(--paper);
-  border: 2px solid var(--ink);
-  border-radius: 2px;
+  background: var(--accent-page);
+  color: var(--ink-dark);
+  border: 2px solid var(--ink-dark);
+  border-radius: 0.4em;
+  box-shadow: 0.1em 0.1em var(--ink-dark);
   font: inherit;
-  font-size: 16px; font-weight: 600;
+  font-size: 16px; font-weight: 800;
   cursor: pointer;
 }
-.primary-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Guarded: mobile is the primary path, and a bare hover sticks after a touch. */
+@media (hover: hover) {
+  .primary-btn:hover {
+    transform: translate(-0.05em, -0.05em);
+    box-shadow: 0.15em 0.15em var(--ink-dark);
+  }
+}
+.primary-btn:active {
+  transform: translate(0.05em, 0.05em);
+  box-shadow: 0.05em 0.05em var(--ink-dark);
+}
+.primary-btn:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark), 0.1em 0.1em var(--ink-dark);
+}
 #list-rows {
   flex: 1 1 auto;
   min-height: 0;
@@ -493,6 +611,8 @@ body {
 /* A row is a card now, not a list line: it can be picked up and carried to
    another category, so it has to read as a discrete object with its own edge
    (issue #74). Same 56px height it always had — PANE_ROW_H in app.js. */
+/* A board card is a small rendering of what it names (UIUX §10): the field's
+   own upper fall as its fill, edged with the chrome's hairline. */
 .board-row {
   display: flex;
   align-items: baseline;
@@ -500,15 +620,19 @@ body {
   width: 100%;
   min-height: 56px;                    /* = PANE_ROW_H in app.js */
   padding: 12px 16px;
-  background: var(--surface-raised);
+  background: linear-gradient(180deg, var(--water-top), var(--water-mid));
   border: 1px solid var(--hairline);
-  border-radius: 2px;
+  border-radius: 3px;
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.board-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.board-row:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: -2px;                          /* inset row (UIUX §2.7) */
+  box-shadow: inset 0 0 0 4px var(--ink-dark);
+}
 .board-row-wrap { display: flex; align-items: stretch; flex: 0 0 auto; }
 .board-row .row-title {
   flex: 1 1 auto;
@@ -518,11 +642,12 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;             /* truncation always indicated (§10) */
 }
-.board-row .row-title.untitled { color: var(--ink-shadow); }
+/* Untitled and dated in the ground's own pole (UIUX §16.2) — the mid-grey is retired. */
+.board-row .row-title.untitled { color: var(--ink); }
 .board-row .row-date {
   flex: 0 0 auto;
   font-size: 13px;
-  color: var(--ink-shadow);
+  color: var(--ink);
 }
 
 /* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44) ----------------
@@ -560,7 +685,7 @@ body {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--ink-shadow);
+  color: var(--ink);                   /* the ground's pole (UIUX §16.2) */
 }
 .cat-head span {
   min-width: 0;
@@ -593,30 +718,42 @@ body {
 }
 /* Adjacent buttons share their border, the seam .pane-del already uses: at
    the touch floor four separate squares crowd the category name off the
-   strip, and one segmented control reads as one control anyway. */
-.pager-btn + .pager-btn { margin-left: -1px; }
+   strip, and one segmented control reads as one control anyway. -2px now
+   that the UIUX §14 construction draws a 2px ink border. */
+.pager-btn + .pager-btn { margin-left: -2px; }
 .cat-pages {
   font-size: 12px;
   font-weight: 600;
-  color: var(--ink-shadow);
+  color: var(--ink);                   /* the ground's pole (UIUX §16.2) */
   padding: 0 6px;
   font-variant-numeric: tabular-nums;
 }
+/* The pager (UIUX §14): --accent-page as a fill carrying --ink-dark, in the
+   UIUX §14 construction — disabled says so at opacity, not with a mid-grey. */
 .pager-btn {
   min-width: 44px;                     /* = HIT_FLOOR (PRD §5.3, UIUX §6) */
   min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--accent-page);
-  color: var(--paper);
-  border: 1px solid var(--ink-shadow);
-  border-radius: 2px;
+  color: var(--ink-dark);
+  border: 2px solid var(--ink-dark);
+  border-radius: 0.4em;
+  box-shadow: 0.1em 0.1em var(--ink-dark);
   font: inherit;
   font-size: 15px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
 }
+.pager-btn svg { display: block; }
 .pager-btn:disabled { opacity: 0.4; cursor: default; }
-.pager-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.pager-btn:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark), 0.1em 0.1em var(--ink-dark);
+}
 /* Mid-drag: the origin row dims but holds its slot; a fixed clone of the card
    rides the pointer. pointer-events:none keeps the hit-test seeing the
    categories under the pointer, never the ghost itself. */
@@ -657,9 +794,9 @@ html.desktop #pane {
   left: 0; top: 0; bottom: 0;
   width: 300px;                        /* = PANE_W in app.js */
   padding: 16px 12px 10px;
-  background: var(--pane);
+  background: var(--chrome);           /* the room beside the page (B52) */
   border-right: 1px solid var(--hairline);
-  box-shadow: inset -3px 0 8px rgb(0 0 0 / 0.16), inset 0 2px 4px rgb(0 0 0 / 0.10);
+  box-shadow: var(--elevation-inset);  /* sunken, not floating (UIUX §2.4) */
   z-index: 400;                        /* under list view (500) and menu (1000) */
 }
 #pane-cards {
@@ -702,6 +839,9 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
   align-items: stretch;
   flex: 0 0 auto;
 }
+/* A rail card is a small rendering of what it names (UIUX §10): the field's
+   own upper fall as its fill — 3.32:1 against chrome — behind the chrome's
+   0.40 hairline edge; the active board holds the full-ink border. */
 .pane-card {
   flex: 1 1 auto;
   min-width: 0;
@@ -710,15 +850,19 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
   gap: 8px;
   min-height: 56px;                    /* compact card — same height as list rows */
   padding: 8px 12px;
-  background: var(--paper);
+  background: linear-gradient(180deg, var(--water-top), var(--water-mid));
   border: 1px solid var(--hairline);
-  border-radius: 2px;
+  border-radius: 3px;
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.pane-card:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.pane-card:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: -2px;                          /* inset row (UIUX §2.7) */
+  box-shadow: inset 0 0 0 4px var(--ink-dark);
+}
 /* Structural active mark: ink weight, not color alone; padding compensates. */
 .pane-card.active { border: 2px solid var(--ink); padding: 7px 11px; cursor: default; }
 .pane-card .row-title {
@@ -729,26 +873,35 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
   overflow: hidden;
   text-overflow: ellipsis;             /* truncation always indicated (§10) */
 }
-.pane-card .row-title.untitled { color: var(--ink-shadow); }
-.pane-card .row-date { flex: 0 0 auto; font-size: 12px; color: var(--ink-shadow); }
-.pane-card.tapped { background: var(--ink); color: var(--paper); }
+.pane-card .row-title.untitled { color: var(--ink); }
+.pane-card .row-date { flex: 0 0 auto; font-size: 12px; color: var(--ink); }
+.pane-card.tapped { background: var(--ink); color: var(--ink-dark); }
 .pane-card.tapped .row-title.untitled,
-.pane-card.tapped .row-date { color: var(--paper); }
+.pane-card.tapped .row-date { color: var(--ink-dark); }
 /* Deletion path (a): permanent on the active card only — A1's menu grammar
-   compressed to the card's right edge. A sibling, never nested. */
+   compressed to the card's right edge. A sibling, never nested. Bare on
+   chrome with --danger for its mark: an accent as text on a near-black
+   ground (UIUX §2.6). */
 .pane-del {
   flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-left: -1px;                   /* shares the hairline seam with the card */
-  background: var(--paper);
+  background: var(--chrome);
   border: 1px solid var(--hairline);
-  border-left: 1px solid var(--hairline);
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 3px 3px 0;
   color: var(--danger);
   font: inherit;
   font-size: 15px;
   cursor: pointer;
 }
-.pane-del:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.pane-del svg { display: block; }
+.pane-del:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: -2px;                          /* inset row (UIUX §2.7) */
+  box-shadow: inset 0 0 0 4px var(--ink-dark);
+}
 
 /* ---- Selection chrome (issues #4/#12/#13): one overlay in board space.
    Container passes events through; only the ring band, handles and buttons
@@ -756,11 +909,15 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
    click of a double-click. Inherits renderScale, never note.scale. ---- */
 #selection { position: absolute; z-index: 3; pointer-events: none; }
 #selection.hidden { display: none; }
+/* The selection ring wears UIUX §2.7's two-tone construction — no single hue
+   works on every ground the ring can land on — and its radius re-derives to 4
+   by the 1px-outside law against the note's 3 (B49). */
 #selection .sel-ring {
   position: absolute;
   inset: -4px;
-  border: 2px solid var(--ink);
-  border-radius: 3px;
+  border: 2px solid var(--ink-light);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--ink-dark);
   pointer-events: none;                /* visual only — bands below take the hits */
 }
 /* The outlined frame is the resize grip: four thin bands along the edges, so
@@ -773,8 +930,8 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
 #selection .sel-handle {
   position: absolute;
   width: 8px; height: 8px;
-  background: var(--paper);
-  border: 2px solid var(--ink);
+  background: var(--ink-light);        /* the ring's own two tones (UIUX §2.7) */
+  border: 2px solid var(--ink-dark);
   pointer-events: auto;
   cursor: nwse-resize;
 }
@@ -793,24 +950,29 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
 }
 #selection .sel-actions.above { top: auto; bottom: calc(100% + 12px); }
 
-/* The three actions (issues #4, #59): muted green Complete / neutral ink Copy
-   / muted red Delete, each paired with --paper text — the pairings invert
-   correctly in both themes by construction, ≥ AA in each. Copy takes plain
-   ink because it changes nothing: the accents mark state changes. */
+/* The three actions (UIUX §14): accent fills carrying --ink-dark behind the
+   ink border and the shared tactile signature. Copy takes plain chrome
+   because it changes nothing — accents mark state changes. */
 .sel-btn {
   min-height: 36px;
   padding: 0 14px;
-  border-radius: 2px;
+  border: 2px solid var(--ink-dark);
+  border-radius: 0.4em;
+  box-shadow: 0.1em 0.1em var(--ink-dark);
   font: inherit;
   font-size: 14px;
   font-weight: 600;
-  color: var(--paper);
+  color: var(--ink-dark);
   cursor: pointer;
 }
-.sel-btn.sel-complete { background: var(--accent-restore); border: 2px solid var(--accent-restore); }
-.sel-btn.sel-copy     { background: var(--ink);            border: 2px solid var(--ink); }
-.sel-btn.sel-delete   { background: var(--danger);         border: 2px solid var(--danger); }
-.sel-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.sel-btn.sel-complete { background: var(--accent-restore); }
+.sel-btn.sel-copy     { background: var(--chrome); color: var(--ink-light); }
+.sel-btn.sel-delete   { background: var(--danger); }
+.sel-btn:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark), 0.1em 0.1em var(--ink-dark);
+}
 
 /* ---- Multi-selection (issue #55): the primary keeps the full #selection
    chrome; every OTHER member wears an outline ring in ink — the outline rides
@@ -819,8 +981,10 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
    more selected the overlay drops its resize grip: resize is single-selection
    only, by design. ---- */
 html.desktop .note.multi-selected .note-text {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--ink-light);           /* the two-tone ring's law (UIUX §2.7):
+                                                    a single ink fails one field extreme */
   outline-offset: 3px;
+  box-shadow: 0 0 0 7px var(--ink-dark);
 }
 #selection.multi .sel-edge,
 #selection.multi .sel-handle { display: none; }
@@ -846,10 +1010,10 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
    Tap acknowledgment — the 400ms window between click and action
    The delay only earns its place if the interface fills it. Captured content
    (notes, anchors, lot lines) thickens its ink, reusing the §4.2 "pressed"
-   weight — a note may never fill, because a filled note is the scratch-out.
-   Furniture and controls fill with their own ink and drain their label to
-   paper. Every fill pairs a token with --paper, so both themes invert
-   correctly by construction. Instant, like everything outside the §8 set.
+   weight — a resting note carries a fill now (B46), but it still never fills
+   AS acknowledgment: that would be indistinguishable from the completion
+   mark. Furniture and controls fill with their own ink and drain their label
+   to the opposite pole. Instant, like everything outside the UIUX §8 set.
    ========================================================================== */
 
 /* Content: weight. (.note is handled with .pressed at §4.2 above.) Each anchor
@@ -859,12 +1023,11 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
    NOT thicken — it belongs to both side zones at once, so it could not say which
    one was tapped. (#lot-rule can, because it belongs to one zone.) */
 .band-zone .anchor.tapped {
-  border-bottom: 3px solid var(--ink);
-  padding-bottom: 1px;                 /* 3 + 1 = the base 4px; no reflow */
+  border-bottom: 3px solid var(--ink); /* absolute box, nothing measures it: no reflow */
 }
 #anchor-title.tapped {
   border-width: 0 3px 3px;             /* the top stays undrawn (B38, issue #52) */
-  padding: calc(var(--band-top) + 14px) 11px 11px;   /* 3 + 11 = the base 2 + 12; no reflow */
+  padding: calc(var(--band-top) + 6px) 11px 11px;   /* 3 + 11 = the base 2 + 12; no reflow */
 }
 .lot-item.tapped .lot-text {
   border-bottom: 2px solid var(--ink);
@@ -872,20 +1035,22 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 }
 #lot.tapped #lot-rule { height: 3px; } /* absolutely positioned: thickens in place */
 
-/* Controls: fill. */
-#menu button.tapped         { background: var(--ink); color: var(--paper); }
-#menu button.danger.tapped  { background: var(--danger); color: var(--paper); }
-#toast button.tapped        { background: var(--accent-restore); color: var(--paper); }
-.board-row.tapped           { background: var(--ink); color: var(--paper); }
+/* Controls: fill. A fill pairs the surface's ink with the opposite pole, so
+   every acknowledgment stays ≥AA by the crossover's own arithmetic (UIUX §2.3.1). */
+#menu button.tapped         { background: var(--ink); color: var(--ink-dark); }
+#menu button.danger.tapped  { background: var(--danger); color: var(--ink-dark); }
+#toast button.tapped        { background: var(--accent-restore); color: var(--ink-dark); }
+.board-row.tapped           { background: var(--ink); color: var(--ink-dark); }
 .board-row.tapped .row-title.untitled,
-.board-row.tapped .row-date { color: var(--paper); }
-/* Already ink-filled, so it acknowledges by draining instead of filling. */
-.primary-btn.tapped         { background: var(--paper); color: var(--ink); }
+.board-row.tapped .row-date { color: var(--ink-dark); }
+/* Already filled, so it acknowledges by draining instead of filling — the
+   accent as text on a near-black ground, exactly UIUX §2.6's placement. */
+.primary-btn.tapped         { background: var(--ink-dark); color: var(--accent-page); }
 /* Selection action buttons rest in their fills; same drain on tap. */
-.sel-btn.sel-complete.tapped { background: var(--paper); color: var(--accent-restore); }
-.sel-btn.sel-copy.tapped     { background: var(--paper); color: var(--ink); }
-.sel-btn.sel-delete.tapped   { background: var(--paper); color: var(--danger); }
-.pane-del.tapped             { background: var(--danger); color: var(--paper); }
+.sel-btn.sel-complete.tapped { background: var(--ink-dark); color: var(--accent-restore); }
+.sel-btn.sel-copy.tapped     { background: var(--ink-light); color: var(--ink-dark); }
+.sel-btn.sel-delete.tapped   { background: var(--ink-dark); color: var(--danger); }
+.pane-del.tapped             { background: var(--danger); color: var(--ink-dark); }
 
 /* Empty canvas has nothing to acknowledge, so the frame the tap will produce is
    drawn first at its lightest weight — the note motif before it has content,
@@ -894,8 +1059,10 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
   position: absolute;
   z-index: 2;
   width: 44px; height: 44px;
-  border: 2px solid var(--ink-shadow);
-  border-radius: 2px;
+  /* The ground's own ink at a low alpha (UIUX §16.2, the --ink-shadow row) —
+     the 0.40 weight is UIUX §2.5's, the one low alpha the system already keeps. */
+  border: 2px solid rgb(var(--ink-a) / 0.4);
+  border-radius: 3px;                  /* the note motif it will become (B49) */
   pointer-events: none;
 }
 
@@ -903,19 +1070,24 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 
 /* ============================================================================
    §8 Motion — the complete justified set; everything else is instant.
+   The durations lengthen from v1's 120/150ms because UIUX §1.1 argues for a
+   water-like settle — a 120ms fade reads as a flicker, not a movement — on
+   one long deceleration. Paired JS constants: LEAVE_MS, SWAP_MS,
+   TOAST_HIDE_MS (PRD §9.5).
    ========================================================================== */
-#menu            { transition: opacity 120ms ease; }
+#menu            { transition: opacity 200ms cubic-bezier(0.22, 0.61, 0.36, 1); }
 .note-scratch,
-.lot-scratch     { transition: opacity 150ms ease; }
-#toast           { transition: opacity 150ms ease, transform 150ms ease; }
+.lot-scratch     { transition: opacity 200ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+#toast           { transition: opacity 200ms cubic-bezier(0.22, 0.61, 0.36, 1),
+                               transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1); }
 .note.leaving,
 .lot-item.leaving,
 .board-row-wrap.leaving,
-.pane-row.leaving  { transition: opacity 120ms ease; opacity: 0; }
-/* Board swap (issue #4 "minimalist animation"): a 150ms crossfade, desktop
+.pane-row.leaving  { transition: opacity 200ms cubic-bezier(0.22, 0.61, 0.36, 1); opacity: 0; }
+/* Board swap (issue #4 "minimalist animation"): a 260ms crossfade, desktop
    only, sequenced by timeout in JS so reduced-motion (below) degrades cleanly
    to an instant swap. */
-html.desktop #board { transition: opacity 150ms ease; }
+html.desktop #board { transition: opacity 260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
 #board.swapping     { opacity: 0; }
 
 /* Mandatory global kill-switch (UIUX §8). */

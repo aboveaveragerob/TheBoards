@@ -228,17 +228,22 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('title card top is open', geo.titleBorderTop === '0px', geo.titleBorderTop);
     ok('title card is framed on the other three sides',
       geo.titleBorderLeft === '2px', geo.titleBorderLeft);
-    ok('band rule keeps the 24px gutter', geo.ruleL === '24px', geo.ruleL);
-    ok('band rule sits at y=48', geo.ruleT === '48px', geo.ruleT);
+    // B47 (supersedes B35/B38's gutter inset): both rules run the full width
+    // of the sheet, and the band sizes to its tallest zone from a two-line
+    // floor — 14 + 2 x 19.5 + 8 + 16.9 + 10 = 88 on this blank board (B54's
+    // 16.9 label term).
+    ok('band rule runs full width (B47)', geo.ruleL === '0px', geo.ruleL);
+    ok('band rule sits at the two-line floor, y=88 (B47/B54)', geo.ruleT === '88px', geo.ruleT);
     // Screen space, so the 8px logical gap arrives scaled — assert the ordering.
     ok('zones clear the card on both sides',
       geo.zoneGap[0] < geo.zoneGap[1] && geo.zoneGap[2] < geo.zoneGap[3],
       JSON.stringify(geo.zoneGap));
     ok('Components and Requirements zones match', geo.comp === geo.req, geo.comp + ' / ' + geo.req);
-    // Desktop is the mode that keeps three rows: B20 pins LOGICAL_H >= 1000,
-    // and B37's budget only drops to two below 900.
-    ok('lot is 166px tall — three rows (B37)', geo.lotH === '166px', geo.lotH);
-    ok('lot gutter still 24px', geo.lotL === '24px', geo.lotL);
+    // The lot sizes to its rows from a two-row floor (B47, UIUX §3.2): empty,
+    // this board draws the same two-row shelf — 34 + 2 x 44 = 122. B37's
+    // three-row budget survives only as the ceiling a filled lot can reach.
+    ok('empty lot draws the two-row floor, 122px (B47)', geo.lotH === '122px', geo.lotH);
+    ok('lot is full-bleed; its content keeps the gutter (UIUX §3.2)', geo.lotL === '0px', geo.lotL);
     // Issue #53 (B39): no predetermined cap — a long sentence wraps only at
     // the sheet's right edge, past the 405 the old cap would have held it to.
     await page.mouse.click(900, 500);
@@ -474,16 +479,19 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     // Two notes side by side on an 1800-unit frame, wide enough that at this
     // window's LOGICAL_W (~1267) constant-size rendering would slide the first
     // across the second — the reported bug. Homothetic rendering scales width
-    // by the same ratio as x, so what was adjacent stays adjacent. 25 W's, not
-    // 30: since issue #53 removed the 405 cap, the first note renders at its
-    // natural width, and the fixture itself must stay clear of h2 in authored
-    // units (≈450 < 500) for "adjacent" to be true at all.
+    // by the same ratio as x, so what was adjacent stays adjacent. 21 W's, not
+    // 25: the count is calibrated in the face the app speaks, and B50's
+    // Montserrat Alternates sets a wider W than system-ui did (~20.3px at
+    // 17px), so 25 of them ran to ~508 authored units — overlapping h2 at 500
+    // before the law under test was even in play. 21 keeps the fixture clear
+    // (≈454 < 500), exactly as 25-not-30 kept it clear when issue #53 removed
+    // the 405 cap.
     await page.evaluate(async () => {
       const rec = newBoardRecord();
       rec.title = 'Homothetic fixture';
       rec.notes = [
-        { id: 'h1', text: 'W'.repeat(25), x: 0,   y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
-        { id: 'h2', text: 'W'.repeat(25), x: 500, y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
+        { id: 'h1', text: 'W'.repeat(21), x: 0,   y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
+        { id: 'h2', text: 'W'.repeat(21), x: 500, y: 300, rw: 1800, rh: 1000, scale: 1, state: 'active' },
       ];
       await idbPut(rec);
     });
