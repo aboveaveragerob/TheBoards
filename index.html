@@ -6,8 +6,10 @@
        viewport only, leaving window.innerHeight (and so the sheet) still while
        a note is being written. See DECISIONS B28. -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no, interactive-widget=resizes-visual">
-  <meta name="theme-color" content="#EEEBEF" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1A161C" media="(prefers-color-scheme: dark)">
+  <!-- One theme, one value (B48 halves B11): the OS chrome around the app is
+       the room behind the page, and the room is the sky — the band's #020812
+       doing B52's second job at the platform edge. -->
+  <meta name="theme-color" content="#020812">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="mobile-web-app-capable" content="yes">
@@ -23,23 +25,27 @@
     <!-- Desktop-only board rail (issues #9/#10): a sunken, always-visible pane.
          Sits outside #board, so the gesture recognizer never sees its events.
          display:none unless html.desktop; hidden from AT off-desktop too. -->
-    <aside id="pane" aria-label="Boards">
+    <aside id="pane" class="on-dark" aria-label="Boards">
       <button id="pane-new" class="primary-btn" type="button">New board</button>
       <div id="pane-cards"></div>
     </aside>
 
-    <!-- The one logical 900x1000 page. transform:scale() applied in JS. -->
-    <div id="board" role="application" aria-label="Board" aria-roledescription="spatial board">
+    <!-- The one logical 900x1000 page. transform:scale() applied in JS.
+         .on-dark binds the ink pole for the water (UIUX §2.3); the lot and
+         each note rebind .on-light at their own boundary. -->
+    <div id="board" class="on-dark" role="application" aria-label="Board" aria-roledescription="spatial board">
 
       <!-- The four permanent anchors (PRD §6.1). contenteditable is toggled on
            in JS only while editing, so the gesture recognizer owns tap/drag/
            long-press without fighting native focus.
 
-           The top band is drawn furniture, independent of content (issue #38):
-           one rule across the sheet, a permanent header per side zone, and the
-           title card overhanging the rule and occluding it. Same three-part
-           split the Parking Lot already uses (rule / header / items). -->
-      <div id="band-rule" aria-hidden="true"></div>
+           The top band is drawn furniture, independent of content: a section
+           ABOVE its rule (B47) — content, then its header sitting on the
+           rule, then the rule as the band's bottom edge, full width — the
+           exact mirror of the Parking Lot closing the sheet's other end. The
+           rule follows the zones in DOM order so it draws over a zone's
+           overflowing content, and the card, last, occludes the rule. -->
+      <div id="band-fill" aria-hidden="true"></div>
 
       <div class="band-zone" id="zone-components">
         <div class="anchor" id="anchor-components" data-anchor="components" tabindex="0"
@@ -53,12 +59,15 @@
         <div class="band-label" aria-hidden="true">Requirements</div>
       </div>
 
+      <div id="band-rule" aria-hidden="true"></div>
+
       <div class="anchor" id="anchor-title" data-anchor="title"
            data-placeholder="What&rsquo;s up?" tabindex="0"
            role="textbox" aria-multiline="true" aria-label="Title"></div>
 
-      <!-- Parking Lot zone (PRD §6.5). Unframed stacked lines. -->
-      <div id="lot" data-anchor="lot">
+      <!-- Parking Lot zone (PRD §6.5). Unframed stacked lines on lit sand;
+           .on-light flips the ink pole at the shelf's edge (UIUX §2.3). -->
+      <div id="lot" class="on-light" data-anchor="lot">
         <div id="lot-rule" aria-hidden="true"></div>
         <div id="lot-header" aria-hidden="true">Parking Lot</div>
         <div id="lot-items"></div>
@@ -68,8 +77,9 @@
     </div>
   </div>
 
-  <!-- Board list view (PRD §6.7 / UIUX §10): the only other screen. -->
-  <section id="list-view" hidden aria-label="Boards">
+  <!-- Board list view (PRD §6.7 / UIUX §10): the only other screen, on the
+       room's own ground (B52). -->
+  <section id="list-view" class="on-dark" hidden aria-label="Boards">
     <header id="list-header">
       <h1 id="list-title">Boards</h1>
       <button id="new-board" class="primary-btn" type="button">New board</button>
@@ -78,8 +88,8 @@
   </section>
 
   <!-- Transient surfaces (elevation = "temporary, above the page", UIUX §2.4). -->
-  <div id="menu" role="menu" aria-label="Actions" hidden></div>
-  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <div id="menu" class="on-dark" role="menu" aria-label="Actions" hidden></div>
+  <div id="toast" class="on-dark" role="status" aria-live="polite" hidden></div>
 
   <script src="app.js"></script>
 </body>

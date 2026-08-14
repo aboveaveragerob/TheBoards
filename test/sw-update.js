@@ -27,14 +27,18 @@ const PORT = Number(process.env.SW_TEST_PORT || 8199);
 let pass = 0, fail = 0;
 const ok = (n, c, extra) => { c ? (pass++, console.log('  PASS ' + n)) : (fail++, console.log('  FAIL ' + n + (extra ? ' :: ' + extra : ''))); };
 
-// A throwaway document root we can mutate mid-flight.
+// A throwaway document root we can mutate mid-flight. fonts/ rides along
+// because sw.js's ASSETS lists the three woff2 files (B50) and install()
+// addAll's them — a 404 would fail the very install step 3 proves.
 const DIR = fs.mkdtempSync(path.join(require('os').tmpdir(), 'sw-check-'));
 for (const f of ['index.html', 'app.js', 'styles.css', 'manifest.json']) {
   fs.copyFileSync(path.join(ROOT, f), path.join(DIR, f));
 }
-fs.mkdirSync(path.join(DIR, 'icons'), { recursive: true });
-for (const f of fs.readdirSync(path.join(ROOT, 'icons'))) {
-  fs.copyFileSync(path.join(ROOT, 'icons', f), path.join(DIR, 'icons', f));
+for (const dir of ['icons', 'fonts']) {
+  fs.mkdirSync(path.join(DIR, dir), { recursive: true });
+  for (const f of fs.readdirSync(path.join(ROOT, dir))) {
+    fs.copyFileSync(path.join(ROOT, dir, f), path.join(DIR, dir, f));
+  }
 }
 
 // The pre-fix service worker, verbatim in the shape that caused this: version
@@ -67,7 +71,7 @@ self.addEventListener('fetch', (e) => {
 `;
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-               '.json': 'application/json', '.png': 'image/png' };
+               '.json': 'application/json', '.png': 'image/png', '.woff2': 'font/woff2' };
 
 const server = http.createServer((req, res) => {
   const rel = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
@@ -82,13 +86,15 @@ const server = http.createServer((req, res) => {
   res.end(fs.readFileSync(file));
 });
 
-// The marker: --card-h is the band's one input since B37, and the shipped
-// stylesheet sets it to 68px. Reading it back through getComputedStyle proves
-// which bytes the page is actually running, rather than which bytes are on disk.
-const SHIPPED_CARD_H = '68px';
-const CARD_H_RE = /--card-h:\s*68px;/;
+// The marker: --card-h died with B47 (the band is content-sized now), so the
+// regex moves in the same commit, exactly as UIUX §16.3 orders. --band-top is
+// the marker's successor: a literal the shipped stylesheet declares at 14px.
+// Reading it back through getComputedStyle proves which bytes the page is
+// actually running, rather than which bytes are on disk.
+const SHIPPED_CARD_H = '14px';
+const CARD_H_RE = /--band-top:\s*14px;/;
 const cardOf = page => page.evaluate(() =>
-  getComputedStyle(document.querySelector('#board')).getPropertyValue('--card-h').trim());
+  getComputedStyle(document.querySelector('#board')).getPropertyValue('--band-top').trim());
 
 const swState = page => page.evaluate(async () => {
   const r = await navigator.serviceWorker.getRegistration();
@@ -125,7 +131,7 @@ async function launchUntil(page, pred, max = 4) {
     fs.writeFileSync(path.join(DIR, 'sw.js'), OLD_SW);
     fs.writeFileSync(path.join(DIR, 'styles.css'),
       fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8')
-        .replace(CARD_H_RE, '--card-h:   200px;'));   // a build that is not this one
+        .replace(CARD_H_RE, '--band-top: 200px;'));   // a build that is not this one
     await page.goto(URL);
     await page.waitForFunction(() => !!document.querySelector('#board'));
     await page.waitForFunction(async () => {
@@ -183,7 +189,7 @@ async function launchUntil(page, pred, max = 4) {
     console.log('\n[4] Stale-while-revalidate: a missed bump costs one launch, not forever');
     fs.writeFileSync(path.join(DIR, 'styles.css'),
       fs.readFileSync(path.join(DIR, 'styles.css'), 'utf8')
-        .replace(CARD_H_RE, '--card-h:   111px;'));   // sw.js NOT bumped
+        .replace(CARD_H_RE, '--band-top: 111px;'));   // sw.js NOT bumped
     const healedAt = await launchUntil(page, async p => (await cardOf(p)) === '111px');
     ok('a change with no version bump still lands', healedAt > 0, 'never landed in 4 launches');
     ok('and it costs one stale launch, not forever', healedAt > 0 && healedAt <= 2, `launch ${healedAt}`);

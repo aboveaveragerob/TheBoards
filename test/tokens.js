@@ -142,7 +142,8 @@ console.log('\n[2] One ink per surface — every published ratio reproduces (UIU
     !!onDark && new RegExp('--ink-a:\\s*' + chan(T.inkLight) + '\\s*;').test(onDark[1]), onDark && onDark[1]);
   ok('.on-light --ink-a channels are ' + chan(T.inkDark) + ', space-separated',
     !!onLight && new RegExp('--ink-a:\\s*' + chan(T.inkDark) + '\\s*;').test(onLight[1]), onLight && onLight[1]);
-  ok('no comma-separated --ink-a survives', !/--ink-a:\s*\d+\s*,/.test(css) && !/--ink-rgb/.test(css));
+  ok('no comma-separated --ink-a survives',
+    !/--ink-a:\s*\d+\s*,/.test(css) && !/--ink-rgb\s*:/.test(css) && !css.includes('var(--ink-rgb)'));
 }
 
 console.log('\n[3] The crossover and the forbidden band (UIUX §2.3.1, §2.3.2)');
@@ -206,8 +207,9 @@ console.log('\n[5] Accents — values, worst-extreme ratios, and the placement r
   // near-black ground. Find every `color: var(--accent-*|--danger)` in the
   // stylesheet and require its selector to live on chrome (menu, toast, rail
   // seam) or on an --ink-dark drain fill — never on --board, --shelf or --note.
+  const cssBare = css.replace(/\/\*[\s\S]*?\*\//g, '');   // selectors, not commentary
   const accentText = [];
-  for (const m of css.matchAll(/([^{}]+){[^}]*color:\s*var\((--danger|--accent-restore|--accent-page)\)[^}]*}/g)) {
+  for (const m of cssBare.matchAll(/([^{}]+){[^}]*color:\s*var\((--danger|--accent-restore|--accent-page)\)[^}]*}/g)) {
     accentText.push(m[1].trim().replace(/\s+/g, ' '));
   }
   const chromeGrounded = /^(#menu|#toast|\.pane-del|\.sel-btn\.[\w-]+\.tapped|\.primary-btn\.tapped)/;
