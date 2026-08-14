@@ -575,9 +575,20 @@ whole-row budget**, keeping only its cap's arithmetic.
   border-radius: 3px;
   padding: 10px 12px;
   font-size: 17px; line-height: 1.4;
+  text-align: center;
 }
 .note-text:empty { background: transparent; border-color: transparent; }
 ```
+
+**The text is centred in its frame** (B62, issue #82). Alignment moves glyphs,
+not the box: the note is `width: max-content` capped at the sheet's right edge
+(B39), so `text-align` changes no dimension — the wrap cap, the hit collar and
+every stored position measure exactly as before. A single-line note
+shrink-wraps to its own text and centres invisibly; the change is legible
+wherever a line falls short of the box's widest — a cap-wrapped note's soft
+lines, or a short hard line beside a longer one — each held in the middle of
+the frame. The export draws the same centring in the same content box
+(§15, B34/B39), measured sans trailing spaces because `pre-wrap` hangs them.
 
 **No empty frame ever exists.** The frame draws itself on the first character and
 is transparent before it — enforced at blur (B8) and again on every render (B31).
@@ -1104,7 +1115,7 @@ Per surface, what would actually fail if the words above were violated today:
 | §2 — every token, every ratio | `test/tokens.js` (`PRD §9.6`): every table here recomputed from the shipped hexes, each range at its worst extreme, plus the sync points, the accent placement rule, self-hosting and B53's pair |
 | §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines) |
 | §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
-| §4 — wrap, homothetic render | `test/mobile.js` (B39/B40 scenarios) |
+| §4 — wrap, homothetic render, centred text | `test/mobile.js` (B39/B40 scenarios; [18b] computes the alignment, editing and at rest) and `test/desktop.js` [D17b] — the computed style, plus the centring inset parsed out of page 1's content stream (B62) |
 | §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |
 | §7 — menu contents and order | `test/mobile.js` [8] |
 | §8 motion, §12 accessibility beyond floors | **nothing** |

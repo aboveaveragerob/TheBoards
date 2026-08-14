@@ -965,6 +965,26 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
+  // ---- 18b. the note's text is centred in its frame (issue #82, B62) ------
+  // One declaration covers both renders: the live editor IS .note-text
+  // (contenteditable on the node, no overlay), so editing and rest agree.
+  console.log('\n[18b] Note text is centred, editing and at rest (issue #82)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 100, 300);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('centred words');
+    ok('the editor centres as it types', await page.evaluate(() =>
+      document.activeElement.classList.contains('note-text') &&
+      getComputedStyle(document.activeElement).textAlign === 'center'));
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(300);
+    ok('the resting note stays centred', await page.evaluate(() =>
+      getComputedStyle(document.querySelector('.note-text')).textAlign === 'center'));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   // ---- 19. the list view's categories (issue #74, B44) --------------------
   // The mobile twin of desktop's [D16]. Everything here rides genuine touch
   // events, never synthesized clicks (B27b): the drag IS the feature, and it

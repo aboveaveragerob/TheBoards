@@ -1661,3 +1661,64 @@ idiom, and the lawfulness is already proven — the band's rule carries
 its seam at 5.95/3.77 (B58), and the lot's, a section mark over a
 3.32:1 fill separation, wears the same line without an obligation to
 carry.
+
+---
+
+## Q. The note's text is centered (issue #82)
+
+### B62. A note centres its text in its own frame (extends UIUX §4; leaves B39's width law untouched)
+
+The report: text notes left-align their text; it should be centred with
+respect to the note's own frame. Ruled for centring against `UIUX §1`'s
+law: the note is a framed object on a sheet, not a document. The frame is
+the unit of reading — it earns itself on the first character (B8/B31) and
+its border is the only thing separating two overlapping notes (`UIUX §2.5`)
+— and glyphs hugging the left edge of a wrapped frame leave the right side
+carrying nothing, pixels that stopped earning their place the moment a
+line broke early. Centred, the frame and its words share one axis, the way
+the title compartment and the band's nomenclature already read.
+
+**One declaration: `text-align: center` on `.note-text`** — the value
+lives in `UIUX §4`, the rendering authority. The live editor is
+`.note-text` itself (`contenteditable` is set on the node; there is no
+overlay element), so rest and edit render identically and typing is
+centred from the first character.
+
+**B39 is not disturbed.** Alignment moves glyphs, not the box: the note
+stays `width: max-content` capped at the sheet's right edge, and
+`text-align` changes no dimension of that box — the wrap cap,
+`setHitInset`'s 44px collar, the drag bounds and every stored `x`/`y`
+measure exactly as before. A single-line note shrink-wraps to its own
+text and centres invisibly; the change is legible wherever a line falls
+short of the box's widest — a cap-wrapped note's soft lines, or a short
+hard line beside a longer one in a shrink-wrapped note.
+
+**The export moves with the screen, mandatorily** (B34, and B39's own
+mirror clause): `exportBoardPage`'s note loop passes `'center'` to the
+same `lines()` primitive the band labels and the title compartment
+already use, measured over `exportNoteBox`'s content width — the exact
+analogue of the CSS content box — so the PDF's inset is the screen's
+inset by construction, with one divergence closed rather than copied:
+`pre-wrap` hangs a line's preserved trailing spaces, so `lines()`
+measures centring against the line sans trailing spaces — counting them
+would shift glyphs the screen does not shift. Page 2+ stays left-aligned
+prose: B34 made it a searchable document, and a document reads from its
+margin.
+
+**The rendered record keeps its dates.** Proof sheet 10 (B58) still
+draws its cap-wrapped note left-aligned and stays as ratified — a
+pre-B62 render the way sheets 7 and 9 are pre-swap renders, B58's own
+precedent. For the note's alignment, the render to trust is the shipped
+app, v12 on.
+
+**Scope: the note component only.** `.lot-text` rows and the band's
+anchors stay left-aligned — the lot is a list read top-to-bottom down one
+edge (`UIUX §3.2`), and the anchors' content hangs from the band's top
+against its zone (B47); different objects, different reading.
+`#anchor-title` and `.band-label` were already centred.
+
+Pinned per `UIUX §16.3`: mobile [18b] and desktop [D17b] assert the
+computed style on `.note-text`, and [D17b] parses page 1's content stream
+to prove a deliberately short line inside a cap-wide note draws with its
+`Tm` x operand inset from the note's left content edge — centred in the
+file, not just in the DOM.

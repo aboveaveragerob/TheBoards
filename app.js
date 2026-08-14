@@ -2145,7 +2145,9 @@ function pdfCanvas() {
         const s = arr[i];
         if (!s.length) continue;
         let tx = x;
-        if (align === 'center') tx = x + (w - pdfTextW(s, bold, size)) / 2;
+        // Centring measures the line sans trailing spaces: pre-wrap hangs
+        // them on screen, so counting them would shift the export (B62).
+        if (align === 'center') tx = x + (w - pdfTextW(s.replace(/ +$/, ''), bold, size)) / 2;
         else if (align === 'right') tx = x + w - pdfTextW(s, bold, size);
         p.text(s, tx, pdfBaseline(top + i * lh, lh, size), size, bold, color);
       }
@@ -2395,8 +2397,9 @@ function exportBoardPage(rec) {
     if (note.state === 'complete') {
       p.q().rrect(0, 0, box.w, box.h, g.radius).clip().scratch(box.w, box.h).Q();
     } else {
+      // Centred in the content box, as the screen draws it (issue #82, B62).
       p.lines(box.lines, g.border + g.notePadX, box.content, g.border + g.notePadY,
-              g.noteSize, g.noteLH, false, 'left');
+              g.noteSize, g.noteLH, false, 'center');
     }
     p.Q();
   }
