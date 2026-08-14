@@ -92,6 +92,7 @@ is stated against the worst extreme of its range**, never against a midpoint.
 | Token | Value | What it is | Rel. luminance |
 |---|---|---|---|
 | `--band` | `#020812` | Components and Requirements — the deepest surface on the page | 0.0023 |
+| `--chrome` | `#020812` | the room behind the page — the ground under the menu, the toast, the board list and the desktop rail. The band's value doing a second job, off the page (B52) | 0.0023 |
 | `--card` | `#08152c` | the title compartment, sitting just above the band | 0.0077 |
 | `--board` | `#34697f` → `#255265` → `#163646` | **the sheet, as a field** — §2.8 | 0.1237 … 0.0325 |
 | `--frame` | `#698ebf` | the card's border and the full-width rule — §2.5 | 0.2611 |
@@ -106,6 +107,16 @@ deleted (§2.3).
 through the middle, lit sand at the foot. The band is the deepest thing on it —
 an inset header you read past — and the card sits fractionally above the band at
 1.10:1, separated by its border rather than by its fill (§2.5).
+
+**The room behind the page is the sky.** `--chrome` is not a new rung: chrome
+touches neither the band nor the card (the menu and the toast float on
+elevation, the list replaces the page, the rail sits beside it), so an eighth
+value would be a rung with no adjacency to earn it. It takes the band's value,
+and everything on the page stays lifted above the room it sits in: the seam
+against the field's lightest reach holds 3.32:1, a rail card's fill (the
+field's own top stop) holds 3.32:1 behind its 0.40 hairline edge, and light
+ink reads at 18.33:1. Settled by proof rounds 8–9 (B52); the rendered
+reference is `docs/proofs/proof-9-a-well-furnished.html`.
 
 > **The note is not the brightest surface — the shelf is — and the identity
 > claim is reworded, not defended.** At 0.5962 the note sits below the shelf's
@@ -345,24 +356,32 @@ and therefore not earning its place at that weight.
 
 ### §2.6 Accents
 
-| Token | Value | Role | on `--chrome` * | on the old `--furniture` * | label when filled |
+| Token | Value | Role | on `--chrome` | on `--card` (the lightest near-black ground) | label when filled |
 |---|---|---|---|---|---|
-| `--accent-restore` | `#B7E3E1` | Complete / Restore / Undo | 13.82:1 | 12.24:1 | 13.82:1 |
-| `--danger` | `#E2A08C` | Delete | 8.83:1 | 7.82:1 | 8.83:1 |
-| `--accent-page` | `#6E9C9A` | rail pager, drop target | 6.30:1 | 5.58:1 | 6.30:1 |
+| `--accent-restore` | `#b6dee2` | Complete / Restore / Undo | 13.90:1 | 12.60:1 | 13.31:1 |
+| `--danger` | `#E2A08C` | Delete | 9.22:1 | 8.35:1 | 8.83:1 |
+| `--accent-page` | `#6d9cb0` | rail pager, drop target | 6.72:1 | 6.09:1 | 6.44:1 |
 
 > **An accent is text only on a near-black ground — `--chrome`, `--band` or
 > `--card`. Anywhere else it is a fill carrying `--ink-dark`.**
 
-\* The two ratio columns are measured against the **retired** `--furniture` and
-the round-1 `--chrome`, and are carried here unrevised — see the note below.
+Each value is derived from a family the scene already keeps: `--accent-restore`
+is the note's own hue and saturation lifted 74 → 80 — the derivation `--frame`
+used on the band — because what restores is kin to what returns;
+`--accent-page` is the field's hue at the old value's depth, because the accent
+about boards is cut from the board's own water; `--danger` re-derived to its
+own value and holds it.
 
-This rule is the correction to a real hole. `--danger` is 3.51:1 on `--board` and
-`--accent-page` is 2.50:1 — as text those are below AA and below the 3:1 non-text
-floor respectively. As *fills* they are fine (a filled Delete button on the sheet
-is 3.51:1 against it, which is what a UI component needs, and its label rides at
-8.83:1). The placement rule keeps every accent on a ground where it works, and no
-value has to change.
+This rule is the correction to a real hole. `--danger` is 2.78:1 against the
+field's lightest stop and `--accent-page` is 2.11:1 — as text those are below
+AA and below the 3:1 non-text floor respectively. As *fills* they work where
+they land: a filled Delete button separates from the field by its fill at
+3.90:1 from the mid stop down and by its `--ink-dark` border at 3.18:1 at the
+top, with its label riding at 8.83:1 (the fill/border handover dips to ~2.99
+over a narrow reach of the fall — recorded in §16.1); a Complete fill clears
+4.19:1 against the field's worst extreme; the pager and the drop-target frame
+live on `--chrome` at 6.72:1. The placement rule keeps every accent on a
+ground where it works.
 
 `--danger` is **the only *saturated* warm hue in the application.** The
 qualifier is new and necessary: the Parking Lot is now warm sand (§2.9), so
@@ -372,12 +391,14 @@ a ground and danger is a fill on chrome. The distinction the rule was making —
 *the one thing that destroys is the one thing that isn't cool water* — survives
 with the one word added.
 
-> **The accents in this table have not been re-derived against the navy.**
-> `--accent-restore`, `--danger` and `--accent-page` were tuned against the
-> round-1 teal `--chrome #031019`, and the ratios above are measured against
-> that. `--chrome` itself, the menu, the toast and the desktop rail have not
-> been rendered since the palette moved to navy. **This is the largest open gap
-> in the system** and none of it should be treated as settled.
+> **Ratified.** The whole family was re-derived against the deep-dusk grounds
+> in proof round 8 — candidates rendered beside the round-1 values, every
+> ratio against its worst extreme — and rendered whole in round 9
+> (`docs/proofs/proof-9-a-well-furnished.html`). The round-1 restore and page
+> values were hue 177°, the retired teal's kin; the new values belong to the
+> note's and the field's families. `--danger` re-verified clean against every
+> ground it lands on and kept its value — re-chosen, not inherited. Recorded
+> as B52, where the superseded hexes live.
 
 ### §2.7 Focus
 
@@ -397,6 +418,7 @@ extremes of the field are checked, since the ring can land anywhere on it:
 | Ground | light tone | dark tone | best |
 |---|---|---|---|
 | `--band` | 18.33 | 1.04 | **18.33** |
+| `--chrome` | 18.33 | 1.04 | **18.33** |
 | `--card` | 16.62 | 1.06 | **16.62** |
 | `--board`, lightest stop | 5.52 | 3.18 | **5.52** |
 | `--board`, darkest stop | 11.62 | 1.51 | **11.62** |
@@ -493,8 +515,8 @@ the other end: a section closed by a full-width rule at each end of the sheet,
 with the free canvas between them.
 
 Reading down: **Components / Requirements content, then its header, then the
-rule.** The header is **centred in its zone and sits on the rule**, at 12px/600
-with 10px of clearance beneath it.
+rule.** The header is **centred in its zone and sits on the rule**, at 13px/600
+with 10px of clearance beneath it (B54, closing §13.2's question).
 
 **Both rules run the full width of the sheet** — `left: 0; right: 0`, not inset
 to the gutter. **This supersedes B35 and B38's gutter-inset rule.**
@@ -502,8 +524,8 @@ to the gutter. **This supersedes B35 and B38's gutter-inset rule.**
 **The band sizes to its tallest zone, from a two-line floor:**
 
 ```
-rule-y = 14 + max(2, lines) × 19.5 + 8 + 15.6 + 10
-       = 87px at the floor, 106px at three lines
+rule-y = 14 + max(2, lines) × 19.5 + 8 + 16.9 + 10
+       = 88px at the floor, 107px at three lines
 ```
 
 A fill has to have a bottom edge and the band's content does not have a fixed
@@ -589,13 +611,21 @@ Nothing here is colour alone (§1): every state has a geometry.
 ### §4.3 The scratch-out
 
 Completing does not delete and does not hide. Three families of ruled strokes at
-≥90% coverage — **texture, not colour** — in the surface's own ink at 11.84:1,
-with the underlying text destroyed to 40% ink so no screenshot or zoom recovers
-it. The radius tracks the note's.
+≥90% coverage (93.6% measured) — **texture, not colour** — in the surface's own
+ink at **0.62**, with the underlying text destroyed to **12% ink** so no
+screenshot or zoom recovers it. The radius tracks the note's. Composited, the
+strike reads as a mark on every ground it can land on: 4.53:1 on a note, 4.71:1
+on the shelf's base, 4.35:1 on its darkest wisp — above the 3:1 mark floor
+everywhere, and no longer a bar anywhere.
 
-The buried text lands at 2.37:1 on a note and 2.28:1 on a shelf line. **That is
-the target, not a failure:** the content is deliberately illegible, and legibility
-minima do not apply to something the person has asked the app to strike out.
+**The veil and the burial are one decision** (B53). The old 0.97/0.40 pair was
+tuned for a mid ground: a near-opaque veil destroyed what was under it, and the
+burial only had to kill the 10% showing in the gaps. Thin the veil and the words
+come back *through* the strokes — so as the strike's alpha fell to 0.62, the
+burial deepened to 0.12. The buried text lands at 1.28:1 on either ground — a
+smudge where words were. **That is the target, not a failure:** the content is
+deliberately illegible, and legibility minima do not apply to something the
+person has asked the app to strike out.
 
 Completion is reversible. In the PDF export a completed item is drawn scratched
 out and **emits no text object at all** — the on-screen promise becomes a
@@ -823,22 +853,22 @@ upper bound on what a browser draws:
 
 | # | Measurement | Result | |
 |---|---|---|---|
-| 1 | "Requirements" at 12px/600 against the 100px column `--card-w`'s floor guarantees | **87.9px** | clears, 12.1px spare |
+| 1 | "Requirements" at 13px/600 against the 100px column `--card-w`'s floor guarantees | **95.2px** | clears, 4.8px spare (96px browser-rendered) |
 | 2 | Two-line title box against `--band-top + --card-h = 82` | **79px** | clears |
 | 3 | 11px pager against `PANE_PAGER_H = 32` | **14.3px** | clears |
 
 x-height is 0.534em and cap height 0.700em at 1000 units per em.
 
-> **The gate clears, and it opens a pixel B38 could not have known about.** B38
-> set the label to 12px because that was "the largest whole px at which the
-> widest measured *Requirements* (~118px at 15px) fits the 100px column" — a
-> measurement taken in `system-ui`. In Montserrat Alternates the same word sets
-> 109.9px at 15px and **95.2px at 13px**, so 13px is now the largest whole px
-> that fits, and B38's own rule applied to the new face returns a different
-> answer than the one in the stylesheet. Nothing is broken at 12px. **It is a
-> live decision, not a defect** — the label can take the pixel back, or the
-> headroom is simply spare. Either way it should be decided rather than
-> inherited.
+> **The gate clears, and the pixel it opened is taken: the label is 13px**
+> (B54). B38 set the label to 12px because that was "the largest whole px at
+> which the widest measured *Requirements* (~118px at 15px) fits the 100px
+> column" — a measurement taken in `system-ui`. In Montserrat Alternates the
+> same word sets **95.2px at 13px**, so B38's own rule applied to the face the
+> app owns returns 13, and keeping 12 would have inherited a dead face's
+> measurement. The band is sized by the type it holds (B37), so the formula's
+> label term moves 15.6 → 16.9 and the band grows by exactly the pixel: 88 at
+> the floor, 107 at three lines (§3.1). Rendered at both sizes on proof sheet
+> 8; the ratified render is `docs/proofs/proof-9-a-well-furnished.html`.
 
 Still a gate for anything downstream: `test/mobile.js` asserts band and lot
 geometry, so a later font change that moves the band **fails the suite**, which
@@ -997,21 +1027,21 @@ Named here so the follow-up work is scoped rather than discovered. Scoped in
 
 Recorded here so it is not mistaken for decided:
 
-- **`--chrome`, the accents, the focus ring, the menu, the toast and the desktop
-  rail have never been re-derived against the navy.** They carry round-1 teal
-  values and have not been rendered since. **The largest open gap.**
-- **The scratch-out is nearly a solid black bar on the new shelf.** Three stroke
-  families at 97% opacity in the surface's own ink (§4.3) was a dark bar on a mid
-  ground; on a 0.66-luminance sand it is the loudest thing on the board. The
-  requirement — ≥90% coverage, text destroyed beneath — survives at a lower alpha
-  on a light ground. Raised three times, never ruled.
-- **The band label could go to 13px** on the new face (§13.2).
+- **The Delete button's boundary on the field has a narrow handover.** Its fill
+  separates below the field's mid stop (3.90:1) and its `--ink-dark` border at
+  the top (3.18:1); across a narrow reach of the fall the two cross at ~2.99 —
+  a hair under the 3:1 component floor. This lives in §14's construction
+  meeting §2.8's field, not in any accent value. Surfaced by round 8's
+  verification; not yet ruled.
 
-Four earlier entries in this list are settled and have moved into the body,
-with the proof sheets as provenance and `DECISIONS.md` B46+ as the record: the
-desk token is retired (§2.2), the brightest-surface claim is reworded rather
-than defended (§2.2, `PRD §1.4`), the lot keeps its top rule in its own ink
-(§2.5), and `--frame` is ratified (§2.5).
+Everything else this list has carried is settled and has moved into the body,
+with the proof sheets as provenance and `DECISIONS.md` as the record: the desk
+token is retired (§2.2), the brightest-surface claim is reworded rather than
+defended (§2.2, `PRD §1.4`), the lot keeps its top rule in its own ink (§2.5),
+`--frame` is ratified (§2.5) — B46+ — and round 8's three, ruled B52–B54: the
+chrome family (§2.2, §2.6), the scratch-out's pair (§4.3), and the 13px band
+label (§3.1, §13.2), rendered whole in
+`docs/proofs/proof-9-a-well-furnished.html`.
 
 ### §16.2 Retiring v1's tokens
 
@@ -1022,17 +1052,17 @@ stated fate is a call site nobody knows how to edit.
 |---|---|---|
 | `--paper` | 22 | **split** — as a ground → §2.2's ladder by role; as a label on a fill → `--ink-dark` (§2.3) |
 | `--ink` | 38 | **split** — `--ink-light` or `--ink-dark`, rebound at the surface (§2.3) |
-| `--ink-rgb` | 1 | **renamed** → `--ink-a`, rebound per surface (§2.3) — and corrected: v1 declared comma-separated channels and used them with slash alpha (`rgb(34, 28, 36 / 0.4)`), which CSS Color 4 rejects, so the 40% buried-text fade (§4.3) may never have rendered. The v2 form is space-separated and valid |
+| `--ink-rgb` | 1 | **renamed** → `--ink-a`, rebound per surface (§2.3) — and corrected: v1 declared comma-separated channels and used them with slash alpha (`rgb(34, 28, 36 / 0.4)`), which CSS Color 4 rejects, so the buried-text fade (§4.3) may never have rendered. The v2 form is space-separated and valid |
 | `--ink-shadow` | 8 | **retired** — a second mid-tone has the same defect `--line` had (§2.3.2). Placeholders, dates and category heads take the ground's pole; the tap-ghost takes it at a low alpha |
 | `--letterbox` | 2 | **retired** — never drawn (§2.2). `html` keeps a plain black background, which is not a token |
-| `--surface-raised` | 3 | **retired** → `--chrome` — v1 raised menus *above* paper; v2 sinks them below the board (§16.1: `--chrome` itself is still round-1) |
+| `--surface-raised` | 3 | **retired** → `--chrome` — v1 raised menus *above* paper; v2 sinks them below the board (§2.2, B52) |
 | `--hairline` | 6 | **retired** → `rgb(var(--ink-a) / 0.4)` — that surface's ink at the lowest alpha clearing 3:1 on it (§2.5) |
-| `--danger` | 7 | **kept**, retuned (§2.6) — pending the re-derivation §16.1 records |
-| `--accent-restore` | 5 | **kept**, retuned (§2.6) — same pending |
+| `--danger` | 7 | **kept**, re-derived and held (§2.6, B52) |
+| `--accent-restore` | 5 | **kept**, re-derived to the note's family (§2.6, B52) |
 | `--focus-ring` | 11 | **retired** — no single hue works on six grounds; replaced by the two-tone ring (§2.7) |
 | `--elevation` | 3 | **kept** (§2.4), gains an inset variant for `#pane` |
-| `--pane` | 1 | **retired** → `--chrome` (same pending as above) |
-| `--accent-page` | 2 | **kept**, retuned (§2.6) — same pending |
+| `--pane` | 1 | **retired** → `--chrome` (§2.2, B52) |
+| `--accent-page` | 2 | **kept**, re-derived to the field's family (§2.6, B52) |
 
 ### §16.3 What pins this document
 
