@@ -1,16 +1,16 @@
-/* Regenerates the three app icons from the settled v2 tokens (B1's motif,
+/* Regenerates the three app icons from the settled tokens (B1's motif,
  * re-drawn as B48 orders — the way B16 regenerated it under B1).
  *
  * The motif is unchanged from B1: a near-square note-frame with two "text"
  * lines and a short scratch stroke — identity from structure, not costume
  * (UIUX §1). What moves is the tokens it is drawn in: the note is #a0d4da
- * behind its #031019 ink frame (B49), and it sits on the field's own fall
- * (UIUX §2.8) — on the water, the note is the brightest thing there is
- * (B46). The maskable variant keeps the motif inside the ~80% safe zone
- * with the water bleeding to the edges.
+ * behind its #031019 ink frame (B49), and since B58's second swap it sits
+ * on the deep #020812 — the canvas notes actually live on — as Rob ruled
+ * in B60. The maskable variant keeps the motif inside the ~80% safe zone
+ * with the deep bleeding to the edges.
  *
  * Dependency-free (node:zlib), like everything else in this repository:
- *   node icons/make-icons.js [--ground=water|sky] [--out=DIR]
+ *   node icons/make-icons.js [--ground=deep|water] [--out=DIR]
  * Writes icon-192.png, icon-512.png, icon-512-maskable.png beside itself.
  */
 'use strict';
@@ -18,14 +18,14 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-const GROUND = (process.argv.find(a => a.startsWith('--ground=')) || '--ground=water').slice(9);
+const GROUND = (process.argv.find(a => a.startsWith('--ground=')) || '--ground=deep').slice(9);
 const OUT = (process.argv.find(a => a.startsWith('--out=')) || ('--out=' + __dirname)).slice(6);
 
 /* ---- The settled tokens (UIUX §2) ---------------------------------------- */
 const INK = [0x03, 0x10, 0x19];                 // --ink-dark
 const NOTE = [0xa0, 0xd4, 0xda];                // --note
-const SKY = [0x02, 0x08, 0x12];                 // --band / --chrome
-const FALL = [                                  // the field's three stops (§2.8)
+const DEEP = [0x02, 0x08, 0x12];                // --deep / --chrome
+const FALL = [                                  // the water's three stops (§2.8) — the flag alternative
   { at: 0.00, c: [0x34, 0x69, 0x7f] },
   { at: 0.46, c: [0x25, 0x52, 0x65] },
   { at: 1.00, c: [0x16, 0x36, 0x46] },
@@ -46,9 +46,9 @@ function render(size, maskable) {
   const SS = 4, S = size * SS;
   const px = new Float64Array(S * S * 3);
 
-  // The ground: the vertical fall, edge to edge (flat sky for the alternative).
+  // The ground: the deep, edge to edge (the water fall kept as the flag alternative).
   for (let y = 0; y < S; y++) {
-    const c = GROUND === 'sky' ? SKY : fallAt(y / (S - 1));
+    const c = GROUND === 'water' ? fallAt(y / (S - 1)) : DEEP;
     for (let x = 0; x < S; x++) {
       const o = (y * S + x) * 3;
       px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2];

@@ -109,8 +109,9 @@ ratios, sizes, radii, durations, thresholds, ARIA contracts — lives there and
 nowhere else. `PRD.md` §9 holds the design system's *position* and points at it.
 Both `app.js` and `styles.css` are sectioned against `UIUX.md`'s numbering:
 every top-level `§` marker in `styles.css` is a UIUX section number, and its
-header block is that document's table of contents. The v2 design system's
-**rendered reference** is `docs/proofs/proof-7-a-well-swapped.html` (B46) —
+header block is that document's table of contents. The design system's
+**rendered reference** is `docs/proofs/proof-10-the-second-swap.html` (B58 —
+the current scene; sheets 7 and 9 remain the pre-swap record, B46/B52) —
 read the render before re-deriving the design from prose. `fonts/` holds
 Montserrat Alternates 400/600/800 (B50): declared in `styles.css`, listed in
 `sw.js`'s `ASSETS`, shipped with v2.

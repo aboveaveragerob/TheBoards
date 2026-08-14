@@ -25,29 +25,26 @@
 }
 
 /* --- §2 Design tokens — one theme, dark-only (UIUX §2.1, B48) -------------
-   The page reads top to bottom as one scene: near-black sky, water through
-   the middle, lit sand at the foot (UIUX §2.2). Two rungs are not values —
-   the sheet is a field (UIUX §2.8 — the --board-* stops) and the shelf is a
-   texture (UIUX §2.9 — the --sand-* run and its wisps) — and every ratio the
-   record publishes is stated against the worst extreme of its range. */
+   The page reads top to bottom as one scene, inverted by B58's second swap:
+   water closing both ends of the sheet, the deep between, and the note as
+   the one lit thing on the deep (UIUX §2.2). One rung is not a value — the
+   water is a field (UIUX §2.8 — the --water-* stops, grounding the band and
+   the Parking Lot) — and every ratio the record publishes is stated against
+   the worst extreme of its range. */
 :root {
-  --band:            #020812;   /* Components and Requirements — the deepest surface on the page */
-  --chrome:          #020812;   /* the room behind the page — the band's value doing a second job, off the page (B52) */
-  --card:            #08152c;   /* the title compartment, above the band at 1.10:1: its border separates, not its fill */
-  --frame:           #698ebf;   /* the card's border and the full-width rule — the band's own hue, lifted (UIUX §2.5) */
-  --note:            #a0d4da;   /* the note — on the water, the brightest thing there is (B46) */
-  /* The sheet's vertical fall, authored as opaque stops so the extremes are
-     exactly these declared colours (UIUX §2.8). */
-  --board-top:       #34697f;
-  --board-mid:       #255265;
-  --board-bot:       #163646;
-  --board-bot-a:     22 54 70;      /* the darkest stop as channels, for the edge falloff */
-  /* The shelf's sand, hue 38° at 46% saturation — warm without being brown
-     (UIUX §2.9). The wisp colours ride inside the turbulence filters below. */
-  --sand-light:      #eaddc7;
-  --sand-base:       #e3d2b5;
-  --sand-dark:       #dbc7a3;
-  --sand-taupe:      212 191 160;   /* #d4bfa0 as channels, for the radial wisps */
+  --deep:            #020812;   /* the canvas — the deepest surface on the page (B58) */
+  --chrome:          #020812;   /* the room behind the page — the deep's value doing a second job, off the page (B52/B58) */
+  --card:            #08152c;   /* the title compartment, above the deep at 1.10:1: its border separates, not its fill */
+  --frame:           #698ebf;   /* the card's border and both full-width rules — the deep's own hue, lifted (UIUX §2.5, B61) */
+  --note:            #a0d4da;   /* the note — on the deep, the brightest thing on the page (B58) */
+  /* The water's vertical fall, authored as opaque stops so the extremes are
+     exactly these declared colours (UIUX §2.8). It grounds the two sections
+     that close the sheet; its darkest reach meets the deep at 1.58, which is
+     what makes the band's rule load-bearing (UIUX §2.5, B58). */
+  --water-top:       #34697f;
+  --water-mid:       #255265;
+  --water-bot:       #163646;
+  --water-bot-a:     22 54 70;      /* the darkest stop as channels, for the sections' falloff */
   /* Ink — one per surface, not one per app (UIUX §2.3). The poles; the
      binding is .on-dark/.on-light below. */
   --ink-light:       #f4f5f1;
@@ -55,10 +52,12 @@
   /* That surface's ink at the lowest alpha clearing 3:1 on it (UIUX §2.5). */
   --hairline:        rgb(var(--ink-a) / 0.4);
   /* Accents (UIUX §2.6, B52): text only on a near-black ground; anywhere else
-     a fill carrying --ink-dark. */
+     a fill carrying --ink-dark. With the sand retired (B58/B59), --danger is
+     the only warm hue left in the application — the one thing that destroys
+     is the one thing that isn't cool water. */
   --accent-restore:  #b6dee2;   /* the note's own hue and saturation, lifted 74 -> 80 */
-  --accent-page:     #6d9cb0;   /* the field's hue at the old value's depth */
-  --danger:          #E2A08C;   /* the only saturated warm hue in the application */
+  --accent-page:     #6d9cb0;   /* the water's hue at the old value's depth — and B59's primary fill */
+  --danger:          #E2A08C;   /* the only warm hue in the application (B58 removed the qualifier's need) */
   --elevation:       0 2px 8px rgb(0 0 0 / 0.45);
   --elevation-inset: inset -3px 0 8px rgb(0 0 0 / 0.16), inset 0 2px 4px rgb(0 0 0 / 0.10);
 }
@@ -117,14 +116,11 @@ body {
   height: var(--logical-h, 1000px);
   transform-origin: 0 0;
   transform: translate(var(--offx, 0px), var(--offy, 0px)) scale(var(--rs, 1));
-  /* The sheet is a field, not a value (UIUX §2.8): the vertical fall — light
-     from above, depth downward — under a radial edge falloff, the one layer a
-     mobile sheet has for drawing its bound (renderScale = 1 leaves no
-     letterbox, B32). Opaque stops: the top stop is the single worst case for
-     every adjacency in UIUX §2.5. */
-  background:
-    radial-gradient(118% 76% at 50% 24%, rgb(0 0 0 / 0) 32%, rgb(var(--board-bot-a) / 0.72) 128%),
-    linear-gradient(180deg, var(--board-top) 0%, var(--board-mid) 46%, var(--board-bot) 100%);
+  /* The canvas is the deep (B58): flat #020812 under the dither below. The
+     radial edge falloff died with this swap — its one UIUX §1 job was
+     drawing the mobile sheet's bound in water, and a near-black ground has
+     nothing darker to fall to. */
+  background: var(--deep);
   touch-action: none;
 
   /* The band's geometry, declared once and derived from here (B35). Every edge
@@ -153,11 +149,11 @@ body {
   --rule-y:   88px;
 }
 
-/* Dither at anti-banding amplitude (UIUX §2.8): the blue channel travels 45
-   steps across an 846px sheet, one step every 19px, which an 8-bit panel
-   shows as horizontal banding. Repair, not texture — and never an event
-   target: a pseudo-element is not in the DOM, so the recognizer still sees
-   bare canvas beneath it. */
+/* Dither at anti-banding amplitude (UIUX §2.8): the water sections' ramps
+   are what an 8-bit panel would band, and this overlay covers them both;
+   on the deep between, it is the grain the ratified render carries (B58).
+   Never an event target: a pseudo-element is not in the DOM, so the
+   recognizer still sees bare canvas beneath it. */
 #board::before {
   content: "";
   position: absolute;
@@ -212,18 +208,24 @@ body {
   position: absolute;
   left: 0; right: 0; top: 0;
   height: var(--rule-y);
-  background: var(--band);             /* the deepest surface on the page (UIUX §2.2) */
-  z-index: 0;                          /* above the field, below the zones */
+  /* The band takes the water (B58): the fall under the sections' own
+     falloff, light from above, darkening to the rule. */
+  background:
+    radial-gradient(118% 76% at 50% 24%, rgb(0 0 0 / 0) 32%, rgb(var(--water-bot-a) / 0.72) 128%),
+    linear-gradient(180deg, var(--water-top) 0%, var(--water-mid) 46%, var(--water-bot) 100%);
+  z-index: 0;                          /* above the canvas, below the zones */
   pointer-events: none;
 }
-#band-rule {                           /* same weight and idiom as #lot-rule */
+#band-rule {                           /* same weight and idiom as #lot-rule (B61) */
   position: absolute;
   left: 0; right: 0; top: var(--rule-y);
   height: 1px; background: var(--frame);
-  /* A section mark, not a separator — band and sheet already part by fill at
-     3.32:1, which is what freed it to stop being white (UIUX §2.5). Same
-     z-plane as the anchors, DOM-later: it draws over a zone's overflowing
-     content, and the card (DOM-latest) occludes it. */
+  /* LOAD-BEARING since B58: the band's water darkens to 1.58:1 against the
+     deep at this seam, under the 3:1 fill floor, so this rule is what
+     separates the two — clearing 5.95 on the deep and 3.77 on the water's
+     darkest stop (UIUX §2.5). Same z-plane as the anchors, DOM-later: it
+     draws over a zone's overflowing content, and the card (DOM-latest)
+     occludes it. */
   z-index: 1;
 }
 /* The zone is a positioning frame only — pointer-events:none keeps it and its
@@ -309,20 +311,16 @@ body {
   z-index: 1;                          /* furniture plane; notes (z-2) stay above */
   left: 0; right: 0; bottom: 0;
   height: var(--lot-h, 122px);
-  /* The shelf is weather (UIUX §2.9): stretched turbulence wisps — pink
-     #d7b7ad, grey #bec3bb, taupe #d4bfa0, encoded in the filters' colour
-     matrices — over taupe radials over the sand run. Irregular overlapping
-     wisps do not band at higher amplitude; a flat cream would. */
+  /* The lot takes the water too (B58) — the exact mirror of the band: the
+     same fall, the same falloff, closing the sheet's other end. Its lightest
+     reach meets the deep at 3.32:1, so this seam separates by fill and the
+     rule above stays a section mark. */
   background:
-    url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MjAiIGhlaWdodD0iMTkwIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIj48ZmlsdGVyIGlkPSJ3IiB4PSIwJSIgeT0iMCUiIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxmZVR1cmJ1bGVuY2UgdHlwZT0iZnJhY3RhbE5vaXNlIiBiYXNlRnJlcXVlbmN5PSIwLjAwNDUgMC4wNyIgbnVtT2N0YXZlcz0iMyIgc2VlZD0iMTEiIHN0aXRjaFRpbGVzPSJzdGl0Y2giLz48ZmVDb2xvck1hdHJpeCB0eXBlPSJtYXRyaXgiIHZhbHVlcz0iMCAwIDAgMCAwLjg0MyAwIDAgMCAwIDAuNzE4IDAgMCAwIDAgMC42NzggMS40NSAwIDAgMCAtMC4zNCIvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPSI0MjAiIGhlaWdodD0iMTkwIiBmaWx0ZXI9InVybCgjdykiLz48L3N2Zz4="),
-    url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MjAiIGhlaWdodD0iMTkwIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIj48ZmlsdGVyIGlkPSJ3IiB4PSIwJSIgeT0iMCUiIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxmZVR1cmJ1bGVuY2UgdHlwZT0iZnJhY3RhbE5vaXNlIiBiYXNlRnJlcXVlbmN5PSIwLjAwODUgMC4wNDgiIG51bU9jdGF2ZXM9IjMiIHNlZWQ9IjUiIHN0aXRjaFRpbGVzPSJzdGl0Y2giLz48ZmVDb2xvck1hdHJpeCB0eXBlPSJtYXRyaXgiIHZhbHVlcz0iMCAwIDAgMCAwLjc0NSAwIDAgMCAwIDAuNzY1IDAgMCAwIDAgMC43MzMgMS4zIDAgMCAwIC0wLjM4Ii8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjQyMCIgaGVpZ2h0PSIxOTAiIGZpbHRlcj0idXJsKCN3KSIvPjwvc3ZnPg=="),
-    url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MjAiIGhlaWdodD0iMTkwIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJub25lIj48ZmlsdGVyIGlkPSJ3IiB4PSIwJSIgeT0iMCUiIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxmZVR1cmJ1bGVuY2UgdHlwZT0iZnJhY3RhbE5vaXNlIiBiYXNlRnJlcXVlbmN5PSIwLjAwMyAwLjA5IiBudW1PY3RhdmVzPSIzIiBzZWVkPSIyMyIgc3RpdGNoVGlsZXM9InN0aXRjaCIvPjxmZUNvbG9yTWF0cml4IHR5cGU9Im1hdHJpeCIgdmFsdWVzPSIwIDAgMCAwIDAuODMxIDAgMCAwIDAgMC43NDkgMCAwIDAgMCAwLjYyNyAxLjE1IDAgMCAwIC0wLjQyIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjQyMCIgaGVpZ2h0PSIxOTAiIGZpbHRlcj0idXJsKCN3KSIvPjwvc3ZnPg=="),
-    radial-gradient(150% 42% at 30% 12%, rgb(var(--sand-taupe) / 0.45) 0%, rgb(var(--sand-taupe) / 0) 70%),
-    radial-gradient(130% 38% at 72% 86%, rgb(var(--sand-taupe) / 0.38) 0%, rgb(var(--sand-taupe) / 0) 72%),
-    linear-gradient(176deg, var(--sand-light) 0%, var(--sand-base) 52%, var(--sand-dark) 100%);
+    radial-gradient(118% 76% at 50% 24%, rgb(0 0 0 / 0) 32%, rgb(var(--water-bot-a) / 0.72) 128%),
+    linear-gradient(180deg, var(--water-top) 0%, var(--water-mid) 46%, var(--water-bot) 100%);
   background-size: 100% 100%;
 }
-/* The shelf's own dither, at the lot's 0.05 (UIUX §2.9). */
+/* The lot's own dither, kept at its 0.05 — the fall beneath it still ramps. */
 #lot::after {
   content: "";
   position: absolute;
@@ -332,11 +330,12 @@ body {
   pointer-events: none;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='4' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
 }
-#lot-rule {                            /* the lot's top rule, in the shelf's own
-                                          ink — a section mark, like the band's
-                                          (UIUX §2.5); full width (B47) */
+#lot-rule {                            /* the same line at both ends of the
+                                          sheet (B61): --frame, full width — a
+                                          section mark here, since this seam
+                                          separates by fill (UIUX §2.5) */
   position: absolute; left: 0; right: 0; top: 0;
-  height: 1px; background: var(--ink);
+  height: 1px; background: var(--frame);
   z-index: 1;
 }
 #lot-header {
@@ -566,14 +565,16 @@ body {
   padding: 16px 20px;
 }
 #list-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
-/* The app's single primary control (UIUX §14): the shelf's sand behind the
-   shelf's own ink, wearing the shared tactile signature — offset shadow and
-   press-translate — that makes a control feel like a control. Instant (UIUX §8).
-   Shared by the list view's New board and the desktop pane's (issue #10). */
+/* The app's single primary control (UIUX §14, refilled by B59): the accent
+   about boards on the control that makes one — --accent-page behind
+   --ink-dark, wearing the shared tactile signature — offset shadow and
+   press-translate — that makes a control feel like a control. Instant
+   (UIUX §8). Shared by the list view's New board and the desktop pane's
+   (issue #10). */
 .primary-btn {
   min-height: 44px;                    /* UIUX §6 */
   padding: 0 18px;
-  background: var(--sand-base);
+  background: var(--accent-page);
   color: var(--ink-dark);
   border: 2px solid var(--ink-dark);
   border-radius: 0.4em;
@@ -619,7 +620,7 @@ body {
   width: 100%;
   min-height: 56px;                    /* = PANE_ROW_H in app.js */
   padding: 12px 16px;
-  background: linear-gradient(180deg, var(--board-top), var(--board-mid));
+  background: linear-gradient(180deg, var(--water-top), var(--water-mid));
   border: 1px solid var(--hairline);
   border-radius: 3px;
   color: var(--ink);
@@ -849,7 +850,7 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
   gap: 8px;
   min-height: 56px;                    /* compact card — same height as list rows */
   padding: 8px 12px;
-  background: linear-gradient(180deg, var(--board-top), var(--board-mid));
+  background: linear-gradient(180deg, var(--water-top), var(--water-mid));
   border: 1px solid var(--hairline);
   border-radius: 3px;
   color: var(--ink);
@@ -1042,8 +1043,9 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 .board-row.tapped           { background: var(--ink); color: var(--ink-dark); }
 .board-row.tapped .row-title.untitled,
 .board-row.tapped .row-date { color: var(--ink-dark); }
-/* Already filled, so it acknowledges by draining instead of filling. */
-.primary-btn.tapped         { background: var(--ink-dark); color: var(--sand-base); }
+/* Already filled, so it acknowledges by draining instead of filling — the
+   accent as text on a near-black ground, exactly UIUX §2.6's placement. */
+.primary-btn.tapped         { background: var(--ink-dark); color: var(--accent-page); }
 /* Selection action buttons rest in their fills; same drain on tap. */
 .sel-btn.sel-complete.tapped { background: var(--ink-dark); color: var(--accent-restore); }
 .sel-btn.sel-copy.tapped     { background: var(--ink-light); color: var(--ink-dark); }
