@@ -801,6 +801,65 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
+  console.log('\n[D17b] Note text is centred — computed style, and Tm x in the stream (issue #82)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Centre fixture';
+      rec.notes = [
+        // Cap-bound at (900-300)/1 = 600 authored units; the \n makes
+        // CENTERPIN a deliberately short line inside that wide frame. Its
+        // trailing spaces must NOT count toward the centring: pre-wrap hangs
+        // them on screen, and the export measures the line without them.
+        { id: 'c1', text: 'CENTERPIN  \nThe quick brown fox jumps over the lazy '
+            + 'dog while the cat watches from the window and the dog barks at '
+            + 'the mailman who hurries past the gate before the rain starts',
+          x: 300, y: 300, rw: 900, rh: 1000, scale: 1, state: 'active' },
+      ];
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    ok('.note-text computes text-align: center', await page.evaluate(() =>
+      getComputedStyle(document.querySelector('[data-id="c1"] .note-text')).textAlign === 'center'));
+    // Where the stream must put the short line: left content edge + half the
+    // slack, in note-local units (the note's cm makes its Tm x box-local).
+    // Measured on the trimmed line — the hanging trailing spaces are not text.
+    const exp = await page.evaluate(() => {
+      const g = EXPORT_GEO;
+      const note = current.notes.find(n => n.id === 'c1');
+      const box = exportNoteBox(note);
+      return { left: g.border + g.notePadX, content: box.content,
+               tx: g.border + g.notePadX
+                   + (box.content - pdfTextW('CENTERPIN', false, g.noteSize)) / 2 };
+    });
+    await page.evaluate(() => {
+      document.querySelector('#pane-cards .pane-card.active')
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 300 }));
+    });
+    await page.waitForTimeout(150);
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.evaluate(() => [...document.querySelectorAll('#menu button')]
+        .find(b => /Export/.test(b.textContent)).click()),
+    ]);
+    const s = fs.readFileSync(await dl.path()).toString('latin1');
+    // First stream = page 1, the board (page 2 is left-aligned prose by design).
+    const board = /stream\n([\s\S]*?)\nendstream/.exec(s)[1];
+    const m = /1 0 0 -1 ([\d.]+) [\d.]+ Tm\n\(CENTERPIN *\) Tj/.exec(board);
+    ok('the short line has a Tm in page 1', !!m);
+    if (m) {
+      const tx = parseFloat(m[1]);
+      ok('its Tm x is inset from the left content edge (centred, not flushed)',
+         tx > exp.left + 50, JSON.stringify({ tx, ...exp }));
+      ok('and the inset is the centring formula, exactly (±0.01)',
+         Math.abs(tx - exp.tx) <= 0.01, JSON.stringify({ tx, expected: exp.tx }));
+    }
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   console.log('\n[D18] Click-away from an open editor dismisses; the second click creates (issue #54)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);

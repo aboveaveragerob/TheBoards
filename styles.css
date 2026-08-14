@@ -409,6 +409,9 @@ body {
   color: var(--ink);
   caret-color: var(--ink);
   font-size: 17px; line-height: 1.4;
+  /* Centred in its own frame (issue #82, B62). Alignment moves glyphs, not the
+     box: width stays max-content capped by --note-max-w, so B39's law holds. */
+  text-align: center;
   white-space: pre-wrap;
   overflow-wrap: break-word;
   outline: none;
