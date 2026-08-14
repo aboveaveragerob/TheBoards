@@ -616,6 +616,43 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
+  // ---- 11d. The cover screen keeps its three lot rows (B57) -----------------
+  // The ceiling re-derived under full bleed: B37's proportional bound with the
+  // 16px margin gone returns 821, so 384x846 draws a three-item lot at
+  // 34 + 3 x 44 = 166, to the sheet's bottom edge — exactly as proof sheets 7
+  // and 9 render it. The short-window cases stay two rows ([11b]).
+  console.log('\n[11d] Three lot items draw three rows on the cover screen (B57)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Lot ceiling fixture';
+      rec.parkingLot = [
+        { id: 'l1', text: 'Measure the alcove', state: 'active' },
+        { id: 'l2', text: 'Grout colour undecided', state: 'complete' },
+        { id: 'l3', text: 'Tile samples from Dover St', state: 'active' },
+      ];
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    const g = await page.evaluate(() => {
+      const b = document.querySelector('#board').getBoundingClientRect();
+      const lot = document.querySelector('#lot').getBoundingClientRect();
+      return { h: lot.height, bottom: lot.bottom - b.top,
+               rows: document.querySelectorAll('.lot-item').length,
+               thirdVisible: (() => {
+                 const r = [...document.querySelectorAll('.lot-item')][2].getBoundingClientRect();
+                 return r.bottom <= lot.bottom + 0.5;
+               })() };
+    });
+    ok('three items grow the lot to 166 (B57)', Math.round(g.h) === 166, String(g.h));
+    ok('the lot still ends at the sheet bottom', Math.round(g.bottom) === 846, String(g.bottom));
+    ok('the third row is drawn, not clipped', g.rows === 3 && g.thirdVisible, JSON.stringify(g));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   // ---- 12. rh keeps y portable across frames (B32) --------------------------
   console.log('\n[12] Note y is frame-relative (rh)');
   {

@@ -438,10 +438,14 @@ function bandRuleY() {
 /* The Parking Lot's height follows its contents from a two-row floor:
    34 + clamp(2, n, maxRows) x 44 (UIUX §3.2). Empty, one row and two rows
    all draw the same two-row shelf — furniture, not a by-product of content.
-   B37's viewport-derived budget survives as a CEILING only, so a long lot
-   cannot swallow the canvas; a row past it still exists, still saves and
-   still exports — it is simply not drawn. */
-const LOT_HEAD = 34, LOT_ROW = 44, LOT_3ROW_MIN_H = 900;
+   B37's proportional bound survives as the CEILING, re-instantiated under
+   B47's full-bleed geometry (B57): B37 accepted 182 of a 900-unit sheet
+   with the old 16px margin, and three full-bleed rows are 166, so three
+   rows hold from 166 x 900 / 182 = 821 units — the cover screen included,
+   as both ratified proof sheets draw it — and two below. A row past the
+   ceiling still exists, still saves and still exports; it is simply not
+   drawn. */
+const LOT_HEAD = 34, LOT_ROW = 44, LOT_3ROW_MIN_H = 821;
 const lotMaxRows = () => (LOGICAL_H >= LOT_3ROW_MIN_H ? 3 : 2);
 const lotH = () => {
   const n = current ? current.parkingLot.length : 0;
