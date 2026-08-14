@@ -58,11 +58,13 @@ launch after it, but it is a net, not a substitute (B36).
   their words absent from the file.
 - **All boards** (in either long-press menu) opens the board list; the OS
   back gesture returns you to the board.
-- The list sorts boards into three categories — To-Do, Idea, and Unsorted —
-  each with its own pager; nothing scrolls. A press on a board card has three
-  readings: **move** drags it to another category, **hold** opens that
-  board's menu (Export · Delete, whether or not it's the one currently
-  open), **release** opens the board.
+- The list sorts boards into three categories — To-Do, Idea, and Note
+  Boards — each with a **New board** button on its header that creates a
+  board in that category and opens it, and its own pager below the cards;
+  nothing scrolls. A press on a board card has three readings: **move**
+  drags it to another category, **hold** opens that board's menu (Export ·
+  Delete, whether or not it's the one currently open), **release** opens
+  the board.
 
 ## On desktop
 
@@ -75,10 +77,11 @@ width, is what keeps tablets in touch mode):
   edit (caret at the end). Click empty canvas to deselect — with nothing
   selected, a click still creates a note. Parking Lot lines select the same
   way, with their buttons at the row's right edge. There is no click-and-hold.
-- A **board rail** on the left lists every board, newest first, with the open
-  board marked. Click a card to switch (a brief crossfade), a category's own
+- A **board rail** on the left sorts the same three categories, each with
+  its own pager — newest first within a category — with the open board
+  marked. Click a card to switch (a brief crossfade), a category's own
   **New board** button to create a board in that section and open it, the
-  active card's 🗑 to delete the open board — or
+  active card's delete mark to delete the open board — or
   **right-click any card** to export or delete it. Deletes keep the 5-second
   Undo; Export writes the board to a PDF, whether or not that board is open.
 - **Esc** deselects (or commits an edit), **Delete** removes the selection,
