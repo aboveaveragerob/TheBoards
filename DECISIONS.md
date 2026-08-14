@@ -1722,3 +1722,64 @@ computed style on `.note-text`, and [D17b] parses page 1's content stream
 to prove a deliberately short line inside a cap-wide note draws with its
 `Tm` x operand inset from the note's left content edge — centred in the
 file, not just in the DOM.
+## R. Creation moves into the categories (issue #88)
+
+### B63. Every category makes its own boards, and the pager steps below the cards (supersedes B44's merged strip and its three-per-page clause; supersedes B24's and B44's create-to-Unsorted flows; supersedes §14's "single primary control" claim; renames Unsorted's label only)
+
+Issue #88 names the tax: the app sorts boards into categories, yet the one
+control that makes a board stood outside them all — a global `New board` on
+the list header and another on the rail — so every created board landed in
+Unsorted and its categorization became a second, separate act. Capture
+precedes structure, but creation *is* capture here, and the category the
+user is looking at when they reach for the control is structure they have
+already asserted. Making them re-state it with a drag is cognitive tax.
+
+**Each section carries its own control, and it writes what it sits in.**
+`makeCatSection` emits a fourth child — a `.primary-btn.cat-add` between
+the head and the cards, on both surfaces, no `isDesktop` branch — and its
+`newBoardIn(cat)` writes `category` explicitly (`'unsorted'` included,
+`dropBoardCard`'s precedent; `catOf` stays a read-site default and no
+record migrates) plus `catStamp`, so the new card lands first exactly as a
+drop does. The board **opens at once** — `swapBoard` on desktop, the B9
+page-turn on mobile — because a control that made something you then had
+to go find would tax the very moment it exists to serve. The tap runs
+through `delayAction` (B18: acknowledged, not idle), and the globals are
+**removed, not duplicated**: `#new-board` and `#pane-new` are gone, and
+§14's "the app's single primary control" claim goes with them — the
+primary species survives, one per section, its construction unchanged.
+
+**The section restacks as one grid on both surfaces.** Head row — label
+left, control right, one box height — then cards, then the pager on its
+own row **below the cards, centred**. The issue's word ("centered") wins
+over the mockups' right-leaning pager: the mockups relocate the control
+and grow the header, which is what they were drawn for; the text states
+the pager's position outright. The header takes one new display step to
+hold the row — **24px**, recorded in `UIUX §13.1` — keeping B44's
+uppercase and letter-spacing; the control's own label steps to 14px so
+the longest name still fits whole at B32's 384px floor. **The rail
+measures out of the step:** at 24px `TO-DO BOARDS` sets 215px, and the
+rail's 276px cannot hold that beside any legible control — so the rail's
+header takes the scale's existing top step, 18px, rather than crowding
+the category name off its own row (the refusal B44 already made when
+four pager squares crowded `Unsorted Boards` off its strip). One new
+step on the scale, not two: the rail adds none. Rows are 48px on mobile
+(the control at §6's 44px floor) and 32px on desktop, where the
+control's label steps down to 13px so a 300px rail holds both boxes.
+
+**The capacity consequence is owned here.** Two 44px-floor furniture rows
+where B44's merged strip spent one leave a 384×846 phone **two cards per
+page**, not B44's three — that clause is superseded, deliberately: the
+rows bought a create control per category and a header that reads at
+arm's length, and overflow was already paged, so the third card costs a
+page-turn, not a scroll. Desktop stays at three — retiring `#pane-new`
+pays for its taller head row. `test/mobile.js` [19]'s no-overflow /
+no-scroll pair still binds.
+
+**The control's name is generic on purpose.** Three buttons all read
+`New board`; each is a grid *sibling* of the aria-hidden `.cat-head`
+(a button inside it would be unreachable to AT), so the enclosing group's
+`aria-label` — the category, with its page state — disambiguates them,
+exactly as it already disambiguates the pager's twelve arrows. **The
+rename is the label alone:** `COPY.catUnsorted` becomes `Note Boards`;
+the storage key `'unsorted'`, `BOARD_CATS`, `catOf`, `data-cat` and the
+buckets are untouched (B21/B42/B44's read-site idiom — no migration).
