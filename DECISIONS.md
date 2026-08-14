@@ -35,9 +35,8 @@ question was escalated.
 >   `UIUX §2.3`, `§2.5`.
 >
 > **B40's accepted anisotropy** ("when the two ratios diverge, vertical clearances
-> can still shift") and **B21's width-only multiplier** still stand. Issues #65 and
-> #75 are the argument against them; they are superseded by whichever ruling lands
-> the similarity transform, which is not this release (`PRD §2.5`).
+> can still shift") and **B21's width-only multiplier**: issues #65 and #75 are the
+> argument against them — superseded by B64.
 >
 > Everything else here stands. In particular the B33 → B35 → B36 → B37 → B38 band
 > chain is **unchanged and still authoritative** — `UIUX §13.2` adds a measurement
@@ -1783,3 +1782,109 @@ exactly as it already disambiguates the pager's twelve arrows. **The
 rename is the label alone:** `COPY.catUnsorted` becomes `Note Boards`;
 the storage key `'unsorted'`, `BOARD_CATS`, `catOf`, `data-cat` and the
 buckets are untouched (B21/B42/B44's read-site idiom — no migration).
+
+## S. The similarity transform (issues #65, #75)
+
+### B64. One ratio maps x, y and size: the arrangement travels as a figure (supersedes B40's mapping clause and B21's width-only multiplier; B32's legacy rescue, B39, and B40's widened gesture clamps stand)
+
+The bug, twice reported: fold or unfold a Z Fold, or rotate any phone, and the
+board comes back with its arrangement mangled. The cause was in the record all
+along — B21 maps `x` by `LOGICAL_W/rw`, B32 maps `y` by `LOGICAL_H/rh`, and B40
+sizes on the width ratio alone, naming the consequence and accepting it: "when
+the two ratios diverge, vertical clearances can still shift." An aspect change
+is precisely the two ratios diverging, so every fold sheared the one thing PRD
+§2.4 says must survive — "opening a board weeks later still shows the same
+arrangement they left." Positions permanent means the *arrangement*, not three
+coordinates that happen to agree only on the device that wrote them.
+
+**Ruling.** One uniform ratio per note,
+
+```
+k = min(LOGICAL_W / (rw ‖ 900), LOGICAL_H / rh)
+```
+
+maps `x`, `y` **and** size (`renderX = x·k`, `renderY = y·k`, `effScale =
+scale·k`). A single ratio on both axes and the size is a similarity transform:
+pairwise angles and distance ratios are preserved, so the figure the author
+left is the figure every device shows — smaller or larger, never sheared.
+`min` gives containment **by construction**: `x ≤ rw ⇒ x·k ≤ LOGICAL_W`, and
+the same for `y` against `rh` — which dissolves B40's stated objection to
+mapping `y` by the x-ratio ("would push notes off the bottom of a shorter
+sheet and demand exactly the re-clamps B17/B21 forbid") with zero re-clamps.
+Stored geometry is still never touched by a viewport change; the entire law is
+render-time, and the export applies it against its own sheet (`exportK`, the
+same `min` over `EXPORT_W`/`EXPORT_H`) because the export mirrors the render
+law mandatorily (B34, B39).
+
+**Anchored top-left, and deliberately not centred — a ruled-out approach,
+recorded.** With the height ratio binding, the figure occupies the sheet's
+upper-left and the slack falls to the right/bottom as open canvas. Centring
+the slack looks kinder and is impossible in principle: a centring offset is a
+function of `rw`/`rh`, which each note carries *per authoring cohort* — notes
+written on different frames would take different offsets, and a grabbed note
+rebases to the live frame (offset 0) while its ungrabbed neighbours kept
+theirs. Both re-shear exactly the arrangements this ruling exists to preserve.
+The anchor is part of the law, not a default.
+
+**The grab stays silent in position and size; the wrap cap rebinds, owned.**
+`rebaseNote` folds `k` where it folded B40's width multiplier: `x = renderX;
+y = renderY; scale·= k; rw = LOGICAL_W; rh = LOGICAL_H`. Silence is the same
+proof as B40's: `effScale` before equals `scale` after, and once `rw`/`rh`
+equal the live frame, `k ≡ 1`, so all gesture math runs in current-frame
+units unmodified. B40's widened gesture clamps need no change and are kept —
+a folded scale may still leave [MIN_SCALE, MAX_SCALE], merely by a smaller
+factor than before. One thing the old rebase preserved, this one does not,
+and it is chosen rather than suffered: with `rw·mult ≡ LOGICAL_W` the cap
+`(rw − x)/scale` survived B40's rebase exactly, but under min-k
+`rw = LOGICAL_W ≥ rw·k`, so a height-bound cross-frame grab can *widen* the
+cap (never narrow it). That is B39's own live law — the cap is the distance
+to the sheet the gesture is running on, and "a note simply rewraps wider and
+flatter where it stands — intended, shipped" — surfacing at the pickup.
+Keeping the authored cap instead (`rw = rw·k`) was considered and ruled out:
+the drag would then wrap against a phantom edge at `rw·k`, short of the
+sheet's true right edge, violating B39's headline. `rebaseNote` re-asserts
+the width var on the element at the fold, so the DOM, the drag guard's
+caches, and the record agree from the gesture's first frame — a stale cap
+would otherwise hold the old wrap through the drag and snap it at the drop.
+
+**`noteMaxW` is restated, not changed.** B39's law is `(rw − x)/scale` in
+authored units; the shipped form `(LOGICAL_W − renderX)/effScale` was that
+identity only while position and size shared the width ratio. Under min-k it
+silently widens the cap whenever the height ratio binds — a cap-wide note
+re-wraps across a fold, and the screen≡PDF wrap parity ([D17], mobile [18])
+breaks. The cap now states the identity directly: `max(NOTE_MIN_W,
+(rw ‖ 900 − x)/(scale ‖ 1))`, value-identical under the old law — and with
+no frame constant left in it, `exportNoteBox` calls the screen's function
+itself rather than restating it. Containment survives the restatement:
+`renderX + cap·effScale = (x + (rw − x))·k = rw·k ≤ LOGICAL_W`.
+
+**Legacy notes are untouched.** A pre-B32 note has no `rh`, its authoring
+height is device-dependent and unrecoverable, and there is no second ratio to
+take a `min` against. The entire legacy branch — width-ratio `x` and size,
+`y` through `LEGACY_H`, the clamp at render time only — is B32's exact ruling
+and stands verbatim.
+
+**B28/B32's keyboard-resize deferral is now triply load-bearing.** It already
+prevented the soft keyboard from moving every note (`y` is frame-relative) and
+from baking a shrunken `rh` into storage at a mid-edit grab; under one shared
+`k` an unguarded keyboard resize would now shrink `x` and *size* too — the
+whole board would flinch at every keyboard. Do not weaken it.
+
+**Costs, owned as B40 owned its own.** This deliberately changes how
+cross-frame boards *look*, in both directions. A phone-authored board on a
+1440×900 desktop rendered at B40's ~3.3× wide — and sheared; it now renders at
+`min(lw/384, 1000/846) ≈ 1.18×` — compact, faithful, with the right and
+bottom left as open canvas. A desktop-authored board on a phone renders small
+(k ≈ 0.30 where B40 gave `y` 0.85), the arrangement gathered toward the
+top-left; B7's decoupled 44 px hit collar is what keeps a shrunken note
+tappable, exactly the job B40 assigned it. And where B40's width-only
+multiplier related any two notes identically on every frame (`LOGICAL_W`
+cancels in the ratio), min-k does not: a board whose notes carry *different*
+authoring frames can relate its cohorts differently on different sheets —
+including the PDF's — because each cohort's `min` may bind on a different
+axis. Within one cohort, which is what an arrangement is, the figure is
+exact; and any grab rebases toward one cohort. Faithful-but-small over
+large-but-lying: the board is a *spatial* record, and a shear is a lie about
+space. Pinned by `test/mobile.js` [12c] (shape held, size uniform, storage
+untouched, round trip exact) and `test/desktop.js` [D13] (the silent grab
+folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.

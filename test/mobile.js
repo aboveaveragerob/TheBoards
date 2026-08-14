@@ -725,6 +725,95 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
+  // ---- 12c. fold/rotate is a similarity (issues #65/#75, B64) ---------------
+  // One uniform ratio k = min(LOGICAL_W/rw, LOGICAL_H/rh) maps x, y and size
+  // together, so an aspect change maps the arrangement as a figure instead of
+  // shearing it: pairwise angles hold, distances and sizes scale by the one k,
+  // min keeps every note on the page, and reading is not writing (B21) — the
+  // stored geometry never moves. Folding back is the inverse similarity, so
+  // the round trip is exact.
+  console.log('\n[12c] Fold/rotate is a similarity: shape held, size uniform, storage untouched, round trip exact (issues #65/#75, B64)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Similarity fixture';
+      // Three notes in an L on the 384x846 frame they were authored in.
+      rec.notes = [
+        { id: 's1', text: 'n1', x: 60,  y: 200, rw: 384, rh: 846, scale: 1, state: 'active' },
+        { id: 's2', text: 'n2', x: 300, y: 200, rw: 384, rh: 846, scale: 1, state: 'active' },
+        { id: 's3', text: 'n3', x: 60,  y: 700, rw: 384, rh: 846, scale: 1, state: 'active' },
+      ];
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    const measure = () => page.evaluate(() => {
+      const b = document.querySelector('#board').getBoundingClientRect();
+      const out = { board: { left: b.left, top: b.top, right: b.right, bottom: b.bottom } };
+      for (const id of ['s1', 's2', 's3']) {
+        const r = document.querySelector('[data-id="' + id + '"]').getBoundingClientRect();
+        out[id] = { cx: r.x + r.width / 2 - b.x, cy: r.y + r.height / 2 - b.y,
+                    w: r.width, left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+      }
+      return out;
+    });
+    const dist = (m, a, b) => Math.hypot(m[b].cx - m[a].cx, m[b].cy - m[a].cy);
+    const ang = (m, a, b) => Math.atan2(m[b].cy - m[a].cy, m[b].cx - m[a].cx);
+    const before = await measure();
+
+    // The fold: 384x846 -> 846x384. k = min(846/384, 384/846) = 384/846.
+    await page.setViewportSize({ width: 846, height: 384 });
+    await page.waitForTimeout(250);
+    const after = await measure();
+    const k = 384 / 846;
+
+    const pairs = [['s1', 's2'], ['s1', 's3'], ['s2', 's3']];
+    const ratios = pairs.map(([a, b]) => dist(after, a, b) / dist(before, a, b));
+    ok('all pairwise distances shrink by the one ratio k ≈ ' + k.toFixed(4),
+      ratios.every(r => Math.abs(r / k - 1) < 0.01), JSON.stringify(ratios));
+    const angles = [['s1', 's2'], ['s1', 's3']].map(([a, b]) =>
+      Math.abs(ang(after, a, b) - ang(before, a, b)) * 180 / Math.PI);
+    ok('the figure keeps its angles at n1 (±0.5°)',
+      angles.every(d => d < 0.5), JSON.stringify(angles));
+    const wRatios = ['s1', 's2', 's3'].map(id => after[id].w / before[id].w);
+    ok('every note width scales by k (±2%), and equally',
+      wRatios.every(r => Math.abs(r / k - 1) < 0.02) &&
+      Math.max(...wRatios) - Math.min(...wRatios) < 0.01, JSON.stringify(wRatios));
+    ok('every note stays inside the board (min gives containment)',
+      ['s1', 's2', 's3'].every(id =>
+        after[id].left >= after.board.left - 0.5 && after[id].top >= after.board.top - 0.5 &&
+        after[id].right <= after.board.right + 0.5 && after[id].bottom <= after.board.bottom + 0.5),
+      JSON.stringify(after));
+    ok('stored geometry untouched — reading is not writing (B21)',
+      await page.evaluate(() => new Promise(res => {
+        const rq = indexedDB.open('boards-db');
+        rq.onsuccess = () => {
+          const all = rq.result.transaction('boards', 'readonly').objectStore('boards').getAll();
+          all.onsuccess = () => {
+            const ns = all.result.flatMap(b => b.notes);
+            const want = { s1: [60, 200], s2: [300, 200], s3: [60, 700] };
+            res(Object.entries(want).every(([id, [x, y]]) => {
+              const n = ns.find(m => m.id === id);
+              return !!n && n.x === x && n.y === y && n.scale === 1 && n.rw === 384 && n.rh === 846;
+            }));
+          };
+        };
+      })));
+
+    // And back: the inverse similarity lands every centre where it began.
+    await page.setViewportSize({ width: 384, height: 846 });
+    await page.waitForTimeout(250);
+    const back = await measure();
+    ok('round trip is lossless (every centre within 0.5px)',
+      ['s1', 's2', 's3'].every(id =>
+        Math.abs(back[id].cx - before[id].cx) < 0.5 &&
+        Math.abs(back[id].cy - before[id].cy) < 0.5),
+      JSON.stringify({ s1: [before.s1.cx, back.s1.cx, before.s1.cy, back.s1.cy] }));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   // ---- 13. pre-B32 notes stay reachable, and are not rewritten -------------
   console.log('\n[13] Legacy note (no rh) is rescued, not mutated');
   {
