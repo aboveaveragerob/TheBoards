@@ -240,7 +240,7 @@ body {
 .band-zone .anchor {
   left: 0; right: 0; top: var(--band-top);
   width: auto;
-  min-height: 44px;                    /* stays long-pressable when empty (§6.1) */
+  min-height: 44px;                    /* stays long-pressable when empty (PRD §6.1) */
   padding: 0;                          /* the box is the type: B47's formula counts lines, nothing else */
   pointer-events: auto;
   font-size: 15px; font-weight: 600;
@@ -568,10 +568,10 @@ body {
 #list-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
 /* The app's single primary control (UIUX §14): the shelf's sand behind the
    shelf's own ink, wearing the shared tactile signature — offset shadow and
-   press-translate — that makes a control feel like a control. Instant (§8).
+   press-translate — that makes a control feel like a control. Instant (UIUX §8).
    Shared by the list view's New board and the desktop pane's (issue #10). */
 .primary-btn {
-  min-height: 44px;                    /* §6 */
+  min-height: 44px;                    /* UIUX §6 */
   padding: 0 18px;
   background: var(--sand-base);
   color: var(--ink-dark);
@@ -718,7 +718,7 @@ body {
 /* Adjacent buttons share their border, the seam .pane-del already uses: at
    the touch floor four separate squares crowd the category name off the
    strip, and one segmented control reads as one control anyway. -2px now
-   that the §14 construction draws a 2px ink border. */
+   that the UIUX §14 construction draws a 2px ink border. */
 .pager-btn + .pager-btn { margin-left: -2px; }
 .cat-pages {
   font-size: 12px;
@@ -728,7 +728,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 /* The pager (UIUX §14): --accent-page as a fill carrying --ink-dark, in the
-   §14 construction — disabled says so at opacity, not with a mid-grey. */
+   UIUX §14 construction — disabled says so at opacity, not with a mid-grey. */
 .pager-btn {
   min-width: 44px;                     /* = HIT_FLOOR (PRD §5.3, UIUX §6) */
   min-height: 44px;
@@ -1012,7 +1012,7 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
    weight — a resting note carries a fill now (B46), but it still never fills
    AS acknowledgment: that would be indistinguishable from the completion
    mark. Furniture and controls fill with their own ink and drain their label
-   to the opposite pole. Instant, like everything outside the §8 set.
+   to the opposite pole. Instant, like everything outside the UIUX §8 set.
    ========================================================================== */
 
 /* Content: weight. (.note is handled with .pressed at §4.2 above.) Each anchor
@@ -1058,7 +1058,7 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
   z-index: 2;
   width: 44px; height: 44px;
   /* The ground's own ink at a low alpha (UIUX §16.2, the --ink-shadow row) —
-     the 0.40 weight is §2.5's, the one low alpha the system already keeps. */
+     the 0.40 weight is UIUX §2.5's, the one low alpha the system already keeps. */
   border: 2px solid rgb(var(--ink-a) / 0.4);
   border-radius: 3px;                  /* the note motif it will become (B49) */
   pointer-events: none;
@@ -1068,7 +1068,7 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 
 /* ============================================================================
    §8 Motion — the complete justified set; everything else is instant.
-   The durations lengthen from v1's 120/150ms because §1.1 argues for a
+   The durations lengthen from v1's 120/150ms because UIUX §1.1 argues for a
    water-like settle — a 120ms fade reads as a flicker, not a movement — on
    one long deceleration. Paired JS constants: LEAVE_MS, SWAP_MS,
    TOAST_HIDE_MS (PRD §9.5).

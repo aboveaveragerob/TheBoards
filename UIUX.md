@@ -830,9 +830,9 @@ a test can prove.
 
 A CDN font is a network dependency and an uncacheable hole in an offline-first
 shell (`PRD §3.2`, `PRD §3.3`). The three weight files are committed in
-`fonts/`, extracted from proof sheet 7's embedded faces; when the system ships
-they are declared with `@font-face`, listed in `sw.js`'s `ASSETS`, and subject
-to the cache bump. Until then they are present and inert — nothing loads them.
+`fonts/`, extracted from proof sheet 7's embedded faces, declared with
+`@font-face`, listed in `sw.js`'s `ASSETS`, and subject to the cache bump —
+wired when the system shipped, exactly as this section ordered.
 
 **Three weights** — 400, 600, 800 — as Latin-subset `woff2`, with
 `font-display: swap` so capture is never blocked on a font load. Montserrat
@@ -980,7 +980,8 @@ app's.
 
 ## §16 Implementation consequences
 
-Named here so the follow-up work is scoped rather than discovered. Scoped in
+Named here so the follow-up work was scoped rather than discovered — and
+landed with the v2 release, in the shape this list ordered. Scoped in
 `PRD §9` and verified per `PRD §9.6`.
 
 1. **Five colour sync points, none automated.** `styles.css :root`;
@@ -1070,15 +1071,15 @@ Per surface, what would actually fail if the words above were violated today:
 
 | Clause | Pinned by |
 |---|---|
-| §2 — every token, every ratio | **nothing** until `test/tokens.js` exists (`PRD §9.6`). The largest untested surface in the spec |
-| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — against the **v1 numbers**; those assertions move with the ruling that moved the band (B47), not before |
+| §2 — every token, every ratio | `test/tokens.js` (`PRD §9.6`): every table here recomputed from the shipped hexes, each range at its worst extreme, plus the sync points, the accent placement rule, self-hosting and B53's pair |
+| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines) |
 | §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
 | §4 — wrap, homothetic render | `test/mobile.js` (B39/B40 scenarios) |
 | §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |
 | §7 — menu contents and order | `test/mobile.js` [8] |
 | §8 motion, §12 accessibility beyond floors | **nothing** |
-| §13.2 — the band under the new face | measured from `hmtx` here; the live gate is `test/mobile.js`'s geometry once the face ships |
-| §16 — that shipped CSS reaches an installed PWA | `test/sw-update.js` (B36) — note it reads `--card-h: 68px` literally out of `styles.css` (`CARD_H_RE`), so the token block keeps that declaration or the regex moves in the same commit |
+| §13.2 — the band under the new face | measured from `hmtx` here; the live gate is `test/mobile.js`'s geometry, now running against the shipped face |
+| §16 — that shipped CSS reaches an installed PWA | `test/sw-update.js` (B36) — its marker moved with the band: `--card-h` died with B47, so the regex now reads `--band-top: 14px` literally out of `styles.css`, and `test/tokens.js` asserts the marker matches the shipped stylesheet |
 
 ---
 
