@@ -733,16 +733,22 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return b.dataset.cat === 'unsorted' && getComputedStyle(b).backgroundColor === 'rgb(12, 5, 18)';
     }));
 
-    // Overflow pages, never scrolls: seed 9 more boards into Unsorted. The
-    // category is written explicitly — `newBoardRecord()` seeds 'todo' since
-    // B67, and this block wants Note Boards, not whatever the default happens
-    // to be.
+    // Overflow pages, never scrolls: seed 12 more boards into Unsorted, and
+    // two into Idea so no section collapses (B68) — a collapsed Idea would
+    // hand its slots to the others and could page the overflow away.
     await page.evaluate(async () => {
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < 12; i++) {
         const r = newBoardRecord();
         r.title = 'Seed ' + i;
         r.category = 'unsorted';
         r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;  // older than the live boards
+        await idbPut(r);
+      }
+      for (let i = 0; i < 2; i++) {
+        const r = newBoardRecord();
+        r.title = 'Idea ' + i;
+        r.category = 'idea';
+        r.catStamp = r.createdAt = r.updatedAt = Date.now() - (i + 20) * 100000;
         await idbPut(r);
       }
     });
@@ -777,6 +783,10 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     const pages = Math.ceil(pg.total / pg.onPage);
     ok('indicator reads 1/' + pages, pg.ind === '1/' + pages,
        pg.ind + ' (total=' + pg.total + ' onPage=' + pg.onPage + ')');
+    // The seed is sized to the measured budget, not to a constant: a capacity
+    // that swallowed the overflow would make every pager assertion vacuous.
+    ok('the seed still overflows into 3+ pages', pages >= 3,
+       'pages=' + pages + ' (total=' + pg.total + ' onPage=' + pg.onPage + ')');
     ok('the shown page does not overflow its clip', pg.noScroll);
 
     // Pager clicks are inert navigation — instant, no 400ms window.
@@ -1092,14 +1102,23 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
   console.log('\n[D20] Per-category New board on the rail: head row, pager below, create-in-category (issue #88)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
-    // Seed enough that Note Boards pages — the pager row is under test too.
+    // Every section holds something, so every section draws its whole grid —
+    // head, control, cards, pager — which is what this scenario measures. (An
+    // empty one collapses to its head row under B68.) Note Boards is seeded
+    // past the budget so the pager row is under test.
     await page.evaluate(async () => {
-      for (let i = 0; i < 5; i++) {
-        const r = newBoardRecord();
-        r.title = 'Fill ' + i;
-        r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
-        await idbPut(r);
-      }
+      const put = async (cat, n, tag) => {
+        for (let i = 0; i < n; i++) {
+          const r = newBoardRecord();
+          r.title = tag + ' ' + i;
+          if (cat) { r.category = cat; r.catStamp = Date.now() - (i + 1) * 100000; }
+          r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
+          await idbPut(r);
+        }
+      };
+      await put('todo', 2, 'To-do');
+      await put('idea', 2, 'Idea');
+      await put(null, 8, 'Fill');            // no category written: Unsorted by default
     });
     await page.reload();
     await page.waitForTimeout(600);

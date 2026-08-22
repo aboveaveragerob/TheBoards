@@ -753,7 +753,7 @@ body {
   overflow: hidden;                    /* categories page; nothing scrolls (issue #74) */
   display: flex;
   flex-direction: column;
-  gap: 8px;                            /* = PANE_ROW_GAP in app.js */
+  gap: 8px;                            /* = CAT_SEC_GAP in app.js */
   /* The gutter closes at the top the way it already closes at the sides and
      the bottom (issue #95 / B66): one value on four sides. With the heading
      gone this is all that stands above the first section's head row, and the
@@ -763,7 +763,9 @@ body {
 }
 /* A row is a card now, not a list line: it can be picked up and carried to
    another category, so it has to read as a discrete object with its own edge
-   (issue #74). Same 56px height it always had — PANE_ROW_H in app.js. */
+   (issue #74) — which is the hairline and the water fill, not the height, so
+   B68 takes the height to §6's 44px floor and no further to buy issue #97's
+   fourth card. PANE_ROW_H in app.js. */
 /* A board card is a small rendering of what it names (UIUX §10): the field's
    own upper fall as its fill, edged with the chrome's hairline. */
 .board-row {
@@ -771,8 +773,8 @@ body {
   align-items: baseline;
   gap: 16px;
   width: 100%;
-  min-height: 56px;                    /* = PANE_ROW_H in app.js */
-  padding: 12px 16px;
+  min-height: 44px;                    /* = PANE_ROW_H in app.js; = HIT_FLOOR (UIUX §6) */
+  padding: 8px 16px;
   background: linear-gradient(180deg, var(--water-top), var(--water-mid));
   border: 1px solid var(--hairline);
   border-radius: 3px;
@@ -803,26 +805,38 @@ body {
   color: var(--ink);
 }
 
-/* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44, issue #88 / B63) --
-   Three equal sections — To-Do, Idea, Note — on both the mobile list and the
-   desktop rail, from one DOM shape: head, add, cards, pager. Overflow turns
-   pages, never scrolls, so .cat-cards clips and the pager below navigates.
+/* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44, issue #88 / B63,
+   issue #97 / B68) -- Three sections — To-Do, Idea, Note — on both the mobile
+   list and the desktop rail, from one DOM shape: head, add, cards, pager.
+   Equal while all three hold boards; an empty one collapses (below). Overflow
+   turns pages, never scrolls, so .cat-cards clips and the pager navigates.
 
    One grid on both surfaces (B63): the head row holds the category's label
    left and its own New board control right, one box height; the pager row
    sits below the cards, centred. The fixed row heights are shared law with
    app.js, where catPageCap() derives the card budget from them — mobile
-   spends LIST_CAT_ROW (48) twice, desktop PANE_CAT_HEAD + PANE_PAGER_H
-   (32 + 32), restated below. ---- */
+   spends LIST_CAT_ROW (44) twice, desktop PANE_CAT_HEAD + PANE_PAGER_H
+   (32 + 32), restated below.
+
+   A section holding nothing collapses to its head row (B68, issue #97): the
+   label and its own New board control survive — an empty category is still a
+   place to create in and still a target to drop onto (B44's refusal, kept) —
+   and the cards and pager slots go back to the sections that have boards. The
+   collapsed height is exactly the head row, because catPageCap() reclaims
+   exactly that. ---- */
 .board-cat {
   flex: 1 1 0;
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: 48px 1fr 48px;   /* = LIST_CAT_ROW in app.js, twice */
+  grid-template-rows: 44px 1fr 44px;   /* = LIST_CAT_ROW in app.js, twice */
   grid-template-areas: "head add" "cards cards" "pager pager";
   align-items: center;
   column-gap: 8px;                     /* the label never touches the control */
+}
+.board-cat.empty {
+  flex: 0 0 auto;
+  grid-template-rows: 44px 0 0;        /* = LIST_CAT_ROW; the head row alone */
 }
 /* Mid-drag landing frame: the section under the pointer is where the board
    will move on release. Drawn just inside the section — the surface clips (it
@@ -852,9 +866,17 @@ body {
 /* The per-category create control (issue #88 / B63): the primary species,
    sized to the head row it shares with the label — its own label steps to
    14px (§13.1) so the 24px header keeps its whole name beside it at B32's
-   384px floor. */
+   384px floor.
+
+   position: relative because B68 took the row down to the control's own
+   height: the primary species wears its signature outside its border box —
+   the offset shadow, and §2.7's focus ring at outline-offset 2px — and with
+   no slack left in the row those fall on the cards track. Positioned, the
+   control paints above its in-flow siblings, so the ring stays whole and the
+   shadow lands ON the first card instead of under it. */
 .cat-add {
   grid-area: add;
+  position: relative;
   min-height: 44px;
   padding: 0 12px;
   font-size: 14px;
@@ -867,7 +889,7 @@ body {
   overflow: hidden;                    /* pagination, never a scrollbar */
   display: flex;
   flex-direction: column;
-  gap: 8px;                            /* = PANE_ROW_GAP in app.js */
+  gap: 4px;                            /* = PANE_ROW_GAP in app.js */
 }
 /* The pager: muted blue paired with --paper — the sel-btn construction, so it
    inverts ≥ AA in both themes — behind a neutral ink-shadow border that holds
@@ -973,17 +995,21 @@ html.desktop #pane {
   overflow: hidden;                    /* categories page; nothing scrolls (issue #58) */
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 8px;                            /* = CAT_SEC_GAP in app.js */
 }
 
 /* ---- Rail categories: the desktop skin of the shared §10.5 grid. Same four
    children, same areas — only the row heights and the control's size step
    down, for the desktop pointer rather than a fingertip. The fixed heights
    here are shared law with app.js: head row = PANE_CAT_HEAD (32), pager row
-   = PANE_PAGER_H (32), row = 56 + 8 gap; catPageCap() derives the card
-   budget from them. ---- */
+   = PANE_PAGER_H (32), row = 44 + 4 gap; catPageCap() derives the card
+   budget from them. The collapse is surface-neutral like everything else
+   here (B68) — the rail's empty section keeps its own 32px head row. ---- */
 html.desktop .board-cat {
   grid-template-rows: 32px 1fr 32px;   /* = PANE_CAT_HEAD / PANE_PAGER_H in app.js */
+}
+html.desktop .board-cat.empty {
+  grid-template-rows: 32px 0 0;        /* = PANE_CAT_HEAD; the head row alone */
 }
 /* The header steps back to the scale's own top step on the rail (B63): at
    24px the longest name sets 215px, and the rail's 276px cannot hold that
@@ -1018,7 +1044,7 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
   display: flex;
   align-items: baseline;
   gap: 8px;
-  min-height: 56px;                    /* compact card — same height as list rows */
+  min-height: 44px;                    /* = PANE_ROW_H — same height as list rows */
   padding: 8px 12px;
   background: linear-gradient(180deg, var(--water-top), var(--water-mid));
   border: 1px solid var(--hairline);

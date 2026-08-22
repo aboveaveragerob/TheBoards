@@ -2229,3 +2229,94 @@ mid-flight, and that a swap to a To-Do board repaints the page blue and
 the return swap repaints it violet. `docs/proofs/proof-10-the-second-swap.html`
 renders all three scenes side by side; nothing tests that file, so it
 was updated in the same commit.
+
+## W. Four cards a page (issue #97)
+
+### B68. An empty category collapses to its head row, and the rows sit on the touch floor (supersedes B44's "two empty thirds" clause and B63's two-cards-per-page clause; B42's "measured, never a constant" law stands and is restated)
+
+Issue #97 asks for four boards a page where the phone shows two. There is no
+constant to change and there must not be: B42 made the budget a *measurement*
+of the surface, and `catPageCap()` still divides real height by real rows —
+a hard-coded four that clips off the bottom of a shorter phone would be a
+regression wearing the issue's number. So the four had to be found in the
+furniture, and the furniture had two things to give.
+
+**An empty section gives back everything except its head row.** B44 drew three
+equal sections always and named the cost outright — "a phone holding one board
+shows two empty thirds" — for a reason that was right: *a category you cannot
+see is a category you cannot drop into, and the drop targets are the feature.*
+That reason buys the head row, not the empty thirds. A section holding nothing
+now collapses to that row alone (`.board-cat.empty`): its label still names it,
+its own `New board` control (B63) still creates in it, and the row is still a
+`.board-cat` rect for the drop hit-test to find — 44px on mobile, `UIUX §6`'s
+touch floor, and 32px on the rail, past B23's pointer floor. Every job B44's
+clause was defending survives, and the cards and pager slots it was not using
+go back to the sections with something to show. `catPageCap(filled)` reclaims
+exactly what the CSS collapses, so the two cannot drift: the JS subtracts one
+head row per empty section, the grid draws one head row per empty section.
+`renderList`/`renderPane` count the populated buckets into `catFilled`, and
+`applyLayout`'s resize check compares against that same fill state.
+
+**And the rows come down to the floor, not through it.** `PANE_ROW_H` 56 → 44
+and `LIST_CAT_ROW` 48 → 44: `UIUX §6`'s touch floor is the floor, and a card is
+a tap target, so 44 is where this stops. The card still reads as a discrete
+object with its own edge (B44's requirement, issue #74's whole point) — the
+hairline and the water fill are what draw the edge, never the height. The
+gap splits in two, because it was saying two things at once: `PANE_ROW_GAP`
+4 between cards inside a section, `CAT_SEC_GAP` 8 between sections. Tightening
+the first buys the card; holding the second is what keeps three categories
+reading as three. `catPageCap()` also now measures the host's *content* box
+rather than `clientHeight`, because `#list-rows`' own 12px bottom padding sits
+inside `clientHeight` and outside the flex line — slack the old budget could
+absorb and this one cannot.
+
+**The honest numbers, stated rather than rounded up.** On a 384×846 phone
+(`B32`'s floor viewport): **thirteen** cards a page with one category populated,
+**six** with two, **three** with all three. These were measured on the merged
+tree, not on this branch alone: B66 removed the list's page heading and gave
+`#list-rows` a 12px top gutter in its place, which returns height this budget
+then spends — one extra card in the one- and two-populated states. The
+all-three number is unmoved. The issue's four is delivered in
+the common case and beaten in the sparse one; with every category populated
+the measurement says three and *the pager says so* — B42's law is that
+overflow states itself, and a number that lied about the height would clip.
+The rail gains a card too, 3 → 4 at 1440×900. B63's "two 44px-floor furniture
+rows leave a 384×846 phone two cards per page, not B44's three" is superseded
+by exactly the arithmetic that sentence performed, with tighter rows and a
+collapse in it; the create control and the header step it bought are untouched.
+
+**Two consequences, owned.** *The empty category's drop target shrinks* — from
+roughly a third of the surface to one furniture row. It is still a target at
+the app's own floor for one (`UIUX §6`), it is still where you are already
+looking (its label and control are on that row), and the landing frame draws
+`--accent-page` around it *before* release, so the gesture says where it will
+land rather than leaving you to guess. The hit test stays strict rect
+containment: a release in the gap between sections lands nowhere and the card
+returns, which is B42/B44's existing law and the same answer a release outside
+the list has always given. A nearest-section fallback was considered and left
+alone — it would make every release a move, and "releasing over the section
+the card already lives in is a change of mind, not a move" (B44) is the shape
+that stance has to keep. *And the head row has no slack left*: the primary
+species wears its signature outside its border box — the offset shadow, and
+`§2.7`'s ring at `outline-offset: 2px` — so `.cat-add` takes `position:
+relative` and paints above the cards track rather than under the first card.
+Height was the thing being spent here; paint order costs nothing.
+
+**Ruled out: reserving the pager's slot only where a section pages.** That is
+the remaining 44px, and taking it would make capacity depend on whether a
+pager is showing while the pager shows because of capacity — the flap the
+reserved slot exists to prevent (B42) — and would leave sections on the same
+screen with different budgets. The slot stays reserved.
+
+`test/mobile.js` [21] pins the ruling at all four fill states — one, two and
+three populated, and an app holding nothing: three sections always drawn and
+named, every `New board` control at 44×44 whatever its section holds, no card
+under the touch floor, four or more cards where the issue asks for them, a
+collapsed section exactly one head row tall, creation still working *inside* a
+collapsed category, and B44's load-bearing pair — no section overflows its
+clip, the list itself never scrolls — under every one of them. [19]'s drop now
+lands on a *collapsed* To-Do, which is the obligation this entry takes on.
+[19]/[20] and `test/desktop.js` [D16]/[D20] reseed so the overflow the pager
+exists to state still exists at the larger budget, each with an explicit
+`pages >= 3` assertion so the seeds can never again go quietly vacuous.
+`UIUX §10` carries the sizes.
