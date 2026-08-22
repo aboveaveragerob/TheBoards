@@ -1891,7 +1891,7 @@ folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
 
 ---
 
-## T. The list opens onto the boards (issue #95)
+## U. The list opens onto the boards (issue #95)
 
 ### B66. The board list carries no page heading (supersedes B43's `#list-title` clause; B43's "All boards" rename stands)
 
