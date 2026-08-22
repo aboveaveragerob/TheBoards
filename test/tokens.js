@@ -14,9 +14,9 @@
  * pole-flipped on the lot by B58), and the sw-update.js marker pair
  * (UIUX §16.3).
  *
- * Since B65 (issue #96) the ladder has THREE bindings — one per board type,
+ * Since B67 (issue #96) the ladder has THREE bindings — one per board type,
  * the same rungs at three hues (UIUX §2.2.2). Every §2 table below is asserted
- * against all three with one expected number, because B65 moved no luminance;
+ * against all three with one expected number, because B67 moved no luminance;
  * only §4.3's alpha composites are stated per ladder. The palette is therefore
  * parsed per scope rather than flat: see propsIn() below.
  *
@@ -60,7 +60,7 @@ const r2 = x => Math.round(x * 100) / 100;
 const r4 = x => Math.round(x * 10000) / 10000;
 
 /* ---- The declared palette, parsed from styles.css ------------------------
- * Parsed PER SCOPE since B65: the ladder has three bindings, and a flat
+ * Parsed PER SCOPE since B67: the ladder has three bindings, and a flat
  * last-wins scan would read whichever came last in the file as if it were
  * :root's. Comments are stripped first so a brace inside one cannot end a
  * block early; `[^{}]*` then matches innermost rules only, which is what a
@@ -92,7 +92,7 @@ const T = {
   inkLight: '#f4f5f1', inkDark: '#031019',
   accentRestore: '#b6dee2', accentPage: '#6d9cb0', danger: '#E2A08C',
 };
-/* B65 (issue #96): the same ladder at two more hues, one per board type. Each
+/* B67 (issue #96): the same ladder at two more hues, one per board type. Each
    rung reproduces the To-Do rung's WCAG relative luminance to the 4dp UIUX §2.2
    prints — the ladder's one axis is literally unmoved — so every ratio in
    §2.2/§2.3/§2.5/§2.7 below is asserted against ALL THREE with the same
@@ -151,10 +151,10 @@ console.log('\n[1] The surface ladder — tokens declared, luminances reproduce 
   }
 }
 
-console.log('\n[1b] The ladder rotates with the board type — three bindings, one axis (UIUX §2.2.2, B65)');
+console.log('\n[1b] The ladder rotates with the board type — three bindings, one axis (UIUX §2.2.2, B67)');
 {
   // The rung -> token-name map, and the luminance each rung must hold on EVERY
-  // ladder. This is the whole claim of B65: hue moves, the axis does not.
+  // ladder. This is the whole claim of B67: hue moves, the axis does not.
   const RUNG = { deep: '--deep', card: '--card', frame: '--frame', note: '--note',
                  waterTop: '--water-top', waterMid: '--water-mid', waterBot: '--water-bot' };
   const WANT_L = { deep: 0.0023, card: 0.0077, frame: 0.2611, note: 0.5962,
@@ -192,11 +192,11 @@ console.log('\n[1b] The ladder rotates with the board type — three bindings, o
   // The binding is a rebinding, not a bypass: the four layers still read var().
   ok('the list/rail cards rotate with their section (UIUX §10)',
     /\.board-cat\[data-cat="idea"\]/.test(css) && /\.board-cat\[data-cat="unsorted"\]/.test(css));
-  ok('app.js sets the scope from the record and carries no colour of its own (B65)',
+  ok('app.js sets the scope from the record and carries no colour of its own (B67)',
     /el\.board\.dataset\.cat = catOf\(current\)/.test(app));
   // The drag ghost is fixed off document.body, outside its section's scope, so
   // it has to carry the attribute itself or a green card turns blue in the air.
-  ok('the card drag ghost carries its own scope (B65)',
+  ok('the card drag ghost carries its own scope (B67)',
     /ghost\.dataset\.cat = catOf\(b\)/.test(app) &&
     /\.card-drag-ghost\[data-cat="idea"\]/.test(css) &&
     /\.card-drag-ghost\[data-cat="unsorted"\]/.test(css));
@@ -219,8 +219,8 @@ console.log('\n[1b] The ladder rotates with the board type — three bindings, o
 
 console.log('\n[2] One ink per surface — every published ratio reproduces (UIUX §2.3, B58)');
 {
-  // One expected number per row, asserted against every ladder (B65): the ink
-  // ratios are a function of luminance alone, and B65 moved no luminance.
+  // One expected number per row, asserted against every ladder (B67): the ink
+  // ratios are a function of luminance alone, and B67 moved no luminance.
   const rows = [
     ['light ink on the deep', 'deep', T.inkLight, 18.33],
     ['light ink on the card', 'card', T.inkLight, 16.62],
@@ -257,7 +257,7 @@ console.log('\n[3] The crossover and the forbidden band (UIUX §2.3.1, §2.3.2)'
   const cross = Math.sqrt((lum(T.inkLight) + 0.05) * (lum(T.inkDark) + 0.05)) - 0.05;
   ok('crossover from the poles is 0.1788', r4(cross) === 0.1788, String(r4(cross)));
   // UIUX §2.2.1 rule 4: every new value clears the crossover test before it
-  // exists. B65 authored fourteen, so all three ladders are put through it.
+  // exists. B67 authored fourteen, so all three ladders are put through it.
   const grounds = [T.chrome, ...LADDER_NAMES.flatMap(n =>
     ['deep', 'card', 'waterTop', 'waterMid', 'waterBot', 'note'].map(r => LADDER[n][r]))];
   for (const g of grounds) {
@@ -276,7 +276,7 @@ console.log('\n[3] The crossover and the forbidden band (UIUX §2.3.1, §2.3.2)'
 
 console.log('\n[4] Edges, rules and hairlines — every adjacency at the worst extreme (UIUX §2.5, B58)');
 {
-  // Every adjacency on the sheet, on every ladder (B65). An adjacency is a
+  // Every adjacency on the sheet, on every ladder (B67). An adjacency is a
   // ratio between two rungs of the SAME scene — a board never mixes ladders.
   const rows = [
     ['card border on the card', 'frame', 'card', 5.39],
@@ -300,7 +300,7 @@ console.log('\n[4] Edges, rules and hairlines — every adjacency at the worst e
   // B58's structural inversion: the band's water darkens to its bottom stop at
   // the rule, meeting the deep at 1.58 — under the 3:1 fill floor — so the
   // band's rule is LOAD-BEARING now, and must clear 3:1 on both its grounds.
-  // B65 rotated the hue and left this seam exactly where B58 put it.
+  // B67 rotated the hue and left this seam exactly where B58 put it.
   for (const lname of LADDER_NAMES) {
     const { deep, frame, waterBot } = LADDER[lname];
     ok(`the band/canvas seam fails by fill at the dark extreme (1.58): the rule must carry it (${lname})`,
@@ -357,7 +357,7 @@ console.log('\n[5] Accents — values, worst-extreme ratios, and the placement r
 
 console.log('\n[6] The two-tone focus ring clears 3:1 on every ground by construction (UIUX §2.7)');
 {
-  // The ring is built from the two poles, and B65 rotated neither, so every
+  // The ring is built from the two poles, and B67 rotated neither, so every
   // row holds on every ladder by the same construction.
   const rows = [
     ['--deep', 'deep', 18.33, 1.04],
@@ -423,7 +423,7 @@ console.log('\n[8] The scratch pair moves together: 0.62 over 0.12, both poles (
   // The note keeps its dark-ink strike; the lot's flips to light ink on the
   // water (B58) — B53's law is pole-independent, and the numbers prove it.
   //
-  // This is the ONE table B65 moves. A strike is an alpha composite, so its
+  // This is the ONE table B67 moves. A strike is an alpha composite, so its
   // ratio is a function of the ground's channels and not of its luminance
   // alone: rotating the hue re-quantises the mix and the number shifts in the
   // second decimal. The values are stated per ladder rather than averaged,

@@ -100,7 +100,7 @@ a midpoint.
 | `--frame` | `#698ebf` | the card's border and both full-width rules — §2.5, B61 | 0.2611 |
 | `--note` | `#a0d4da` | the note | 0.5962 |
 
-**The hexes above are the To-Do board's.** Since B65 the ladder has three
+**The hexes above are the To-Do board's.** Since B67 the ladder has three
 bindings — one per board type, the same seven rungs at three hues, each rung
 holding the luminance in the right-hand column exactly. §2.2.2 gives the other
 two. Every ratio in this document is computed from that column, so every ratio
@@ -126,7 +126,7 @@ value would be a rung with no adjacency to earn it. It shares the canvas's
 value — a summoned surface over the deep separates by its elevation, which is
 elevation's whole job (§2.4) — a rail card's fill (the water's own top stop)
 holds 3.32:1 behind its 0.40 hairline edge, and light ink reads at 18.33:1.
-**`--chrome` does not rotate with the board type** (B65): there is one room,
+**`--chrome` does not rotate with the board type** (B67): there is one room,
 and it is behind all three boards at once, so it keeps `#020812` — the To-Do
 deep's value — whichever board is open. Taken deliberately, the consequence is
 that a green board's OS chrome, menu, toast and board list are still the blue.
@@ -163,7 +163,7 @@ a law, and the values above are its output:
 
 1. **One axis: luminance.** A surface's position in the app is its position on
    the ladder. **Within one scene, nothing is distinguished from another
-   surface by hue alone.** The qualifier is B65's, and it narrows nothing this
+   surface by hue alone.** The qualifier is B67's, and it narrows nothing this
    rule ever governed: the rule is about *rungs* — what tells the card from the
    deep, the water from the canvas — and the answer must stay luminance,
    because hue is the one channel a person's eyes may not deliver. §2.2.2
@@ -197,7 +197,7 @@ enough apart to read as two depths, when their job is to read as one.
 
 ### §2.2.2 The ladder rotates with the board type
 
-**A board type is a whole scene, not a rung on one** (B65, issue #96). To-Do
+**A board type is a whole scene, not a rung on one** (B67, issue #96). To-Do
 boards keep the water blue above. Idea boards take a deep hunter green, Note
 boards a deep violet — and each is *the same ladder*, rotated in hue and in
 nothing else.
@@ -249,7 +249,7 @@ does not exist in sRGB, and no amount of searching will find one.
 
 > **Because luminance is preserved, every ratio this document publishes is
 > preserved.** §2.3's five ink pairings, §2.5's seven adjacencies, §2.7's ring
-> table and §2.3.1's crossover are all functions of luminance alone, and B65
+> table and §2.3.1's crossover are all functions of luminance alone, and B67
 > moved no luminance. `test/tokens.js` asserts each of them against **all
 > three** ladders with a single expected number, so a hue that drags a rung off
 > its luminance fails the suite rather than the eye.
@@ -541,7 +541,7 @@ the two sections:
 This is B15's "robustness from geometry, not hue," carried into the new palette
 and made total. The water's lightest stop is the only ground where *both* tones
 clear 3:1 at once, which is a margin rather than a problem. **Geometry, not
-hue, is also why the table survives B65 untouched:** the ring is built from the
+hue, is also why the table survives B67 untouched:** the ring is built from the
 two poles, the poles do not rotate, and the grounds keep their luminances — so
 every row above holds identically on the Idea and Note ladders (§2.2.2).
 
@@ -749,7 +749,7 @@ proved pole-independent under B58's swap: the note strikes in dark ink at
 5.47:1 against the fall's three stops — a mark above the 3:1 floor at every
 extreme, on either pole, and no longer a bar anywhere.
 
-**This is the one published table B65 moves, and it moves in the second
+**This is the one published table B67 moves, and it moves in the second
 decimal.** A strike is an *alpha composite*, so its ratio is a function of the
 ground's three channels rather than of its luminance alone: rotating the hue
 (§2.2.2) re-quantises the mix at 8 bits and the number shifts. The values are
@@ -934,8 +934,8 @@ immutable, so a card's slot never moves.
 Both surfaces sort into **To-Do / Idea / Note** (B63 renamed the third at the
 label only — its storage key remains `unsorted`), and a pointer-drag moves a
 card between sections with the target section framing itself in
-`--accent-page`. **A card wears its own section's water** (B65): the cards are
-the water's upper fall, and since B65 that fall is per board type, so a card
+`--accent-page`. **A card wears its own section's water** (B67): the cards are
+the water's upper fall, and since B67 that fall is per board type, so a card
 previews the board it opens rather than describing a board that no longer looks
 like it. The section's ground stays `--chrome` — the list is the room, not a
 board (§2.2.2) — so the three sections read as three tones of card on one

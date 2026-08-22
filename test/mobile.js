@@ -1083,11 +1083,20 @@ const activeIsNoteText = page => page.evaluate(() =>
     const { ctx, page, errors } = await newMobilePage(browser);
     // A second board, so Unsorted holds one the drag can move without it also
     // being the open board (which takes dropBoardCard's other write path).
+    // Two genuine pre-#58 legacy records — no `category` field at all. B67 makes
+    // `newBoardRecord()` seed 'todo', so it is deleted here: this scenario is
+    // about what a record that NEVER had a category reads as, which is the half
+    // of B21's idiom B67 deliberately left alone.
     await page.evaluate(async () => {
-      const r = newBoardRecord();
-      r.title = 'Draggable';
-      r.createdAt = r.updatedAt = Date.now() - 50000;   // older: sorts below the open board
-      await idbPut(r);
+      const mk = async (title, ageMs) => {
+        const r = newBoardRecord();
+        r.title = title;
+        delete r.category;
+        r.createdAt = r.updatedAt = Date.now() - ageMs;  // older: sorts below the open board
+        await idbPut(r);
+      };
+      await mk('Draggable', 50000);
+      await mk('Stays put', 60000);
     });
     await page.reload();
     await page.waitForTimeout(500);
@@ -1101,13 +1110,15 @@ const activeIsNoteText = page => page.evaluate(() =>
        JSON.stringify(heads));
 
     // Category is read-site defaulted (B21 idiom): a record that never had one
-    // IS Unsorted, so nothing was written to put these two there.
-    ok('both boards start in Unsorted, none elsewhere', await page.evaluate(() =>
+    // IS Unsorted, so nothing was written to put the two legacy records there.
+    // The third board is the first-run one, seeded 'todo' by B67.
+    ok('the legacy records start in Unsorted, the seeded board in To-Do', await page.evaluate(() =>
       document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row').length === 2 &&
-      !document.querySelector('.board-cat[data-cat="todo"] .board-row') &&
+      document.querySelectorAll('.board-cat[data-cat="todo"] .board-row').length === 1 &&
       !document.querySelector('.board-cat[data-cat="idea"] .board-row')));
-    ok('no category was written to storage', await page.evaluate(async () =>
-      (await idbGetAll()).every(b => b.category === undefined && b.catStamp === undefined)));
+    ok('nothing was written to file the legacy records (B21)', await page.evaluate(async () =>
+      (await idbGetAll())
+        .filter(b => b.category === undefined && b.catStamp === undefined).length === 2));
 
     // ---- touch-drag Unsorted -> To-Do ------------------------------------
     const beforeId = await page.evaluate(() => current.id);
@@ -1188,6 +1199,7 @@ const activeIsNoteText = page => page.evaluate(() =>
       for (let i = 0; i < 9; i++) {
         const r = newBoardRecord();
         r.title = 'Seed ' + i;
+        r.category = 'unsorted';        // written, not defaulted: B67 seeds 'todo'
         r.createdAt = r.updatedAt = Date.now() - (i + 2) * 100000;
         await idbPut(r);
       }
@@ -1290,6 +1302,7 @@ const activeIsNoteText = page => page.evaluate(() =>
       for (let i = 0; i < 5; i++) {
         const r = newBoardRecord();
         r.title = 'Fill ' + i;
+        r.category = 'unsorted';        // written, not defaulted: B67 seeds 'todo'
         r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
         await idbPut(r);
       }

@@ -70,7 +70,7 @@
 .on-dark  { --ink: var(--ink-light); --ink-a: 244 245 241; }
 .on-light { --ink: var(--ink-dark);  --ink-a: 3 16 25; }
 
-/* --- §2.2.2 The ladder rotates with the board type (issue #96, B65) -------
+/* --- §2.2.2 The ladder rotates with the board type (issue #96, B67) -------
    A board type is a whole scene, not a rung on one. The ladder's single axis
    stays luminance (UIUX §2.2.1 rule 1): every rung below reproduces the To-Do
    rung's WCAG relative luminance to the 4dp the record prints, so every ratio

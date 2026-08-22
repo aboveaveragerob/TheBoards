@@ -225,9 +225,17 @@ const anchorEls = {
   requirements: document.getElementById('anchor-requirements'),
 };
 
+/* The category is written, not defaulted (B67, extending B63's rule to the one
+   creation path that predates it): since the ladder rotates with the type, an
+   unwritten category is no longer invisible — it renders. A fresh install's
+   board would open violet on an app named for its To-Do boards. `newBoardIn`
+   overwrites this with the section the board is made in; the two empty-database
+   paths (`ensureCurrentValid`, `boot`) are the ones this is for. Legacy pre-#58
+   records still carry no category and still read as Note Boards — that is B21's
+   read-site idiom, and changing it would cost a migration and a version bump. */
 function newBoardRecord() {
   const now = Date.now();
-  return { id: uuid(), createdAt: now, updatedAt: now,
+  return { id: uuid(), createdAt: now, updatedAt: now, category: 'todo',
            title: '', requirements: '', components: '', notes: [], parkingLot: [] };
 }
 
@@ -528,7 +536,7 @@ function sanitizeBoard(board) {
   return board.notes.length !== n || board.parkingLot.length !== l;
 }
 
-/* The ladder rotates with the board type (issue #96 / B65). This attribute is
+/* The ladder rotates with the board type (issue #96 / B67). This attribute is
    the whole of what app.js says about colour: styles.css rebinds the ladder's
    token names under #board[data-cat=...], so every layer that draws the board
    picks up the new hue through the var() it already reads. No hex belongs
@@ -2755,7 +2763,7 @@ async function dropBoardCard(b, cat) {
   if (current && current.id === b.id) {
     current.category = cat;
     current.catStamp = Date.now();
-    applyBoardCat();                   // the open board's ladder rotates with it (B65)
+    applyBoardCat();                   // the open board's ladder rotates with it (B67)
     saveNow();
   } else {
     const rec = await idbGet(b.id);
@@ -2854,7 +2862,7 @@ function attachBoardCardGestures(card, row, b, opts) {
       ghost.classList.add('card-drag-ghost');
       // The ghost is fixed to the viewport off document.body, which takes it
       // out of its section's [data-cat] token scope — so it carries the scope
-      // with it (B65). Without this the card lifts off green and turns blue
+      // with it (B67). Without this the card lifts off green and turns blue
       // mid-drag, because .board-row/.pane-card's water would resolve against
       // :root. The attribute is the same one styles.css binds the ladder on.
       ghost.dataset.cat = catOf(b);

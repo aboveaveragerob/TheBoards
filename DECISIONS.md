@@ -1891,9 +1891,9 @@ folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
 
 ---
 
-## T. New background colours for the Idea and Note boards (issue #96)
+## V. New background colours for the Idea and Note boards (issue #96)
 
-### B65. A board type is a whole scene, not a rung: the ladder rotates with it (scopes UIUX §2.2.1 rule 1 to within a scene; extends UIUX §2.2 with §2.2.2; leaves B55's one platform edge and B58's scene untouched)
+### B67. A board type is a whole scene, not a rung: the ladder rotates with it (scopes UIUX §2.2.1 rule 1 to within a scene; extends UIUX §2.2 with §2.2.2; leaves B55's one platform edge and B58's scene untouched)
 
 Rob: *"New background colors for just the idea boards and the note
 boards. To do boards retain their ink well blue background. Idea boards
@@ -1983,9 +1983,20 @@ category IS the third bucket (B21's idiom) — the list already files it
 under Note Boards. Forking the default so the board rendered blue while
 its card sat in the violet section would have reintroduced exactly the
 lie the card preview removes. The consequence, owned: every pre-#58
-legacy record opens violet, and so does the board `newBoardRecord()`
-makes on a fresh install, since neither writes a category. Seeding the
-first-run board as `'todo'` is a separate call and a separate entry.
+legacy record opens violet, since it writes no category — and that is
+correct, because the list has always filed it under Note Boards.
+
+**The first-run board is the one exception, and it is seeded, not
+defaulted.** `newBoardRecord()` wrote no category either, so a fresh
+install of an app named for its To-Do boards opened violet — a default
+that was invisible until this entry made the type render. It now writes
+`category: 'todo'`. This extends B63's "every new board writes its
+category at creation" to the one creation path that predates it: the
+empty-database boot. `newBoardIn` overwrites the seed with the section
+the board is made in, so the three callers stay coherent. Legacy records
+are deliberately untouched — reclassifying them would mean a migration
+and a DB version bump, and B21's read-site idiom exists to avoid exactly
+that.
 
 **Three things deliberately do not rotate.** `--chrome`, because there
 is one room and it sits behind all three boards at once (B55's one
