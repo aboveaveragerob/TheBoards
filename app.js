@@ -36,12 +36,17 @@ const PANE_CAT_HEAD = 32;            // .cat-head/.cat-add row, desktop (issue #
 const PANE_PAGER_H = 32;             // .cat-pager row, desktop (issue #58)
 // Mobile spends two of these rows per section (B63): the head row — label
 // left, the category's own New board control right — above the cards, and the
-// pager row below them. 48 = HIT_FLOOR's 44px control plus the 2px above and
-// below that keeps it off the cards — the constant covers the whole row, so
-// catPageCap()'s budget stays exact.
-const LIST_CAT_ROW = 48;             // .board-cat head/pager rows, mobile (issues #74, #88)
-const PANE_ROW_H = 56;               // .pane-card / .board-row min-height
-const PANE_ROW_GAP = 8;              // .cat-cards flex gap
+// pager row below them. B65 takes the row down to HIT_FLOOR exactly — the
+// 44px control IS the row — and the card down with it, because the fourth
+// card issue #97 asks for is bought out of exactly this furniture. The
+// constant covers the whole row, so catPageCap()'s budget stays exact.
+const LIST_CAT_ROW = 44;             // .board-cat head/pager rows, mobile (issues #74, #88, #97)
+const PANE_ROW_H = 44;               // .pane-card / .board-row min-height — §6's floor, not below it
+// Two gaps, because they say two things (B65): card to card inside a section,
+// and section to section. The first tightens to buy the fourth card; the
+// second is what keeps three categories reading as three, and it holds at 8.
+const PANE_ROW_GAP = 4;              // .cat-cards flex gap
+const CAT_SEC_GAP = 8;               // #list-rows / #pane-cards flex gap
 const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
 // Three durations paired to styles.css §8 values — they move together
 // (PRD §9.5): the 200ms set and the 260ms board swap, on §8's one curve.
@@ -311,7 +316,7 @@ function applyLayout() {
   // catCap is 0 until the first render, so boot's renderBoard → applyLayout
   // chain doesn't draw the rail twice back to back. Off-desktop the same
   // check covers a rotation while the list is open (issue #74).
-  if (catCap && catPageCap() !== catCap) {
+  if (catCap && catPageCap(catFilled) !== catCap) {
     if (isDesktop && el.paneCards) renderPane();
     else if (!isDesktop && listOpen) renderList();
   }
@@ -2612,21 +2617,36 @@ const catOrder = (a, b) =>
    it is shared by the rail and the list because the two are never on screen at
    once (applyMode pops the list state on the flip to desktop) — each renderer
    clamps every render, so a differing capacity heals itself. catCap is the
-   budget the last render used — applyLayout compares against it. */
+   budget the last render used, and catFilled the fill state it measured
+   against — applyLayout compares both. */
 let catPage = { todo: 0, idea: 0, unsorted: 0 };
 let catCap = 0;                        // 0 = never rendered; the capacity check waits
+let catFilled = 0;                     // populated sections the last render measured
 let dragCancel = null;                 // the live card-drag's teardown, if one is mid-flight
 
-function catPageCap() {
+/* The per-page card budget, measured — never a constant (B42, restated B65).
+   `filled` is how many of the three sections hold at least one board: an empty
+   section collapses to its head row alone (B65), so the cards and pager slots
+   it is not using come back to the sections that have something to show. */
+function catPageCap(filled) {
   const host = isDesktop ? el.paneCards : el.listRows;
   if (!host) return 1;
-  // A third of the surface, minus the section's own furniture, in whole rows.
-  // Both surfaces stack the head row above the cards and the pager row below
-  // (B63 unmerges B44's strip). The pager's slot is reserved even when a single
-  // page hides it, so the budget cannot flap between one- and many-page states.
-  const catH = (host.clientHeight - PANE_ROW_GAP * (BOARD_CATS.length - 1)) / BOARD_CATS.length;
-  const furniture = isDesktop ? PANE_CAT_HEAD + PANE_PAGER_H : LIST_CAT_ROW * 2;
-  return Math.max(1, Math.floor((catH - furniture) / (PANE_ROW_H + PANE_ROW_GAP)));
+  const head = isDesktop ? PANE_CAT_HEAD : LIST_CAT_ROW;
+  const pager = isDesktop ? PANE_PAGER_H : LIST_CAT_ROW;
+  const n = Math.max(1, Math.min(BOARD_CATS.length, filled | 0));
+  // The content box, not clientHeight: the list's own bottom padding sits
+  // inside clientHeight and outside the flex line, and at B65's row heights
+  // that 12px is most of a card. Measure what the sections actually get.
+  const cs = getComputedStyle(host);
+  const avail = host.clientHeight
+    - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+    - CAT_SEC_GAP * (BOARD_CATS.length - 1)    // every section is drawn: the gaps all stand
+    - head * (BOARD_CATS.length - n);          // a collapsed section still keeps its head row
+  // A populated section's share, minus its own furniture, in whole rows. Both
+  // surfaces stack the head row above the cards and the pager row below (B63
+  // unmerges B44's strip). The pager's slot is reserved even when a single page
+  // hides it, so the budget cannot flap between one- and many-page states.
+  return Math.max(1, Math.floor((avail / n - head - pager) / (PANE_ROW_H + PANE_ROW_GAP)));
 }
 
 /* One section, both surfaces: head, add, cards, pager — the same four children
@@ -2639,6 +2659,12 @@ function makeCatSection(cat, boards, cap, makeCard) {
 
   const sec = document.createElement('div');
   sec.className = 'board-cat'; sec.dataset.cat = cat;
+  // A section with nothing in it collapses to its head row (B65, superseding
+  // B44's two empty thirds): the label and its own New board control stay —
+  // it is still a place to create in, and that row is still the .board-cat
+  // rect the drop hit-test finds — and only the cards and pager slots go back
+  // to the populated sections.
+  if (!boards.length) sec.classList.add('empty');
   sec.setAttribute('role', 'group');
   // Page state rides the group label — the visual indicator is aria-hidden and
   // a rebuilt node can't announce, so this is where AT hears the page.
@@ -2761,7 +2787,8 @@ async function renderList() {
     const rec = (current && b.id === current.id) ? current : b;
     buckets[catOf(rec)].push(rec);
   }
-  catCap = catPageCap();
+  catFilled = BOARD_CATS.filter(c => buckets[c].length).length;
+  catCap = catPageCap(catFilled);
   const focusCat = focusedCatAdd();
   el.listRows.textContent = '';
   for (const cat of BOARD_CATS)
@@ -2989,7 +3016,8 @@ async function renderPane() {
     const rec = (current && b.id === current.id) ? current : b;
     buckets[catOf(rec)].push(rec);
   }
-  catCap = catPageCap();
+  catFilled = BOARD_CATS.filter(c => buckets[c].length).length;
+  catCap = catPageCap(catFilled);
   const focusCat = focusedCatAdd();
   el.paneCards.textContent = '';
   for (const cat of BOARD_CATS)

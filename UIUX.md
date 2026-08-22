@@ -801,13 +801,35 @@ row **below the cards, centred**. The header sits at §13.1's 24px display
 step on mobile and at the scale's own top step, 18px, on the rail — at 24px
 the longest name sets 215px and the rail's 276px cannot hold it beside any
 legible control (B63's measurement; the name is never crowded off its own
-row). The rows are 48px on mobile (a 44px control, §6's floor, its label at
-14px) and 32px on desktop (a 32px control, its label at 13px). The global
-New board controls are **removed** — creation lives in the categories: a
-section's control writes `category` (+ `catStamp`, so the new card lands
-first, like a drop) and **opens the new board at once**. Consequence, taken
-deliberately: two 44px-floor furniture rows leave a 384×846 phone **two
-cards per page** where B44's merged strip held three.
+row). The furniture rows are **44px** on mobile — §6's floor exactly, the
+control *is* the row — with the control's label at 14px, and **32px** on
+desktop (a 32px control, its label at 13px). The global New board controls
+are **removed** — creation lives in the categories: a section's control
+writes `category` (+ `catStamp`, so the new card lands first, like a drop)
+and **opens the new board at once**.
+
+**A card is 44px and the gaps are two values** (B65). The row height is
+`§6`'s touch floor and stops there: a card is a tap target, and what makes it
+read as a discrete object with its own edge is the hairline and the water
+fill, never the height. **4px** separates card from card inside a section;
+**8px** separates section from section — one number could not say both, and
+the second is what keeps three categories reading as three.
+
+**An empty category collapses to its head row** (B65): its label and its own
+New board control stay — it is still somewhere to create, and still a target
+to drop onto, one furniture row tall (44px on mobile, §6's floor; 32px on the
+rail, past §6's B23 pointer floor) — and its cards and pager slots go to the
+sections that have boards. The pager's slot is reserved wherever cards are
+drawn, even when a single page hides the pager, so the budget cannot flap
+between one- and many-page states.
+
+**The per-page budget is measured, never a constant** (B42, restated B65):
+the surface's real content height, less every section's furniture, in whole
+rows. On a 384×846 phone that comes out at **twelve** cards with one category
+populated, **five** with two and **three** with all three; the rail at
+1440×900 holds four. Where the measurement falls short of what is asked for,
+the pager states it — a number that clipped off the bottom of a short phone
+would be a lie about the height.
 
 **Truncation is always indicated** — `text-overflow: ellipsis`, never a hard cut.
 
