@@ -88,11 +88,10 @@
   </div>
 
   <!-- Board list view (PRD §6.7 / UIUX §10): the only other screen, on the
-       room's own ground (B52). -->
+       room's own ground (B52). No visible page heading — the three category
+       heads say where you are, and the screen's own name is carried by this
+       section's aria-label, for the readers that need one (issue #95, B66). -->
   <section id="list-view" class="on-dark" hidden aria-label="Boards">
-    <header id="list-header">
-      <h1 id="list-title">Boards</h1>
-    </header>
     <div id="list-rows" role="list"></div>
   </section>
 

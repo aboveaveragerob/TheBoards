@@ -54,8 +54,9 @@ const ACTION_DELAY = 400;            // click → action; the window is acknowle
 
 const COPY = {
   // "All boards" (issue #60): the menu item is a destination, and "Boards"
-  // alone read as a category label. One key renames every menu site at once;
-  // the #list-title page heading is not a menu and keeps its own text.
+  // alone read as a category label. One key renames every menu site at once
+  // — and it is now the only place the word is written: B43's exception for
+  // the #list-title page heading is gone with the heading itself (B66).
   complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'All boards',
   // Plural labels for a multi-selection (issue #55): the count is visible on
   // the board itself — every member wears a ring — so the label says "all",

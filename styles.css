@@ -642,15 +642,9 @@ body {
   display: flex;
   flex-direction: column;
 }
-#list-header {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 20px;
-}
-#list-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
+/* No page heading (issue #95 / B66): the screen opens straight onto the
+   categories, whose own heads say what each section holds. #list-rows is the
+   view's only child and takes the whole height. */
 /* The primary species (UIUX §14, refilled by B59; moved into the categories
    by B63): the accent about boards on the controls that make one —
    --accent-page behind --ink-dark, wearing the shared tactile signature —
@@ -692,7 +686,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;                            /* = PANE_ROW_GAP in app.js */
-  padding: 0 12px 12px;
+  /* The gutter closes at the top the way it already closes at the sides and
+     the bottom (issue #95 / B66): one value on four sides. With the heading
+     gone this is all that stands above the first section's head row, and the
+     head row carries a 44px control. Deliberately a constant and not
+     env(safe-area-inset-top) — see B66. */
+  padding: 12px;
 }
 /* A row is a card now, not a list line: it can be picked up and carried to
    another category, so it has to read as a discrete object with its own edge
