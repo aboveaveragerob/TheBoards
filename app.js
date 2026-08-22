@@ -59,8 +59,9 @@ const ACTION_DELAY = 400;            // click → action; the window is acknowle
 
 const COPY = {
   // "All boards" (issue #60): the menu item is a destination, and "Boards"
-  // alone read as a category label. One key renames every menu site at once;
-  // the #list-title page heading is not a menu and keeps its own text.
+  // alone read as a category label. One key renames every menu site at once
+  // — and it is now the only place the word is written: B43's exception for
+  // the #list-title page heading is gone with the heading itself (B66).
   complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'All boards',
   // Plural labels for a multi-selection (issue #55): the count is visible on
   // the board itself — every member wears a ring — so the label says "all",
@@ -223,6 +224,7 @@ const el = {
   toast: document.getElementById('toast'),
   pane: document.getElementById('pane'),
   paneCards: document.getElementById('pane-cards'),
+  titleMenu: document.getElementById('title-menu'),   // the compartment's handle (B65)
 };
 const anchorEls = {
   title: document.getElementById('anchor-title'),
@@ -230,9 +232,17 @@ const anchorEls = {
   requirements: document.getElementById('anchor-requirements'),
 };
 
+/* The category is written, not defaulted (B67, extending B63's rule to the one
+   creation path that predates it): since the ladder rotates with the type, an
+   unwritten category is no longer invisible — it renders. A fresh install's
+   board would open violet on an app named for its To-Do boards. `newBoardIn`
+   overwrites this with the section the board is made in; the two empty-database
+   paths (`ensureCurrentValid`, `boot`) are the ones this is for. Legacy pre-#58
+   records still carry no category and still read as Note Boards — that is B21's
+   read-site idiom, and changing it would cost a migration and a version bump. */
 function newBoardRecord() {
   const now = Date.now();
-  return { id: uuid(), createdAt: now, updatedAt: now,
+  return { id: uuid(), createdAt: now, updatedAt: now, category: 'todo',
            title: '', requirements: '', components: '', notes: [], parkingLot: [] };
 }
 
@@ -483,19 +493,33 @@ const lotH = () => {
 };
 
 /* One site sets both sections' geometry, called wherever their content
-   changes: layout, anchor input, and every lot insertion/removal. */
+   changes: layout, anchor input, and every lot insertion/removal. The
+   compartment's handle rides the card's bottom-right corner (B65), so it is
+   set from here too — the card's MEASURED height, read after --rule-y lands,
+   because a title past the two-line floor grows the box the handle sits on. */
 function updateBoardGeometry() {
   el.board.style.setProperty('--rule-y', bandRuleY() + 'px');
   el.board.style.setProperty('--lot-h', lotH() + 'px');
+  // offsetHeight, not the rect: it is transform-independent, so this is the
+  // card's LOGICAL bottom edge on both paths (the rect would arrive scaled).
+  el.board.style.setProperty('--card-bottom', anchorEls.title.offsetHeight + 'px');
+  // The handle's own frame is fixed, so only renderScale can move it off the
+  // floor — and that changes here, on every layout (UIUX §6, B7).
+  el.titleMenu.style.setProperty('--hit', hitInset(el.titleMenu, renderScale) + 'px');
+}
+
+/* §6/B7's law is not the note's alone: any board-space target expands its hit
+   area to the floor without growing its visual frame. `k` is what the element
+   draws at — one arithmetic, both callers. */
+function hitInset(node, k) {
+  const physW = node.offsetWidth * k, physH = node.offsetHeight * k;   // logical x draw scale
+  const floor = isDesktop ? HIT_FLOOR_DESKTOP : HIT_FLOOR;
+  return Math.max(0, (floor - physW) / 2, (floor - physH) / 2) / (k || 1);
 }
 
 function setHitInset(node, note) {
-  const w = node.offsetWidth, h = node.offsetHeight;   // logical (transform-independent)
-  const k = effScale(note) * renderScale;              // what the note draws at (issue #57)
-  const physW = w * k, physH = h * k;
-  const floor = isDesktop ? HIT_FLOOR_DESKTOP : HIT_FLOOR;
-  const inset = Math.max(0, (floor - physW) / 2, (floor - physH) / 2) / (k || 1);
-  node.style.setProperty('--hit', inset + 'px');
+  // effScale x renderScale is what the note draws at (issue #57).
+  node.style.setProperty('--hit', hitInset(node, effScale(note) * renderScale) + 'px');
 }
 
 function placeCaretAtPoint(node, clientX, clientY) {
@@ -533,8 +557,21 @@ function sanitizeBoard(board) {
   return board.notes.length !== n || board.parkingLot.length !== l;
 }
 
+/* The ladder rotates with the board type (issue #96 / B67). This attribute is
+   the whole of what app.js says about colour: styles.css rebinds the ladder's
+   token names under #board[data-cat=...], so every layer that draws the board
+   picks up the new hue through the var() it already reads. No hex belongs
+   here (UIUX §2.2 is the rendering authority). catOf() is the read-site
+   default, so a record without a category renders as a Note board — the same
+   bucket the list files it in, which is the agreement the card preview
+   depends on. Both call sites have already established `current`. */
+function applyBoardCat() {
+  el.board.dataset.cat = catOf(current);
+}
+
 function renderBoard() {
   clearSelection();                  // note DOM is about to be rebuilt
+  applyBoardCat();
   if (sanitizeBoard(current)) scheduleSave();
   // Anchors.
   for (const key of ['title', 'components', 'requirements']) {
@@ -637,6 +674,10 @@ function classifyTarget(target) {
   const selBtn = target.closest('.sel-btn');
   if (selBtn) return { type: 'sel-btn', node: selBtn };
   if (target.closest('#selection')) return { type: 'sel-frame', node: selEl };
+  // The compartment's handle (B65). It is a SIBLING of #anchor-title, so it
+  // would otherwise fall through to 'canvas' and drop a note — and its hit
+  // collar reaches past the card, which is exactly where that would happen.
+  if (target.closest('#title-menu')) return { type: 'title-menu', node: el.titleMenu };
   const note = target.closest('.note');
   if (note) return { type: 'note', node: note };
   const lotItem = target.closest('.lot-item');
@@ -944,6 +985,9 @@ function handleTap(target, x, y, shift) {
       if (isDesktop) delayAction(target.node, () => editText(target.node, x, y));
       else editText(target.node, x, y);                         // B27
       break;
+    case 'title-menu':
+      tapTitleMenu();
+      break;
   }
 }
 
@@ -1089,11 +1133,12 @@ el.board.addEventListener('input', (e) => {
   } else if (t.classList.contains('anchor')) {
     current[t.dataset.anchor] = t.textContent;
     t.classList.toggle('filled', !!t.textContent.length);
-    if (t.dataset.anchor === 'title') {
-      if (isDesktop) updateActiveCardTitle();
-    } else {
-      updateBoardGeometry();           // the band sizes to its tallest zone, live (B47)
-    }
+    if (t.dataset.anchor === 'title' && isDesktop) updateActiveCardTitle();
+    // The band sizes to its tallest zone, live (B47) — and the title now has a
+    // geometry consequence of its own: the compartment's handle rides its
+    // bottom edge, so a title that grows past the floor moves it (B65). One
+    // call covers both; it is a no-op for whichever of the two did not change.
+    updateBoardGeometry();
     scheduleSave();
   }
 });
@@ -1132,7 +1177,7 @@ function commitAnchor(node) {
   current[node.dataset.anchor] = node.textContent;
   node.classList.toggle('filled', !!node.textContent.length);
   if (isDesktop && node.dataset.anchor === 'title') renderPane(); // reconcile the date line
-  if (node.dataset.anchor !== 'title') updateBoardGeometry();     // the band follows its zones (B47)
+  updateBoardGeometry();      // the band follows its zones (B47), the handle its card (B65)
   saveNow();
 }
 
@@ -1815,6 +1860,41 @@ function openMenuFor(target, clientX, clientY) {
   buildMenu(items, clientX, clientY);
 }
 
+/* The compartment's handle (issue #94, B65): the SAME menu the title's
+   long-press and right-click already give, opened from a control that says it
+   exists. Neither gesture path is touched — this only removes the requirement
+   to know one. The menu drops from the handle's own bottom-right corner, so
+   buildMenu's viewport flip right-aligns it under the control on a phone.
+
+   Through delayAction like every other control (B18): a menu that lands under
+   the finger must not take the second half of an impatient double-tap, and the
+   fill is the acknowledgment that the press was heard. */
+function openTitleMenu() {
+  // #54's law: an open editor commits before the menu acts on committed state.
+  if (isEditing(document.activeElement)) document.activeElement.blur();
+  const r = el.titleMenu.getBoundingClientRect();
+  menuInvoker = el.titleMenu;          // focus returns to the handle on close
+  el.titleMenu.setAttribute('aria-expanded', 'true');
+  openMenuFor({ type: 'anchor', node: anchorEls.title }, r.right, r.bottom);
+}
+const tapTitleMenu = () => delayAction(el.titleMenu, openTitleMenu);
+
+/* The recognizer owns pointers, so the keyboard is the one path it cannot see.
+   preventDefault stops the native click the key would otherwise synthesize, and
+   stopPropagation keeps the press off the desktop keyboard grammar below — the
+   handle is the first focusable thing inside #board that is neither an editor
+   nor the selection, so without it Enter would ALSO edit the selected note and
+   Delete would destroy it. Auto-repeat is dropped: held past ~500ms the repeats
+   would land on the menu item buildMenu had just focused. */
+el.titleMenu.addEventListener('keydown', (e) => {
+  const activates = e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar';
+  if (!activates && e.key !== 'Delete' && e.key !== 'Backspace') return;
+  e.stopPropagation();                 // Escape still reaches the grammar below
+  if (!activates) return;
+  e.preventDefault();
+  if (!e.repeat) tapTitleMenu();
+});
+
 /* Desktop right-click on a note (issue #55): the selection's own menu, ONE
    delegated listener. Right-click on empty canvas or the lot keeps the
    BROWSER's native menu, and an active editor keeps its own (paste, spelling);
@@ -1933,6 +2013,7 @@ function closeMenu() {
   el.menu.classList.remove('show');
   el.menu.hidden = true;
   menuOpen = false;
+  el.titleMenu.setAttribute('aria-expanded', 'false');   // collapsed, whoever opened it (B65)
   if (menuKeyHandler) document.removeEventListener('keydown', menuKeyHandler, true);
   if (menuOutsideHandler) document.removeEventListener('pointerdown', menuOutsideHandler, true);
   menuKeyHandler = menuOutsideHandler = null;
@@ -2768,6 +2849,7 @@ async function dropBoardCard(b, cat) {
   if (current && current.id === b.id) {
     current.category = cat;
     current.catStamp = Date.now();
+    applyBoardCat();                   // the open board's ladder rotates with it (B67)
     saveNow();
   } else {
     const rec = await idbGet(b.id);
@@ -2865,6 +2947,12 @@ function attachBoardCardGestures(card, row, b, opts) {
       if (!isDesktop && navigator.vibrate) navigator.vibrate(10);
       ghost = card.cloneNode(true);
       ghost.classList.add('card-drag-ghost');
+      // The ghost is fixed to the viewport off document.body, which takes it
+      // out of its section's [data-cat] token scope — so it carries the scope
+      // with it (B67). Without this the card lifts off green and turns blue
+      // mid-drag, because .board-row/.pane-card's water would resolve against
+      // :root. The attribute is the same one styles.css binds the ladder on.
+      ghost.dataset.cat = catOf(b);
       const r = card.getBoundingClientRect();
       ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
       document.body.appendChild(ghost);
@@ -3088,6 +3176,11 @@ function updateActiveCardTitle() {
 
 function goToList() {
   if (listOpen) return;
+  // The compartment's handle may have just taken focus back from the menu it
+  // opened (B65, closeMenu's menuInvoker return). The list is an overlay over
+  // the board, so leaving focus on a control it occludes strands a keyboard or
+  // AT user behind the page they just navigated away from.
+  if (document.activeElement === el.titleMenu) el.titleMenu.blur();
   history.pushState({ v: 'list' }, '');
   showList();
 }
@@ -3122,6 +3215,15 @@ window.addEventListener('popstate', () => {
 /* --- 12. Boot + service worker ------------------------------------------- */
 window.addEventListener('resize', onViewportResize);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', onViewportResize);
+
+/* Both sections are sized by the type they hold (B37/B47), and the type arrives
+   late: the faces are font-display: swap (B50), so boot measures the fallback
+   and the real metrics land afterwards with nothing watching. Until B65 the
+   drift was invisible — a rule a pixel off. It is not any more: the handle is
+   pinned to the compartment's measured bottom edge, and a title that re-wraps
+   on the swap would leave a control floating off the corner it belongs to. One
+   re-measure when the faces land; a browser without the API keeps boot's. */
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyLayout);
 
 async function boot() {
   const all = await idbGetAll();

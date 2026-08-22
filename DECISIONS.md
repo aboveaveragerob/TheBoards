@@ -1891,6 +1891,345 @@ folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
 
 ---
 
+## T. The menu gets a door (issue #94)
+
+### B65. The compartment names its own menu: a `Menu` handle on the title card (adds a door to the anchor menu of A1/B43; supersedes nothing — long-press and right-click are untouched)
+
+The anchor menu — `Export · All boards` — was reachable only by a gesture
+nothing on screen declared. On mobile that gesture is a 500ms long-press on
+the title compartment; on desktop there is no gesture at all, because B19/issue
+#4 removed click-and-hold and `contextmenu` routes notes alone, so the board's
+own Export was reachable only by finding the same board's card in the rail and
+right-clicking *that*. **Zero cognitive tax** does not survive an interface
+whose only route to a feature is a gesture the interface never mentions. The
+issue's own reasoning is the ruling: it "visually informs user that menu exists",
+and it costs a click.
+
+**Ruling.** A `Menu` control on the title compartment, opening the *same*
+`openMenuFor({type:'anchor'})` menu, item for item. Both gesture paths stay —
+issue #94 says so in as many words, and `test/mobile.js` [21] asserts the
+long-press still opens it. The menu's contents do not change: A1's law and
+B43's order are untouched, and the two-item exact match in [21]/[D21] is what
+keeps a future hand from quietly making this control a third menu.
+
+**A sibling, never a child.** `contenteditable` is toggled onto `#anchor-title`
+itself (B2), so anything inside it would be edited along with the title — and
+committed to `current.title`. The handle is a sibling positioned from the same
+`--card-l`/`--card-w` geometry the compartment is, so B38's compartment and
+B47's rule are arithmetically untouched: nothing measures the handle's box, and
+[21] re-asserts `card.bottom === rule + 22` with the control in place.
+
+**Where: the joint, not the interior.** "Bottom right of the title card" cannot
+mean *inside* it. At B32's 384px floor the compartment is 145×110 and a
+two-line title already reaches its bottom padding; a chip in the corner would
+sit on the words. So the handle is **bisected by the card's bottom edge and
+flush with its right one** — the joint where two of the card's three drawn
+sides meet (B38: the sheet's own top edge is the fourth), thickened into
+something to press. `--card` and `--deep` are 1.10:1 apart (`UIUX §2.5`), so the
+ground under the chip is one value either way and the bisection is seamless.
+It follows a title that grows past the floor: `--card-bottom` is the
+compartment's measured height, set beside `--rule-y` in `updateBoardGeometry`,
+which the title anchor now calls too — the title had no geometry consequence
+before this and has one now. (The name is new; the retired `--card-h` of the
+pre-B47 band is not resurrected, and `UIUX §16.3`'s note about it still reads
+true.)
+
+**What it is made of: `--frame`, filled.** A control inside a box that
+otherwise holds *typed content* must not be able to read as content, which
+rules out bare ink; and `--chrome` is the deep's own value, invisible on the
+card. So the handle wears the line the compartment is drawn in — 5.70:1 under
+its `--ink-dark` label, on a fill already published at 5.39:1 on the card
+(`UIUX §2.5`) — and introduces **no new token**. Deliberately **not**
+`--accent-page`: B59 gave that to the controls that *make* a board, and on
+desktop this handle and the rail's `New board` are on screen together; two
+identical chips doing different jobs would flatten the distinction B59 had just
+drawn. `UIUX §14`'s shared tactile signature — 2px `--ink-dark` border, 0.4em
+radius, offset shadow, press-translate — is carried whole, because §14's law is
+*one signature, each species its own fill*.
+
+**The floor, without growing the frame.** The visible chip is 32px, under
+`UIUX §6`'s 44. That is B7's law, not an exception to it: the handle carries
+the note's own decoupled `--hit` collar, and `setHitInset`'s arithmetic is now
+a shared `hitInset(node, k)` with one caller per draw scale — so the target
+clears 44px physical on touch and B23's 24px on desktop at *any* renderScale
+(pinned at 0.56 in [D21], where the collar is doing the work). A chip large
+enough to meet the floor by itself would not fit the compartment.
+
+**And the collar obeys the same rule the chip does.** The note's collar is
+symmetric; this one is not. The whole `2 × hit` is spent *downward*, onto the
+deep, because upward is the title's own words — a symmetric collar reaches 22px
+into the card, under the last line of a title long enough to have grown it, and
+steals the tap that would place the caret there. Ruling the painted chip off
+the words and then letting its hit area sit on them would be the same mistake
+in an invisible layer.
+
+**The type arrives late, so the geometry is re-measured when it does.** The
+faces are `font-display: swap` (B50) and boot measures the fallback. Before
+this ruling the drift was a rule a pixel out of place; now it is a control
+visibly off the corner it is pinned to, so `document.fonts.ready` re-runs
+`applyLayout` once. `--rule-y` gets the same correction for free.
+
+**Through `delayAction`, like every control (B18).** The menu lands directly
+under the finger; without the window the second half of an impatient double-tap
+would land on a menu item. The `.tapped` fill is the acknowledgment, draining
+to `--frame` on near-black exactly as `.primary-btn` does.
+
+**Two paths in, one opener.** The recognizer owns pointers, so `classifyTarget`
+gains a `title-menu` branch ahead of the anchor check — without it the sibling
+falls through to `canvas` and the collar, which reaches past the card, drops a
+note (B30's lesson about presses that land on furniture-adjacent paper). The
+keyboard is the one path the recognizer cannot see, so `keydown` on Enter/Space
+calls the same opener and `preventDefault`s the click the key would otherwise
+synthesize: one opener, never two, and auto-repeat is dropped so a held key
+cannot walk into the item `buildMenu` has just focused.
+
+**A focused control owns its keys.** The handle also `stopPropagation`s
+Delete/Backspace. It is the first focusable thing inside `#board` that is
+neither an editor nor the selection, so B26's desktop grammar — Enter edits the
+selection, Delete destroys it — would otherwise fire *through* a focused button
+at an object the user is not looking at. The costs are not symmetric: swallowing
+these keys here costs nothing, and not swallowing them can destroy a note.
+Escape still passes through, because deselecting from anywhere is that grammar
+working as intended.
+
+`aria-haspopup="menu"` and a toggled `aria-expanded` say what the handle does;
+focus returns to it on close via the existing `menuInvoker` — except into the
+list, which is an overlay over the board, so `goToList` blurs the handle rather
+than stranding a keyboard user on a control the list is covering.
+
+**Impermanent in one respect, named here so it is not rediscovered:** the
+handle is a *second door to one room*. The day the anchor menu grows a third
+item, or a second control wants the same corner, this becomes a question about
+what the compartment is for — not a question about this chip.
+
+## U. The list opens onto the boards (issue #95)
+
+### B66. The board list carries no page heading (supersedes B43's `#list-title` clause; B43's "All boards" rename stands)
+
+Issue #95: the word `Boards` sat alone at the top of the list, one line above
+three category heads that already read `TO-DO BOARDS`, `IDEA BOARDS`,
+`NOTE BOARDS`. B43 kept it on the reading that it is not a menu — it names the
+page you are standing on — and that reading was sound while the page below it
+was B24's one flat, undivided list. B44 and B63 changed what is below it. The
+screen now opens onto three labelled sections, so the heading is a fourth title
+over three titles: **every pixel earns its place**, and that one does not. It
+also answers a question nobody has by the time they can read it — the only way
+onto this screen is choosing **All boards** — and restating the reader's own
+last act is the same cognitive tax B63 named, charged at the top of the page.
+
+**What goes, exactly.** `<header id="list-header">` and its only child
+`<h1 id="list-title">Boards</h1>`, with their two rules in `styles.css §10`.
+`#list-rows` is `#list-view`'s only child now and takes the whole height, and
+the `app.js` and `UIUX §7` statements of the old rule go with them — a record
+that keeps asserting a superseded clause is worse than no record. **B43's other
+clause is untouched:** every menu still says `All boards` through the one
+`COPY.boards` key. With the heading gone, that key is now the only place the
+word is written at all — which is precisely what B43's exception was carved out
+of.
+
+**The page keeps its name where a name is still owed.** `#list-view` already
+carries `aria-label="Boards"`, and nothing ever pointed an `aria-labelledby` at
+the `h1`, so the region announces itself to a screen reader exactly as it did
+before; each section's `role="group"` label (B44, with B63's page state) is
+untouched. Removing a visible heading is not removing an accessible name.
+
+**What it does cost, stated rather than left to be discovered:** the `h1` was
+the app's only heading element, so a rotor's Headings list on this screen is now
+empty. The structure is still announced — the region by its label, each section
+by its group label — but it is no longer *jumpable* by heading. The fix would be
+a real heading on each section, and B63 ruled the opposite for a reason that has
+not changed: `.cat-head` is `aria-hidden` precisely so AT does not hear every
+section twice, once from the group label and once from its own text. Re-opening
+that inside an issue that asked for a deletion would be the wrong place; it is
+recorded here so it is a known cost and not a silent one.
+
+**The gutter closes at the top.** The header's 16px top padding was the only
+thing between the first section's head row — a label and a 44px control — and
+the top of the screen. `#list-rows` therefore goes from `0 12px 12px` to a
+symmetric `12px`: the view's own gutter, one value on four sides, not a
+reinstated header. The header spent 53px; 41px of it is returned, ~14px to each
+section's cards row, where B63 left the slack. **The per-page budget does not
+move:** a third card costs 64px, so `catPageCap()` still yields two on B32's
+384×846 floor, and `test/mobile.js` [19]'s and [20]'s no-overflow / no-scroll
+pairs — the assertions B44 rests its whole drag on — still bind.
+
+**The 12px is a constant, and `env(safe-area-inset-top)` was considered and
+declined.** Three reasons, in order of weight. The app declares
+`apple-mobile-web-app-status-bar-style: default`, not `black-translucent`, so
+iOS standalone starts the web view *below* the status bar and the top inset is
+zero — `viewport-fit=cover` buys the landscape notch and the home indicator,
+not a top overlay; Android standalone paints its own bar over `theme-color` the
+same way. The app uses no `env()` anywhere, and one lone use is an idiom half
+the codebase does not speak. And it would actively hurt where it claimed to
+help: `catPageCap()` measures `clientHeight`, which *includes* padding, so an
+inset would grow the measured budget by exactly the height it took away from the
+flex line — an optimistic cap on the shortest screens, which is the overflow
+B42 forbids. If the platform edge ever does need honouring, it is one ruling
+for the whole app — the board's own 14px band label sits in the same zone —
+and not a patch on this one rule.
+
+**The dismiss target moves to furniture that is genuinely inert.**
+`test/mobile.js` [19] tapped `#list-title` to dismiss an open board menu.
+B30's `swallowTap` makes a dismissing press inert only where it lands on
+`#board` — B44's "Not ruled here", still not ruled here — so the replacement
+could not be a board card, and `.cat-add` and the pager are controls. It is a
+`.cat-head`: aria-hidden furniture carrying no listener of its own, picked at
+run time from whichever head the open menu is not covering.
+
+## V. New background colours for the Idea and Note boards (issue #96)
+
+### B67. A board type is a whole scene, not a rung: the ladder rotates with it (scopes UIUX §2.2.1 rule 1 to within a scene; extends UIUX §2.2 with §2.2.2; leaves B55's one platform edge and B58's scene untouched)
+
+Rob: *"New background colors for just the idea boards and the note
+boards. To do boards retain their ink well blue background. Idea boards
+update to a deep hunter green with same stylization and graphic effects.
+Note boards background color updates to a deep, light violet."*
+
+Two screenshots came with the issue and could not be read from the
+build environment, so the values were **derived rather than sampled** —
+Rob's own call: rotate the shipped ladder in hue at matched lightness
+and chroma. The hexes are in `UIUX §2.2.2`; this entry is why.
+
+**What "matched" turned out to mean, precisely.** OKLCH lightness and
+chroma and WCAG relative luminance cannot all be held across a hue
+rotation — OKLab lightness and WCAG luminance are different functions of
+the same colour. Only one can be pinned, and it has to be **luminance**,
+because luminance is what every ratio in `UIUX §2` is computed from and
+what `§2.2.1` rule 1 means by "one axis". So L and C became the aiming
+coordinates, held as closely as 8-bit sRGB allows (L within 0.010, C
+within 0.007), and luminance is exact to the 4dp the record prints.
+`UIUX §2.2.2` prints the residuals rather than claiming they are zero.
+
+**The rule this bends, said out loud.** `UIUX §2.2.1` rule 1 is "one
+axis: luminance — nothing is distinguished from another surface by hue
+alone." Taken flat, three coloured boards violate it. Taken as written,
+it does not: the rule exists so that *reading the page* — card from
+deep, water from canvas, note from ground — never depends on a channel
+a person's eyes may not deliver. It governs **rungs within a scene**.
+Board type is not a rung; it is the whole scene, every rung moving
+together. So rule 1 gains the qualifier "within one scene," and the
+distinction is made honest by construction rather than by exemption:
+**every rung holds its To-Do luminance to the 4dp the record prints.**
+The three ladders are the same ladder. Turn the hue off and they are
+indistinguishable — which is exactly the property rule 1 protects.
+
+**Where the gamut binds, recorded so it is not re-derived.** The Idea
+card sits at `C = 0.043` against the blue's `0.050`, and the Idea deep at
+`0.025` against `0.027`. Both are the **sRGB maximum** at that luminance
+in that hue arc — checked by scanning every 8-bit triple, not estimated.
+sRGB's blue primary is very dark, so a dark blue buys chroma almost free
+by pushing `B`; green's primary carries 0.7152 of the luminance, so a
+dark green must keep `G` small and its chroma is capped. A more
+chromatic dark green card at that luminance **does not exist**.
+
+**Rule 4 is satisfied, with the numbers.** Fourteen new values, each
+one put through `§2.3.1`'s crossover and `§2.3.2`'s forbidden band
+before it existed: all fourteen sit outside 0.163–0.196, every ground
+below 0.1788 still takes `--ink-light`, every note above it still takes
+`--ink-dark`. Necessarily so, since each sits at its To-Do rung's
+luminance — which is the point of deriving them that way rather than
+picking them.
+
+**B52's precedent, met.** B52 rejected a hex that had not earned a job.
+These have one, and it is a job no existing value could do: the app has
+had three board categories since B42, and until now type drove **zero**
+rendering — the category was a fact about the list, invisible the moment
+you opened the board. A person with a to-do board and an idea board open
+across two sessions had nothing on the page telling them which they were
+in. The hue is the first thing the board itself says about what kind of
+board it is, and it says it without a label, a badge or a legend —
+`PRD §1.2`'s zero cognitive tax, and every pixel earning its place.
+
+**Bound by rebinding, not by overriding — and that is the whole of
+"same stylization and graphic effects."** The board is four layers: the
+flat `var(--deep)` fill, the SVG turbulence dither, the band's radial
+vignette over its three-stop fall, and the Parking Lot mirroring it.
+All four read tokens through `var()`. Rebinding the token *names* under
+`#board[data-cat=…]` carries the hue into all four at once. The
+alternative considered and rejected — a new `--board-bg` token with
+`#board`'s background pointed at it — would have recoloured the fill and
+left blue furniture standing on a green ground, and it would also have
+broken `test/tokens.js`'s assertion that the canvas is literally
+`var(--deep)`.
+
+**The list and rail cards rotate with their section.** `UIUX §10` calls
+a card "a small rendering of what it names," and a card is drawn in the
+water's upper fall — so once the water is per type, a blue card opening
+a green board is the card lying about its board. The section *ground*
+stays `--chrome`. The **drag ghost** is the one card that leaves its
+section: it is fixed to the viewport off `document.body`, outside the
+scope, so it carries the attribute itself and keeps its hue in the air.
+A card that changed colour the moment you picked it up would be the same
+lie, told during the one gesture that is *about* its category.
+
+**A record with no category renders violet, and that is the coherent
+answer.** `catOf()` is a read-site default and a record without a
+category IS the third bucket (B21's idiom) — the list already files it
+under Note Boards. Forking the default so the board rendered blue while
+its card sat in the violet section would have reintroduced exactly the
+lie the card preview removes. The consequence, owned: every pre-#58
+legacy record opens violet, since it writes no category — and that is
+correct, because the list has always filed it under Note Boards.
+
+**The first-run board is the one exception, and it is seeded, not
+defaulted.** `newBoardRecord()` wrote no category either, so a fresh
+install of an app named for its To-Do boards opened violet — a default
+that was invisible until this entry made the type render. It now writes
+`category: 'todo'`. This extends B63's "every new board writes its
+category at creation" to the one creation path that predates it: the
+empty-database boot. `newBoardIn` overwrites the seed with the section
+the board is made in, so the three callers stay coherent. Legacy records
+are deliberately untouched — reclassifying them would mean a migration
+and a DB version bump, and B21's read-site idiom exists to avoid exactly
+that.
+
+**Three things deliberately do not rotate.** `--chrome`, because there
+is one room and it sits behind all three boards at once (B55's one
+platform edge stands: `index.html`'s `theme-color` and the manifest's
+two colours all still wear `#020812`, so **a green board's OS chrome is
+the blue** — owned, not overlooked). The two **ink poles**, because ink
+is per surface, not per app (`UIUX §2.3`) — and because rotating them
+would move `§2.3.1`'s crossover and break `§2.7`'s ring, whose whole
+claim is that the poles are complementary on every ground. The three
+**accents**, because they live on chrome (`UIUX §2.6`).
+
+**What actually moved, and what did not.** `§2.3`'s five ink pairings,
+`§2.5`'s seven adjacencies, `§2.7`'s six ring rows and `§2.3.1`'s
+crossover are functions of luminance alone, and no luminance moved:
+every one of them reproduces on all three ladders, and `test/tokens.js`
+now asserts each against all three with a single expected number. (The
+sections' radial falloff is a second alpha composite whose luminance also
+moves; no published ratio is computed from the vignetted ground, because
+`§2.8` asserts every adjacency against the fall's declared stops. Said
+out loud in `§4.3` so the next value derived from the band's real ground
+is derived per ladder.) The
+only **published** table that moves is `§4.3`'s scratch pair, because a
+strike is an *alpha composite* — a function of the ground's three
+channels, not of its luminance — so rotating the hue re-quantises the mix
+at 8 bits. The six marks shift by at most 0.04, stated per ladder in
+`§4.3` rather than averaged, and the law they serve is asserted separately so it cannot be
+satisfied by editing a constant: every mark clears 3:1 on every stop of
+every ladder, every burial stays a smudge. Reproducing all twenty-four
+published numbers exactly was attempted first and is **not achievable at
+8 bits** — the search is over-constrained — which is itself worth
+recording, so the next agent does not spend the afternoon on it.
+
+**Pinned.** `test/tokens.js` now parses the palette **per scope** rather
+than flat, because a last-wins scan would read whichever ladder came
+last in the file as if it were `:root`'s — and it asserts the rung
+values, the shared luminances, that the two spellings of the darkest
+stop agree (`--water-bot` / `--water-bot-a`), that `--chrome`, the poles
+and the accents are *not* rebound, and that `app.js` sets the scope from
+the record while carrying no hex of its own. `test/desktop.js` [D16]
+adds the **rendered** pin, which is the one that matters: tokens.js
+reads stylesheet text, and only a real browser can say the cascade
+reaches the page — it asserts the computed fill, rule, card, band and
+lot of an open Note board, its rail card's preview, the drag ghost
+mid-flight, and that a swap to a To-Do board repaints the page blue and
+the return swap repaints it violet. `docs/proofs/proof-10-the-second-swap.html`
+renders all three scenes side by side; nothing tests that file, so it
+was updated in the same commit.
+
 ## W. Four cards a page (issue #97)
 
 ### B68. An empty category collapses to its head row, and the rows sit on the touch floor (supersedes B44's "two empty thirds" clause and B63's two-cards-per-page clause; B42's "measured, never a constant" law stands and is restated)
@@ -1932,8 +2271,12 @@ inside `clientHeight` and outside the flex line — slack the old budget could
 absorb and this one cannot.
 
 **The honest numbers, stated rather than rounded up.** On a 384×846 phone
-(`B32`'s floor viewport): **twelve** cards a page with one category populated,
-**five** with two, **three** with all three. The issue's four is delivered in
+(`B32`'s floor viewport): **thirteen** cards a page with one category populated,
+**six** with two, **three** with all three. These were measured on the merged
+tree, not on this branch alone: B66 removed the list's page heading and gave
+`#list-rows` a 12px top gutter in its place, which returns height this budget
+then spends — one extra card in the one- and two-populated states. The
+all-three number is unmoved. The issue's four is delivered in
 the common case and beaten in the sparse one; with every category populated
 the measurement says three and *the pager says so* — B42's law is that
 overflow states itself, and a number that lied about the height would clip.

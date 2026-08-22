@@ -100,6 +100,13 @@ a midpoint.
 | `--frame` | `#698ebf` | the card's border and both full-width rules — §2.5, B61 | 0.2611 |
 | `--note` | `#a0d4da` | the note | 0.5962 |
 
+**The hexes above are the To-Do board's.** Since B67 the ladder has three
+bindings — one per board type, the same seven rungs at three hues, each rung
+holding the luminance in the right-hand column exactly. §2.2.2 gives the other
+two. Every ratio in this document is computed from that column, so every ratio
+in this document holds on all three; where a number is genuinely per-ladder,
+it is printed per-ladder (§4.3 is the only such table).
+
 `--furniture` was retired by B46; `--band` and the `--shelf` texture are
 retired by B58 — the second swap renamed the deep's token honestly
 (`--band` → `--deep`, the field's stops → `--water-*`) and removed the sand
@@ -119,6 +126,10 @@ value would be a rung with no adjacency to earn it. It shares the canvas's
 value — a summoned surface over the deep separates by its elevation, which is
 elevation's whole job (§2.4) — a rail card's fill (the water's own top stop)
 holds 3.32:1 behind its 0.40 hairline edge, and light ink reads at 18.33:1.
+**`--chrome` does not rotate with the board type** (B67): there is one room,
+and it is behind all three boards at once, so it keeps `#020812` — the To-Do
+deep's value — whichever board is open. Taken deliberately, the consequence is
+that a green board's OS chrome, menu, toast and board list are still the blue.
 Settled by proof rounds 8–9 (B52) and carried through the swap (B58); the
 rendered references are `docs/proofs/proof-9-a-well-furnished.html` and
 `docs/proofs/proof-10-the-second-swap.html`. **The platform edge is the same
@@ -151,7 +162,14 @@ nothing about what an eighth surface would be. The ladder is therefore stated as
 a law, and the values above are its output:
 
 1. **One axis: luminance.** A surface's position in the app is its position on
-   the ladder. Nothing is distinguished from another surface by hue alone.
+   the ladder. **Within one scene, nothing is distinguished from another
+   surface by hue alone.** The qualifier is B67's, and it narrows nothing this
+   rule ever governed: the rule is about *rungs* — what tells the card from the
+   deep, the water from the canvas — and the answer must stay luminance,
+   because hue is the one channel a person's eyes may not deliver. §2.2.2
+   rotates the whole ladder at once, every rung together, holding each rung's
+   luminance to the 4dp printed above; it therefore distinguishes *scenes*,
+   not surfaces, and no reading of the page depends on it.
 2. **One hue family for the page, with a job per depth** (B58 collapsed the
    second). Everything on the page is one blue family: the deep and the card
    as the recessed ground, the water as the sections that close the sheet, the
@@ -177,6 +195,95 @@ enough apart to read as two depths, when their job is to read as one.
 
 **Impermanent:** the hex values. The law is not.
 
+### §2.2.2 The ladder rotates with the board type
+
+**A board type is a whole scene, not a rung on one** (B67, issue #96). To-Do
+boards keep the water blue above. Idea boards take a deep hunter green, Note
+boards a deep violet — and each is *the same ladder*, rotated in hue and in
+nothing else.
+
+| Rung | To-Do | Idea | Note | Rel. luminance |
+|---|---|---|---|---|
+| `--deep` | `#020812` | `#000a06` | `#0c0512` | 0.0023 |
+| `--card` | `#08152c` | `#001a0e` | `#1e0f28` | 0.0077 |
+| `--water-top` | `#34697f` | `#486b49` | `#6d5b83` | 0.1237 |
+| `--water-mid` | `#255265` | `#345439` | `#534769` | 0.0737 |
+| `--water-bot` | `#163646` | `#1f3825` | `#382e47` | 0.0325 |
+| `--water-bot-a` | `22 54 70` | `31 56 37` | `56 46 71` | (the bottom stop, as channels) |
+| `--frame` | `#698ebf` | `#52997f` | `#9d80b9` | 0.2611 |
+| `--note` | `#a0d4da` | `#b9d2b2` | `#cec6ed` | 0.5962 |
+
+**The derivation is hue and only hue.** Each rung was converted to OKLCH, its
+hue moved, and the result re-solved against sRGB so that its **WCAG relative
+luminance reproduces the To-Do rung's** — the right-hand column is one number
+per row because it is one number per row. The family's own internal hue spread
+(the shipped blue runs 205° at the note to 261° at the card) is narrowed as it
+rotates, so each scene reads as one hue rather than smearing across a 56° arc:
+
+| Rung | To-Do H / L / C | Idea H / L / C | Note H / L / C |
+|---|---|---|---|
+| `--deep` | 251.6° / 0.132 / 0.027 | 171.0° / 0.129 / 0.025 | 309.1° / 0.136 / 0.032 |
+| `--card` | 260.8° / 0.199 / 0.050 | 161.3° / 0.192 / 0.043 | 310.3° / 0.203 / 0.052 |
+| `--water-top` | 227.5° / 0.494 / 0.066 | 145.1° / 0.491 / 0.067 | 304.7° / 0.504 / 0.066 |
+| `--water-mid` | 228.2° / 0.415 / 0.059 | 148.3° / 0.413 / 0.059 | 300.2° / 0.424 / 0.057 |
+| `--water-bot` | 232.7° / 0.317 / 0.047 | 150.7° / 0.314 / 0.046 | 302.3° / 0.323 / 0.045 |
+| `--frame` | 255.7° / 0.639 / 0.085 | 167.8° / 0.629 / 0.083 | 307.3° / 0.648 / 0.089 |
+| `--note` | 205.0° / 0.836 / 0.054 | 138.9° / 0.836 / 0.051 | 294.6° / 0.846 / 0.054 |
+
+> **OKLCH lightness and chroma are the aiming coordinates, not the pinned
+> ones.** They are held as closely as 8-bit sRGB allows — L within 0.010, C
+> within 0.007 — and they cannot be held *exactly*, because OKLab lightness and
+> WCAG luminance are different functions and a hue rotation cannot preserve
+> both. Luminance is the one that is pinned, because luminance is what every
+> ratio in this document is made of, and it is what §2.2.1 rule 1 means by "one
+> axis". Where the two conflict, luminance wins.
+
+**One place the gamut binds, recorded so it is not re-litigated.** `--card` on
+the Idea ladder is `C = 0.043` against the blue's `0.050`, and `--deep` is
+`0.025` against `0.027`. Both are the **sRGB maximum** available at that
+luminance in that hue arc — verified by scanning every 8-bit triple. The blue
+primary is very dark (luminance weight 0.0722), so a dark blue can push `B`
+high and buy chroma almost free; green's weight is 0.7152, so a dark green must
+keep `G` small and its chroma is capped. A greener dark card at this luminance
+does not exist in sRGB, and no amount of searching will find one.
+
+> **Because luminance is preserved, every ratio this document publishes is
+> preserved.** §2.3's five ink pairings, §2.5's seven adjacencies, §2.7's ring
+> table and §2.3.1's crossover are all functions of luminance alone, and B67
+> moved no luminance. `test/tokens.js` asserts each of them against **all
+> three** ladders with a single expected number, so a hue that drags a rung off
+> its luminance fails the suite rather than the eye.
+
+**§2.2.1 rule 4 is satisfied for all fourteen new values.** Every one is
+outside §2.3.2's forbidden band (0.163–0.196), every ground below §2.3.1's
+0.1788 crossover still takes `--ink-light`, and every note still takes
+`--ink-dark` — necessarily, since each sits at its To-Do rung's luminance.
+
+**What does not rotate:** `--chrome` (§2.2 — one room, B55), the two ink poles
+(§2.3 — ink is per surface, not per app, and rotating it would move the
+crossover), and the three accents (§2.6 — they live on chrome). Rotating the
+ink would also break §2.7's ring, whose whole claim is that the two poles are
+complementary on every ground.
+
+**Bound by rebinding, never by overriding.** The board is drawn by four layers
+— the flat `var(--deep)` fill, the dither over it, the band's radial vignette
+over its three-stop fall, and the Parking Lot mirroring it — and all four read
+the tokens through `var()`. Rebinding the *names* under a `[data-cat]` scope
+therefore carries the hue into all four at once, which is what issue #96's
+"same stylization and graphic effects" asks for; pointing a background at a new
+`--board-bg` token would have recoloured the fill and left the furniture blue.
+The list and rail cards rotate with the section they sit in, since a card is a
+small rendering of what it names (§10).
+
+**A board with no category reads as a Note board**, violet — because `catOf()`
+is a read-site default and a record without a category *is* the third bucket
+everywhere (B21's idiom, storage key `unsorted`). That is the same bucket the
+list files it in, and the agreement is the point: a card that opens a violet
+board must itself be violet. It applies to every pre-#58 legacy record and to
+the board `newBoardRecord()` makes on a fresh install, neither of which writes
+a category. To-Do is what the page shows for the instant *before* app.js has
+spoken, because To-Do is `:root` and carries no `[data-cat]` block.
+
 ### §2.3 Ink — one per surface, not one per app
 
 Two poles:
@@ -199,7 +306,9 @@ its range**:
 
 Every pairing clears AA; every one but the water's lightest stop clears AAA.
 The two sections are the only surfaces where the field's extreme matters to
-text, and 5.52:1 is that extreme rather than an average.
+text, and 5.52:1 is that extreme rather than an average. **The hexes named are
+the To-Do ladder's; every ratio holds unchanged on the Idea and Note ladders**,
+whose rungs sit at the same luminances (§2.2.2).
 
 **`--ink` is no longer a single value.** v1 used one `var(--ink)` for note text,
 lot text, band labels, rules, hairlines and borders alike, which worked only
@@ -317,6 +426,10 @@ mark *on the water* is worst at its lightest:
 | note / canvas | **12.36** | — | fill |
 | note / water (lightest stop) | **3.72** | — | fill |
 
+**Every row holds on all three ladders** (§2.2.2). An adjacency is always
+between two rungs of the *same* scene — a board never mixes ladders — and the
+two rungs sit at the same pair of luminances whichever hue the board wears.
+
 Three consequences worth stating out loud:
 
 - **The note's 2px frame is the only thing separating two overlapping notes**
@@ -427,7 +540,10 @@ the two sections:
 
 This is B15's "robustness from geometry, not hue," carried into the new palette
 and made total. The water's lightest stop is the only ground where *both* tones
-clear 3:1 at once, which is a margin rather than a problem.
+clear 3:1 at once, which is a margin rather than a problem. **Geometry, not
+hue, is also why the table survives B67 untouched:** the ring is built from the
+two poles, the poles do not rotate, and the grounds keep their luminances — so
+every row above holds identically on the Idea and Note ladders (§2.2.2).
 
 ### §2.8 The water is a field, not a value
 
@@ -633,6 +749,33 @@ proved pole-independent under B58's swap: the note strikes in dark ink at
 5.47:1 against the fall's three stops — a mark above the 3:1 floor at every
 extreme, on either pole, and no longer a bar anywhere.
 
+**This is the one published table B67 moves, and it moves in the second
+decimal.** A strike is an *alpha composite*, so its ratio is a function of the
+ground's three channels rather than of its luminance alone: rotating the hue
+(§2.2.2) re-quantises the mix at 8 bits and the number shifts. The values are
+stated per ladder rather than averaged, because a range stated as a midpoint is
+the thing §2.2 forbids:
+
+| Mark | To-Do | Idea | Note |
+|---|---|---|---|
+| note strike — dark ink at 0.62 | 4.53 | 4.51 | 4.54 |
+| lot strike on the water's lightest stop | 3.19 | 3.22 | 3.20 |
+| lot strike on the water's mid stop | 4.08 | 4.11 | 4.12 |
+| lot strike on the water's darkest stop | 5.47 | 5.49 | 5.50 |
+| buried text on the note | 1.28 | 1.27 | 1.27 |
+| buried text on the water's lightest stop | 1.29 | 1.30 | 1.28 |
+
+The law is unchanged and is what is actually asserted: **every mark clears 3:1
+on every stop of every ladder, and every burial stays a smudge.** The largest
+movement is 0.04, against a floor the smallest value clears by 0.19.
+
+The sections' radial falloff (§2.8) is the *other* alpha composite in the app,
+and its luminance moves for the same reason. No published ratio is computed
+from the vignetted ground — §2.8 asserts each adjacency against the fall's
+declared stops precisely because the falloff can only darken below the
+threshold of a ratio — so nothing above depends on it. Named here so the next
+value derived from the band's real ground is derived per ladder.
+
 **The veil and the burial are one decision** (B53). The old 0.97/0.40 pair was
 tuned for a mid ground: a near-opaque veil destroyed what was under it, and the
 burial only had to kill the 10% showing in the gaps. Thin the veil and the words
@@ -706,11 +849,21 @@ physical (B7). **The hit area expands; the visual frame does not.**
 On desktop the floor is 24px (WCAG 2.5.8 AA, pointer-appropriate) — a 44px collar
 swallows dismiss clicks (B23). The 44px floor stands on touch.
 
+**A collar is not obliged to be symmetric.** The note's is, because a note is
+surrounded by paper on all sides. The title compartment's handle (§14, B65)
+spends its whole collar downward, onto the deep, because upward is the title's
+own words — the direction a collar grows in is part of the decision, not a
+consequence of `inset`.
+
 ---
 
 ## §7 The menu
 
-Long-press (mobile) or right-click (desktop).
+Long-press (mobile) or right-click (desktop) — **and, for the anchor menu, the
+`Menu` handle on the title compartment** (§14, B65). The handle is a second door
+to the same room: it opens the anchor menu exactly as listed below, and it
+replaces neither gesture. On desktop it is that menu's *only* door, since no
+long-press is armed there (B19/issue #4) and `contextmenu` routes notes alone.
 
 | Menu | Items |
 |---|---|
@@ -724,7 +877,10 @@ Ordering is **navigation first, then the item's own actions in rising severity**
 behind a hairline** — and never distinguished by colour alone (§1): position and
 the divider carry the meaning independently.
 
-Every menu says "All boards"; the list view's own heading stays "Boards".
+Every menu says "All boards", and that is now the only place the word is
+written: the list view carries no visible page heading (B66 supersedes B43's
+heading clause) — its three category heads say where you are, and the screen's
+accessible name lives on `#list-view`'s `aria-label`.
 
 No long-press timer is armed over bare canvas or lot background — the release
 still captures — and the `pointerdown` that dismisses an open menu is inert and
@@ -779,9 +935,12 @@ A save-failure toast must never clobber a pending Undo (B13).
 
 ## §10 The board list and the rail
 
-**Mobile:** a full-screen list on `--chrome`, newest first. Routing uses the
-History API specifically so the OS back gesture returns you to the board (B9).
-Back is never intercepted, shadowed or disabled.
+**Mobile:** a full-screen list on `--chrome`, newest first, opening straight
+onto the categories — **there is no page heading** (B66): the screen is reached
+by choosing "All boards", and a title repeating the choice you just made is a
+pixel that does not earn its place. Routing uses the History API specifically
+so the OS back gesture returns you to the board (B9). Back is never
+intercepted, shadowed or disabled.
 
 **Desktop:** an always-visible 300px rail (B24) — **sunken, not floating** (§2.4),
 sitting outside `#board` so the recognizer never sees its events. Cards are
@@ -791,8 +950,15 @@ immutable, so a card's slot never moves.
 Both surfaces sort into **To-Do / Idea / Note** (B63 renamed the third at the
 label only — its storage key remains `unsorted`), and a pointer-drag moves a
 card between sections with the target section framing itself in
-`--accent-page`. Overflow **pages** rather than scrolling, and a single page
-hides its own pager: no state, no statement (B42).
+`--accent-page`. **A card wears its own section's water** (B67): the cards are
+the water's upper fall, and since B67 that fall is per board type, so a card
+previews the board it opens rather than describing a board that no longer looks
+like it. The section's ground stays `--chrome` — the list is the room, not a
+board (§2.2.2) — so the three sections read as three tones of card on one
+surface, which is also what makes a drag between them legible. The drag ghost
+carries the scope too, so a card does not change hue in the air. Overflow
+**pages** rather than scrolling, and a single page hides its own pager: no
+state, no statement (B42).
 
 **Each section lays out as one grid, on both surfaces** (B63): a head row —
 the category's display label left, and the section's **own `New board`
@@ -825,8 +991,8 @@ between one- and many-page states.
 
 **The per-page budget is measured, never a constant** (B42, restated B68):
 the surface's real content height, less every section's furniture, in whole
-rows. On a 384×846 phone that comes out at **twelve** cards with one category
-populated, **five** with two and **three** with all three; the rail at
+rows. On a 384×846 phone that comes out at **thirteen** cards with one category
+populated, **six** with two and **three** with all three; the rail at
 1440×900 holds four. Where the measurement falls short of what is asked for,
 the pager states it — a number that clipped off the bottom of a short phone
 would be a lie about the height.
@@ -1037,6 +1203,43 @@ when disabled.
 **Menu rows and the toast's Undo** carry no fill: rows are bare on `--chrome` and
 fill on tap; Undo is underlined text (§9).
 
+**The compartment's handle** (`#title-menu` — the `Menu` control on the title
+card, B65): `--frame` fill, `--ink-dark` label at **5.70:1**, on a fill that
+clears **5.39:1 on the card** (§2.5's published pair — it is the card's own
+border colour, filled). It is the fifth species and it keeps §14's signature
+whole; only the fill is new, and the fill is not a new token. Deliberately
+**not** `--accent-page`: B59 gave that to the controls that *make* a board, and
+on desktop this handle and the rail's `New board` share a screen.
+
+```css
+#title-menu {
+  top: calc(var(--card-bottom) - 16px);          /* bisected by the card's bottom edge */
+  right: calc(100% - var(--card-l) - var(--card-w));   /* flush with its right one */
+  height: 32px; padding: 0 12px;
+  font-size: 13px; font-weight: 800;        /* the band's own furniture size, B54 */
+  background: var(--frame); color: var(--ink-dark);
+  border: 2px solid var(--ink-dark); border-radius: 0.4em;
+  box-shadow: 0.1em 0.1em var(--ink-dark);
+}
+```
+
+`--card-bottom` is the compartment's **measured** height, set beside `--rule-y` in
+`updateBoardGeometry`, so the handle follows a title that grew past the floor (and
+`document.fonts.ready` re-runs that measure once, since the faces swap in after
+boot — §13.1). The 32px frame is under §6's floor on purpose: the handle carries
+the note's own decoupled collar (`--hit`, B7), sized in JS so
+`(32 + 2 × hit) × renderScale` clears **44px on touch and 24px on desktop**.
+Unlike the note's, this collar is **asymmetric** — `top: 0`, the whole
+`2 × hit` spent downward onto the deep — because upward is the title's own
+words. Inside the compartment it could not go — at
+B32's 384px floor the card is 145×110 and a two-line title already fills it — so
+it sits on the joint where the card's two drawn sides meet (B38: only three are
+drawn). Half on `--card`, half on `--deep`, which are 1.10:1 apart: the ground
+under it is one value either way.
+
+It **adds** a door to the anchor menu (§7); long-press and right-click are
+unchanged.
+
 ---
 
 ## §15 Where the identity does not reach
@@ -1157,11 +1360,12 @@ Per surface, what would actually fail if the words above were violated today:
 | Clause | Pinned by |
 |---|---|
 | §2 — every token, every ratio | `test/tokens.js` (`PRD §9.6`): every table here recomputed from the shipped hexes, each range at its worst extreme, plus the sync points, the accent placement rule, self-hosting and B53's pair |
-| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines) |
+| §2.2.2 — three ladders, one axis | `test/tokens.js` [1b] parses the palette **per scope** (`:root`, `#board[data-cat="idea"]`, `#board[data-cat="unsorted"]`), asserts each rung's luminance against the shared column, asserts the two spellings of the darkest stop agree (`--water-bot` / `--water-bot-a`), and asserts `--chrome`, the ink poles and the accents are *not* rebound. §2.3/§2.5/§2.7's tables are then run against all three ladders with one expected number each |
+| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines); `test/mobile.js` [21] and `test/desktop.js` [D21] pin the handle to the compartment's corner and prove it does not grow the box (B65) |
 | §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
 | §4 — wrap, similarity render, centred text | `test/mobile.js` (B39 scenarios; [12c] pins B64's fold/rotate similarity — shape held, size uniform, storage untouched, round trip exact; [18b] computes the alignment, editing and at rest) and `test/desktop.js` [D13] (the silent cross-frame grab folds k) and [D17b] — the computed style, plus the centring inset parsed out of page 1's content stream (B62) |
 | §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |
-| §7 — menu contents and order | `test/mobile.js` [8] |
+| §7 — menu contents and order | `test/mobile.js` [8]; the handle's door onto the anchor menu by `test/mobile.js` [21] and `test/desktop.js` [D21], which assert the two items unchanged (B65) |
 | §8 motion, §12 accessibility beyond floors | **nothing** |
 | §13.2 — the band under the new face | measured from `hmtx` here; the live gate is `test/mobile.js`'s geometry, now running against the shipped face |
 | §16 — that shipped CSS reaches an installed PWA | `test/sw-update.js` (B36) — its marker moved with the band: `--card-h` died with B47, so the regex now reads `--band-top: 14px` literally out of `styles.css`, and `test/tokens.js` asserts the marker matches the shipped stylesheet |
