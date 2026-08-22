@@ -1183,13 +1183,29 @@ const activeIsNoteText = page => page.evaluate(() =>
       [...document.querySelectorAll('#menu button')].map(b => b.textContent));
     ok('and it is still Export then Delete', items.length === 2 &&
        /Export/.test(items[0]) && /Delete/.test(items[1]), JSON.stringify(items));
-    // Dismiss on the page heading: B30's inert-dismiss covers presses that
-    // land on #board, so a dismiss onto another card would open that board.
-    const title = await page.evaluate(() => {
-      const r = document.querySelector('#list-title').getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    // Dismiss on a category head: B30's inert-dismiss only covers presses that
+    // land on #board, so a dismiss onto a board card would open that board,
+    // and .cat-add / the pager buttons are controls. A .cat-head is aria-hidden
+    // furniture with no listener of its own — the press dismisses and does
+    // nothing else. (It replaces #list-title, deleted with the heading by B66.)
+    // The menu is drawn at the press point, so take a head the menu is not
+    // covering and that really is the topmost thing at that point.
+    const dismiss = await page.evaluate(() => {
+      const m = document.querySelector('#menu').getBoundingClientRect();
+      const heads = [...document.querySelectorAll('.cat-head')].map((h) => {
+        const r = h.getBoundingClientRect();
+        const p = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        const hit = document.elementFromPoint(p.x, p.y);
+        p.clear = !(p.x >= m.left && p.x <= m.right && p.y >= m.top && p.y <= m.bottom) &&
+                  (hit === h || h.contains(hit));
+        return p;
+      });
+      // null, never a point we have not cleared: tapping a point the menu is
+      // over would hit Delete and destroy the board the rest of [19] asserts on.
+      return heads.find(p => p.clear) || null;
     });
-    await tap(page, title.x, title.y);
+    ok('an inert category head is clear of the open menu', !!dismiss);
+    if (dismiss) await tap(page, dismiss.x, dismiss.y);
     await page.waitForTimeout(600);                      // let any window drain
     ok('dismissing the menu opened nothing',
        await page.evaluate(() => document.querySelector('#list-view').hidden === false));
@@ -1400,6 +1416,95 @@ const activeIsNoteText = page => page.evaluate(() =>
        rec.cat === 'todo' && rec.stamp === 'number' && rec.opened, JSON.stringify(rec));
     ok('and it is a new board, not the one that was open',
        await page.evaluate(() => current.id) !== before);
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 21. the compartment's handle: the menu, named, on the title card ----
+  console.log('\n[21] The compartment names its menu (issue #94, B65)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    const geo = await page.evaluate(() => {
+      const b = document.querySelector('#title-menu');
+      const r = b.getBoundingClientRect();
+      const card = document.querySelector('#anchor-title').getBoundingClientRect();
+      const rule = document.querySelector('#band-rule').getBoundingClientRect();
+      const hit = parseFloat(getComputedStyle(b).getPropertyValue('--hit')) || 0;
+      return { label: b.textContent, expanded: b.getAttribute('aria-expanded'),
+               pop: b.getAttribute('aria-haspopup'), child: document.querySelector('#anchor-title').contains(b),
+               r: { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom },
+               card: { right: card.right, bottom: card.bottom }, ruleTop: rule.top, hit };
+    });
+    ok('the handle says Menu', geo.label === 'Menu', geo.label);
+    ok('and declares the popup it opens', geo.pop === 'menu' && geo.expanded === 'false',
+       JSON.stringify([geo.pop, geo.expanded]));
+    // The whole reason it is a sibling: contenteditable is toggled onto
+    // #anchor-title itself, so a child would be edited along with the title.
+    ok('it is a SIBLING of the title, never inside the editable region', geo.child === false);
+    ok('flush with the compartment\'s right edge (±0.5)',
+       Math.abs(geo.r.right - geo.card.right) < 0.5, JSON.stringify([geo.r.right, geo.card.right]));
+    ok('bisected by the compartment\'s bottom edge (±1)',
+       Math.abs((geo.r.y + geo.r.h / 2) - geo.card.bottom) < 1,
+       JSON.stringify([geo.r.y + geo.r.h / 2, geo.card.bottom]));
+    // B38/B47 are untouched: the handle is out of flow and nothing measures it.
+    ok('the compartment did not grow: bottom is still rule + 22 (B38/B47)',
+       Math.abs(geo.card.bottom - (geo.ruleTop + 22)) < 1,
+       JSON.stringify([geo.card.bottom, geo.ruleTop]));
+    // UIUX §6 / B7: the hit area expands, the visual frame does not.
+    ok('the visual frame stays small (32px)', Math.abs(geo.r.h - 32) < 0.5, String(geo.r.h));
+    ok('the hit target clears the 44px touch floor',
+       geo.r.h + 2 * geo.hit >= 44 && geo.r.w + 2 * geo.hit >= 44,
+       JSON.stringify([geo.r.w + 2 * geo.hit, geo.r.h + 2 * geo.hit]));
+
+    // The collar is asymmetric on purpose (B65): all of it goes DOWNWARD, onto
+    // the deep, because upward is the title's own words.
+    ok('the collar never reaches up into the title\'s words',
+       await page.evaluate(() => {
+         const b = document.querySelector('#title-menu');
+         const box = b.getBoundingClientRect();
+         const collar = getComputedStyle(b, '::before');
+         return collar.top === '0px' && parseFloat(collar.bottom) <= 0 && box.height > 0;
+       }));
+    // Press the BOTTOM of the collar — past the card, over bare canvas — so the
+    // classifier, not the painted box, is what is under test.
+    const before = await noteCount(page);
+    await tap(page, geo.r.x + geo.r.w / 2, geo.r.bottom + 2 * geo.hit - 1);
+    await page.waitForTimeout(80);
+    ok('acknowledged inside the window: #title-menu.tapped, menu still shut (B18)',
+       await page.evaluate(() => !!document.querySelector('#title-menu.tapped') &&
+         document.querySelector('#menu').hidden === true));
+    await page.waitForTimeout(500);
+    const opened = await page.evaluate(() => ({
+      open: document.querySelector('#menu').hidden === false,
+      items: [...document.querySelectorAll('#menu button')].map(b => b.textContent),
+      expanded: document.querySelector('#title-menu').getAttribute('aria-expanded'),
+    }));
+    ok('the collar opened the menu — no note on the canvas beneath it',
+       opened.open && (await noteCount(page)) === before, JSON.stringify(opened.open));
+    // Exactly the anchor menu B43 pins, unchanged: the handle is a second door
+    // to one room, not a second room.
+    ok('and it is the anchor menu unchanged: Export then All boards',
+       opened.items.length === 2 && /Export/.test(opened.items[0]) &&
+       /All boards/.test(opened.items[1]), JSON.stringify(opened.items));
+    ok('the handle reports itself expanded', opened.expanded === 'true', opened.expanded);
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(120);
+    ok('Escape shuts it, collapsed, with focus back on the handle',
+       await page.evaluate(() => document.querySelector('#menu').hidden === true &&
+         document.querySelector('#title-menu').getAttribute('aria-expanded') === 'false' &&
+         document.activeElement === document.querySelector('#title-menu')));
+
+    // Issue #94's own condition: the gesture path is not replaced.
+    const t = await page.evaluate(() => {
+      const r = document.querySelector('#anchor-title').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + 24 };
+    });
+    await tap(page, t.x, t.y, 700);
+    await page.waitForTimeout(200);
+    ok('long-press on the title still opens the same menu — both paths exist',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
+         [...document.querySelectorAll('#menu button')].length === 2));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

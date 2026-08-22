@@ -1891,6 +1891,191 @@ folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
 
 ---
 
+## T. The menu gets a door (issue #94)
+
+### B65. The compartment names its own menu: a `Menu` handle on the title card (adds a door to the anchor menu of A1/B43; supersedes nothing — long-press and right-click are untouched)
+
+The anchor menu — `Export · All boards` — was reachable only by a gesture
+nothing on screen declared. On mobile that gesture is a 500ms long-press on
+the title compartment; on desktop there is no gesture at all, because B19/issue
+#4 removed click-and-hold and `contextmenu` routes notes alone, so the board's
+own Export was reachable only by finding the same board's card in the rail and
+right-clicking *that*. **Zero cognitive tax** does not survive an interface
+whose only route to a feature is a gesture the interface never mentions. The
+issue's own reasoning is the ruling: it "visually informs user that menu exists",
+and it costs a click.
+
+**Ruling.** A `Menu` control on the title compartment, opening the *same*
+`openMenuFor({type:'anchor'})` menu, item for item. Both gesture paths stay —
+issue #94 says so in as many words, and `test/mobile.js` [21] asserts the
+long-press still opens it. The menu's contents do not change: A1's law and
+B43's order are untouched, and the two-item exact match in [21]/[D21] is what
+keeps a future hand from quietly making this control a third menu.
+
+**A sibling, never a child.** `contenteditable` is toggled onto `#anchor-title`
+itself (B2), so anything inside it would be edited along with the title — and
+committed to `current.title`. The handle is a sibling positioned from the same
+`--card-l`/`--card-w` geometry the compartment is, so B38's compartment and
+B47's rule are arithmetically untouched: nothing measures the handle's box, and
+[21] re-asserts `card.bottom === rule + 22` with the control in place.
+
+**Where: the joint, not the interior.** "Bottom right of the title card" cannot
+mean *inside* it. At B32's 384px floor the compartment is 145×110 and a
+two-line title already reaches its bottom padding; a chip in the corner would
+sit on the words. So the handle is **bisected by the card's bottom edge and
+flush with its right one** — the joint where two of the card's three drawn
+sides meet (B38: the sheet's own top edge is the fourth), thickened into
+something to press. `--card` and `--deep` are 1.10:1 apart (`UIUX §2.5`), so the
+ground under the chip is one value either way and the bisection is seamless.
+It follows a title that grows past the floor: `--card-bottom` is the
+compartment's measured height, set beside `--rule-y` in `updateBoardGeometry`,
+which the title anchor now calls too — the title had no geometry consequence
+before this and has one now. (The name is new; the retired `--card-h` of the
+pre-B47 band is not resurrected, and `UIUX §16.3`'s note about it still reads
+true.)
+
+**What it is made of: `--frame`, filled.** A control inside a box that
+otherwise holds *typed content* must not be able to read as content, which
+rules out bare ink; and `--chrome` is the deep's own value, invisible on the
+card. So the handle wears the line the compartment is drawn in — 5.70:1 under
+its `--ink-dark` label, on a fill already published at 5.39:1 on the card
+(`UIUX §2.5`) — and introduces **no new token**. Deliberately **not**
+`--accent-page`: B59 gave that to the controls that *make* a board, and on
+desktop this handle and the rail's `New board` are on screen together; two
+identical chips doing different jobs would flatten the distinction B59 had just
+drawn. `UIUX §14`'s shared tactile signature — 2px `--ink-dark` border, 0.4em
+radius, offset shadow, press-translate — is carried whole, because §14's law is
+*one signature, each species its own fill*.
+
+**The floor, without growing the frame.** The visible chip is 32px, under
+`UIUX §6`'s 44. That is B7's law, not an exception to it: the handle carries
+the note's own decoupled `--hit` collar, and `setHitInset`'s arithmetic is now
+a shared `hitInset(node, k)` with one caller per draw scale — so the target
+clears 44px physical on touch and B23's 24px on desktop at *any* renderScale
+(pinned at 0.56 in [D21], where the collar is doing the work). A chip large
+enough to meet the floor by itself would not fit the compartment.
+
+**And the collar obeys the same rule the chip does.** The note's collar is
+symmetric; this one is not. The whole `2 × hit` is spent *downward*, onto the
+deep, because upward is the title's own words — a symmetric collar reaches 22px
+into the card, under the last line of a title long enough to have grown it, and
+steals the tap that would place the caret there. Ruling the painted chip off
+the words and then letting its hit area sit on them would be the same mistake
+in an invisible layer.
+
+**The type arrives late, so the geometry is re-measured when it does.** The
+faces are `font-display: swap` (B50) and boot measures the fallback. Before
+this ruling the drift was a rule a pixel out of place; now it is a control
+visibly off the corner it is pinned to, so `document.fonts.ready` re-runs
+`applyLayout` once. `--rule-y` gets the same correction for free.
+
+**Through `delayAction`, like every control (B18).** The menu lands directly
+under the finger; without the window the second half of an impatient double-tap
+would land on a menu item. The `.tapped` fill is the acknowledgment, draining
+to `--frame` on near-black exactly as `.primary-btn` does.
+
+**Two paths in, one opener.** The recognizer owns pointers, so `classifyTarget`
+gains a `title-menu` branch ahead of the anchor check — without it the sibling
+falls through to `canvas` and the collar, which reaches past the card, drops a
+note (B30's lesson about presses that land on furniture-adjacent paper). The
+keyboard is the one path the recognizer cannot see, so `keydown` on Enter/Space
+calls the same opener and `preventDefault`s the click the key would otherwise
+synthesize: one opener, never two, and auto-repeat is dropped so a held key
+cannot walk into the item `buildMenu` has just focused.
+
+**A focused control owns its keys.** The handle also `stopPropagation`s
+Delete/Backspace. It is the first focusable thing inside `#board` that is
+neither an editor nor the selection, so B26's desktop grammar — Enter edits the
+selection, Delete destroys it — would otherwise fire *through* a focused button
+at an object the user is not looking at. The costs are not symmetric: swallowing
+these keys here costs nothing, and not swallowing them can destroy a note.
+Escape still passes through, because deselecting from anywhere is that grammar
+working as intended.
+
+`aria-haspopup="menu"` and a toggled `aria-expanded` say what the handle does;
+focus returns to it on close via the existing `menuInvoker` — except into the
+list, which is an overlay over the board, so `goToList` blurs the handle rather
+than stranding a keyboard user on a control the list is covering.
+
+**Impermanent in one respect, named here so it is not rediscovered:** the
+handle is a *second door to one room*. The day the anchor menu grows a third
+item, or a second control wants the same corner, this becomes a question about
+what the compartment is for — not a question about this chip.
+
+## U. The list opens onto the boards (issue #95)
+
+### B66. The board list carries no page heading (supersedes B43's `#list-title` clause; B43's "All boards" rename stands)
+
+Issue #95: the word `Boards` sat alone at the top of the list, one line above
+three category heads that already read `TO-DO BOARDS`, `IDEA BOARDS`,
+`NOTE BOARDS`. B43 kept it on the reading that it is not a menu — it names the
+page you are standing on — and that reading was sound while the page below it
+was B24's one flat, undivided list. B44 and B63 changed what is below it. The
+screen now opens onto three labelled sections, so the heading is a fourth title
+over three titles: **every pixel earns its place**, and that one does not. It
+also answers a question nobody has by the time they can read it — the only way
+onto this screen is choosing **All boards** — and restating the reader's own
+last act is the same cognitive tax B63 named, charged at the top of the page.
+
+**What goes, exactly.** `<header id="list-header">` and its only child
+`<h1 id="list-title">Boards</h1>`, with their two rules in `styles.css §10`.
+`#list-rows` is `#list-view`'s only child now and takes the whole height, and
+the `app.js` and `UIUX §7` statements of the old rule go with them — a record
+that keeps asserting a superseded clause is worse than no record. **B43's other
+clause is untouched:** every menu still says `All boards` through the one
+`COPY.boards` key. With the heading gone, that key is now the only place the
+word is written at all — which is precisely what B43's exception was carved out
+of.
+
+**The page keeps its name where a name is still owed.** `#list-view` already
+carries `aria-label="Boards"`, and nothing ever pointed an `aria-labelledby` at
+the `h1`, so the region announces itself to a screen reader exactly as it did
+before; each section's `role="group"` label (B44, with B63's page state) is
+untouched. Removing a visible heading is not removing an accessible name.
+
+**What it does cost, stated rather than left to be discovered:** the `h1` was
+the app's only heading element, so a rotor's Headings list on this screen is now
+empty. The structure is still announced — the region by its label, each section
+by its group label — but it is no longer *jumpable* by heading. The fix would be
+a real heading on each section, and B63 ruled the opposite for a reason that has
+not changed: `.cat-head` is `aria-hidden` precisely so AT does not hear every
+section twice, once from the group label and once from its own text. Re-opening
+that inside an issue that asked for a deletion would be the wrong place; it is
+recorded here so it is a known cost and not a silent one.
+
+**The gutter closes at the top.** The header's 16px top padding was the only
+thing between the first section's head row — a label and a 44px control — and
+the top of the screen. `#list-rows` therefore goes from `0 12px 12px` to a
+symmetric `12px`: the view's own gutter, one value on four sides, not a
+reinstated header. The header spent 53px; 41px of it is returned, ~14px to each
+section's cards row, where B63 left the slack. **The per-page budget does not
+move:** a third card costs 64px, so `catPageCap()` still yields two on B32's
+384×846 floor, and `test/mobile.js` [19]'s and [20]'s no-overflow / no-scroll
+pairs — the assertions B44 rests its whole drag on — still bind.
+
+**The 12px is a constant, and `env(safe-area-inset-top)` was considered and
+declined.** Three reasons, in order of weight. The app declares
+`apple-mobile-web-app-status-bar-style: default`, not `black-translucent`, so
+iOS standalone starts the web view *below* the status bar and the top inset is
+zero — `viewport-fit=cover` buys the landscape notch and the home indicator,
+not a top overlay; Android standalone paints its own bar over `theme-color` the
+same way. The app uses no `env()` anywhere, and one lone use is an idiom half
+the codebase does not speak. And it would actively hurt where it claimed to
+help: `catPageCap()` measures `clientHeight`, which *includes* padding, so an
+inset would grow the measured budget by exactly the height it took away from the
+flex line — an optimistic cap on the shortest screens, which is the overflow
+B42 forbids. If the platform edge ever does need honouring, it is one ruling
+for the whole app — the board's own 14px band label sits in the same zone —
+and not a patch on this one rule.
+
+**The dismiss target moves to furniture that is genuinely inert.**
+`test/mobile.js` [19] tapped `#list-title` to dismiss an open board menu.
+B30's `swallowTap` makes a dismissing press inert only where it lands on
+`#board` — B44's "Not ruled here", still not ruled here — so the replacement
+could not be a board card, and `.cat-add` and the pager are controls. It is a
+`.cat-head`: aria-hidden furniture carrying no listener of its own, picked at
+run time from whichever head the open menu is not covering.
+
 ## V. New background colours for the Idea and Note boards (issue #96)
 
 ### B67. A board type is a whole scene, not a rung: the ladder rotates with it (scopes UIUX §2.2.1 rule 1 to within a scene; extends UIUX §2.2 with §2.2.2; leaves B55's one platform edge and B58's scene untouched)
