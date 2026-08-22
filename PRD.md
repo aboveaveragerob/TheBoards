@@ -481,7 +481,12 @@ with action buttons inline at the row's right edge (B25).
 
 ### §6.6 The menu
 
-Long-press (mobile) or right-click (desktop) on a note, lot line or anchor.
+Long-press (mobile) or right-click (desktop) on a note, lot line or anchor —
+**and the title compartment carries a visible `Menu` control** that opens the
+anchor menu directly (B65, issue #94). It replaces neither gesture; it is there
+because a feature reachable only by an undeclared gesture is a cognitive tax the
+product does not levy elsewhere. On desktop it is that menu's only route, since
+click-and-hold was removed with B19. Its rendering is `UIUX §14`.
 
 **Item menu:** All boards · Complete/Restore · Copy · Delete.
 **Anchor menu:** Export · All boards.

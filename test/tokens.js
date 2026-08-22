@@ -176,6 +176,17 @@ console.log('\n[4] Edges, rules and hairlines — every adjacency at the worst e
   // B61: both ends of the sheet close with the same line.
   ok('#lot-rule is drawn in --frame — the same idiom at both ends (B61)',
     /#lot-rule\s*{[^}]*background:\s*var\(--frame\)/s.test(css));
+  // B65: the compartment's handle is the card's own line, filled — a control
+  // made of the edge it sits on, and deliberately not --accent-page, which B59
+  // gave to the controls that MAKE a board (both are on screen at once on
+  // desktop). The fill's separation is the pair already published above.
+  ok('the compartment\'s handle is --frame filled, --ink-dark label (B65)',
+    /#title-menu\s*{[^}]*background:\s*var\(--frame\)[^}]*}/s.test(css) &&
+    /#title-menu\s*{[^}]*color:\s*var\(--ink-dark\)[^}]*}/s.test(css));
+  ok('and it is NOT the primary\'s accent (B59 keeps --accent-page)',
+    !/#title-menu\s*{[^}]*var\(--accent-page\)[^}]*}/s.test(css));
+  ok('--frame filled, dark label = 5.70', r2(contrast(T.frame, T.inkDark)) === 5.70,
+    String(r2(contrast(T.frame, T.inkDark))));
   ok('--hairline is that surface\'s ink at 0.40',
     /--hairline:\s*rgb\(var\(--ink-a\)\s*\/\s*0\.4\)/.test(css));
   const hair = contrast(mix(T.inkLight, T.chrome, 0.4), T.chrome);
