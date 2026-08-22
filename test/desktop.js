@@ -1111,6 +1111,105 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
+  // ---- D21. the same handle on desktop, where the anchor menu had no door ---
+  console.log('\n[D21] The compartment names its menu on desktop too (issue #94, B65)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    const geo = await page.evaluate(() => {
+      const b = document.querySelector('#title-menu');
+      const r = b.getBoundingClientRect();
+      const card = document.querySelector('#anchor-title').getBoundingClientRect();
+      const hit = parseFloat(getComputedStyle(b).getPropertyValue('--hit')) || 0;
+      const rs = parseFloat(getComputedStyle(document.querySelector('#board'))
+        .getPropertyValue('--rs')) || 1;
+      return { shown: getComputedStyle(b).display !== 'none', label: b.textContent,
+               r: { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right },
+               card: { right: card.right, bottom: card.bottom }, hit, rs };
+    });
+    ok('the handle is drawn on desktop', geo.shown && geo.label === 'Menu',
+       JSON.stringify([geo.shown, geo.label]));
+    ok('flush right, bisected by the card\'s bottom edge (±1)',
+       Math.abs(geo.r.right - geo.card.right) < 1 &&
+       Math.abs((geo.r.y + geo.r.h / 2) - geo.card.bottom) < 1,
+       JSON.stringify([geo.r.right, geo.card.right, geo.r.y + geo.r.h / 2, geo.card.bottom]));
+    // B23's 24px pointer floor, measured in PHYSICAL px — the collar is what
+    // makes it hold at a small renderScale, and 0 when the frame already does.
+    ok('the hit target clears the 24px desktop floor (B23)',
+       geo.r.h + 2 * geo.hit * geo.rs >= 24 && geo.r.w + 2 * geo.hit * geo.rs >= 24,
+       JSON.stringify([geo.r.w + 2 * geo.hit * geo.rs, geo.r.h + 2 * geo.hit * geo.rs, geo.rs]));
+
+    // Desktop arms no long-press (issue #4) and right-click routes only notes,
+    // so this is the first door the anchor menu has ever had here.
+    const before = await noteCount(page);
+    await page.mouse.click(geo.r.x + geo.r.w / 2, geo.r.y + geo.r.h / 2);
+    await page.waitForTimeout(80);
+    ok('acknowledged inside the window: #title-menu.tapped, menu still shut (B18)',
+       await page.evaluate(() => !!document.querySelector('#title-menu.tapped') &&
+         document.querySelector('#menu').hidden === true));
+    await page.waitForTimeout(500);
+    const items = await page.evaluate(() =>
+      [...document.querySelectorAll('#menu button')].map(b => b.textContent));
+    ok('it opens the anchor menu unchanged: Export then All boards',
+       items.length === 2 && /Export/.test(items[0]) && /All boards/.test(items[1]),
+       JSON.stringify(items));
+    ok('and created no note under it', (await noteCount(page)) === before);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(120);
+
+    // The recognizer owns pointers, so the keyboard is its own path (B65).
+    await page.evaluate(() => document.querySelector('#title-menu').focus());
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(560);
+    ok('Enter on the focused handle opens the same menu',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
+         document.querySelectorAll('#menu button').length === 2));
+    ok('and it opened exactly once', (await noteCount(page)) === before &&
+       await page.evaluate(() => document.querySelectorAll('#menu button').length) === 2);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(120);
+
+    // Right-click is untouched: on a note it is still the note's own menu.
+    await page.mouse.click(900, 600);
+    await page.waitForTimeout(500);
+    await page.keyboard.type('RIGHTCLICKPATH');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(200);
+    await page.mouse.click(905, 605, { button: 'right' });
+    await page.waitForTimeout(200);
+    ok('right-click on a note still gives the note menu, untouched',
+       await page.evaluate(() =>
+         [...document.querySelectorAll('#menu button')].some(b => /Delete/.test(b.textContent))));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+
+    // The handle is the first focusable thing inside #board that is neither an
+    // editor nor the selection, so its keys must not reach the desktop keyboard
+    // grammar underneath: Enter there edits the selection, Delete destroys it.
+    await page.mouse.click(905, 605);              // select the note
+    await page.waitForTimeout(120);
+    await page.evaluate(() => document.querySelector('#title-menu').focus());
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(120);
+    ok('Enter on the handle does not edit the selected note underneath',
+       await page.evaluate(() => !document.activeElement ||
+         !document.activeElement.classList.contains('note-text')));
+    await page.waitForTimeout(500);
+    await page.keyboard.press('Escape');          // shut the menu Enter opened
+    await page.waitForTimeout(400);               // and clear the pairing window
+    await page.mouse.click(905, 605);             // re-select: Enter may have eaten it
+    await page.waitForTimeout(150);
+    ok('a note really is selected for the Delete case',
+       await page.evaluate(() => !!selected));
+    await page.evaluate(() => document.querySelector('#title-menu').focus());
+    const noteBefore = await noteCount(page);
+    await page.keyboard.press('Delete');
+    await page.waitForTimeout(400);
+    ok('Delete on the handle does not destroy the selected note underneath',
+       (await noteCount(page)) === noteBefore, String(noteBefore));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== desktop: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);

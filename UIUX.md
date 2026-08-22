@@ -706,11 +706,21 @@ physical (B7). **The hit area expands; the visual frame does not.**
 On desktop the floor is 24px (WCAG 2.5.8 AA, pointer-appropriate) — a 44px collar
 swallows dismiss clicks (B23). The 44px floor stands on touch.
 
+**A collar is not obliged to be symmetric.** The note's is, because a note is
+surrounded by paper on all sides. The title compartment's handle (§14, B65)
+spends its whole collar downward, onto the deep, because upward is the title's
+own words — the direction a collar grows in is part of the decision, not a
+consequence of `inset`.
+
 ---
 
 ## §7 The menu
 
-Long-press (mobile) or right-click (desktop).
+Long-press (mobile) or right-click (desktop) — **and, for the anchor menu, the
+`Menu` handle on the title compartment** (§14, B65). The handle is a second door
+to the same room: it opens the anchor menu exactly as listed below, and it
+replaces neither gesture. On desktop it is that menu's *only* door, since no
+long-press is armed there (B19/issue #4) and `contextmenu` routes notes alone.
 
 | Menu | Items |
 |---|---|
@@ -1015,6 +1025,43 @@ when disabled.
 **Menu rows and the toast's Undo** carry no fill: rows are bare on `--chrome` and
 fill on tap; Undo is underlined text (§9).
 
+**The compartment's handle** (`#title-menu` — the `Menu` control on the title
+card, B65): `--frame` fill, `--ink-dark` label at **5.70:1**, on a fill that
+clears **5.39:1 on the card** (§2.5's published pair — it is the card's own
+border colour, filled). It is the fifth species and it keeps §14's signature
+whole; only the fill is new, and the fill is not a new token. Deliberately
+**not** `--accent-page`: B59 gave that to the controls that *make* a board, and
+on desktop this handle and the rail's `New board` share a screen.
+
+```css
+#title-menu {
+  top: calc(var(--card-bottom) - 16px);          /* bisected by the card's bottom edge */
+  right: calc(100% - var(--card-l) - var(--card-w));   /* flush with its right one */
+  height: 32px; padding: 0 12px;
+  font-size: 13px; font-weight: 800;        /* the band's own furniture size, B54 */
+  background: var(--frame); color: var(--ink-dark);
+  border: 2px solid var(--ink-dark); border-radius: 0.4em;
+  box-shadow: 0.1em 0.1em var(--ink-dark);
+}
+```
+
+`--card-bottom` is the compartment's **measured** height, set beside `--rule-y` in
+`updateBoardGeometry`, so the handle follows a title that grew past the floor (and
+`document.fonts.ready` re-runs that measure once, since the faces swap in after
+boot — §13.1). The 32px frame is under §6's floor on purpose: the handle carries
+the note's own decoupled collar (`--hit`, B7), sized in JS so
+`(32 + 2 × hit) × renderScale` clears **44px on touch and 24px on desktop**.
+Unlike the note's, this collar is **asymmetric** — `top: 0`, the whole
+`2 × hit` spent downward onto the deep — because upward is the title's own
+words. Inside the compartment it could not go — at
+B32's 384px floor the card is 145×110 and a two-line title already fills it — so
+it sits on the joint where the card's two drawn sides meet (B38: only three are
+drawn). Half on `--card`, half on `--deep`, which are 1.10:1 apart: the ground
+under it is one value either way.
+
+It **adds** a door to the anchor menu (§7); long-press and right-click are
+unchanged.
+
 ---
 
 ## §15 Where the identity does not reach
@@ -1135,11 +1182,11 @@ Per surface, what would actually fail if the words above were violated today:
 | Clause | Pinned by |
 |---|---|
 | §2 — every token, every ratio | `test/tokens.js` (`PRD §9.6`): every table here recomputed from the shipped hexes, each range at its worst extreme, plus the sync points, the accent placement rule, self-hosting and B53's pair |
-| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines) |
+| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines); `test/mobile.js` [21] and `test/desktop.js` [D21] pin the handle to the compartment's corner and prove it does not grow the box (B65) |
 | §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
 | §4 — wrap, similarity render, centred text | `test/mobile.js` (B39 scenarios; [12c] pins B64's fold/rotate similarity — shape held, size uniform, storage untouched, round trip exact; [18b] computes the alignment, editing and at rest) and `test/desktop.js` [D13] (the silent cross-frame grab folds k) and [D17b] — the computed style, plus the centring inset parsed out of page 1's content stream (B62) |
 | §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |
-| §7 — menu contents and order | `test/mobile.js` [8] |
+| §7 — menu contents and order | `test/mobile.js` [8]; the handle's door onto the anchor menu by `test/mobile.js` [21] and `test/desktop.js` [D21], which assert the two items unchanged (B65) |
 | §8 motion, §12 accessibility beyond floors | **nothing** |
 | §13.2 — the band under the new face | measured from `hmtx` here; the live gate is `test/mobile.js`'s geometry, now running against the shipped face |
 | §16 — that shipped CSS reaches an installed PWA | `test/sw-update.js` (B36) — its marker moved with the band: `--card-h` died with B47, so the regex now reads `--band-top: 14px` literally out of `styles.css`, and `test/tokens.js` asserts the marker matches the shipped stylesheet |
