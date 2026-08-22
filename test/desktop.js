@@ -630,6 +630,31 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return rec.category === 'unsorted' && typeof rec.catStamp === 'number';
     }));
 
+    // B65 (issue #96): the board's whole ladder rotates with its type. This is
+    // the RENDERED pin — test/tokens.js reads the stylesheet's text, and only a
+    // real browser can say the cascade actually reaches the page. The control
+    // above just made and opened a Note board, so the scene is violet.
+    const scene = await page.evaluate(() => {
+      const g = e => getComputedStyle(e);
+      return {
+        cat: document.getElementById('board').dataset.cat,
+        deep: g(document.getElementById('board')).backgroundColor,
+        rule: g(document.getElementById('band-rule')).backgroundColor,
+        card: g(document.getElementById('anchor-title')).backgroundColor,
+        band: g(document.getElementById('band-fill')).backgroundImage,
+        lot:  g(document.getElementById('lot')).backgroundImage,
+        railCard: g(document.querySelector('.board-cat[data-cat="unsorted"] .pane-card')).backgroundImage,
+      };
+    });
+    ok('the open Note board wears the violet ladder, every layer (B65)',
+      scene.cat === 'unsorted' && scene.deep === 'rgb(12, 5, 18)' &&
+      scene.rule === 'rgb(157, 128, 185)' && scene.card === 'rgb(30, 15, 40)' &&
+      scene.band.includes('rgb(109, 91, 131)') && scene.band.includes('rgba(56, 46, 71') &&
+      scene.lot.includes('rgb(109, 91, 131)'),
+      JSON.stringify(scene));
+    ok('its rail card previews the same violet water (B65)',
+      scene.railCard.includes('rgb(109, 91, 131)'), scene.railCard);
+
     // Pointer-drag the inactive card onto To-Do.
     const beforeId = await page.evaluate(() => current.id);
     const dragId = await page.evaluate(() =>
@@ -651,6 +676,15 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       document.querySelector('.board-cat[data-cat="todo"]').classList.contains('drop-target')));
     ok('drag ghost follows the pointer', await page.evaluate(() =>
       !!document.querySelector('.card-drag-ghost')));
+    // The ghost is fixed off document.body, outside its section's token scope,
+    // so it has to carry the scope itself or a Note card turns blue in the air.
+    ok('the drag ghost keeps its section\'s hue in the air (B65)', await page.evaluate(() => {
+      const gh = document.querySelector('.card-drag-ghost');
+      const painted = gh.matches('.pane-card, .board-row') ? gh
+        : gh.querySelector('.pane-card, .board-row') || gh;
+      return gh.dataset.cat === 'unsorted' &&
+        getComputedStyle(painted).backgroundImage.includes('rgb(109, 91, 131)');
+    }));
     await page.mouse.up();
     await page.waitForTimeout(300);
     ok('highlight cleared on release', await page.evaluate(() =>
@@ -664,6 +698,23 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return !!rec && rec.category === 'todo' && typeof rec.catStamp === 'number';
     }, dragId));
     ok('the drag did not switch boards', await page.evaluate(() => current.id) === beforeId);
+
+    // B65: the rotation follows a swap, not just a load — and back again. The
+    // card just dropped into To-Do, so opening it must repaint the page blue.
+    await page.evaluate((id) => swapBoard(id), dragId);
+    await page.waitForTimeout(500);
+    ok('swapping to the To-Do board rotates the page back to the blue (B65)',
+      await page.evaluate(() => {
+        const b = document.getElementById('board');
+        return b.dataset.cat === 'todo' && getComputedStyle(b).backgroundColor === 'rgb(2, 8, 18)' &&
+          getComputedStyle(document.getElementById('band-rule')).backgroundColor === 'rgb(105, 142, 191)';
+      }));
+    await page.evaluate((id) => swapBoard(id), beforeId);   // leave the state as found
+    await page.waitForTimeout(500);
+    ok('and back to the violet on the return swap (B65)', await page.evaluate(() => {
+      const b = document.getElementById('board');
+      return b.dataset.cat === 'unsorted' && getComputedStyle(b).backgroundColor === 'rgb(12, 5, 18)';
+    }));
 
     // Overflow pages, never scrolls: seed 9 more boards into Unsorted.
     await page.evaluate(async () => {

@@ -1888,3 +1888,148 @@ large-but-lying: the board is a *spatial* record, and a shear is a lie about
 space. Pinned by `test/mobile.js` [12c] (shape held, size uniform, storage
 untouched, round trip exact) and `test/desktop.js` [D13] (the silent grab
 folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
+
+---
+
+## T. New background colours for the Idea and Note boards (issue #96)
+
+### B65. A board type is a whole scene, not a rung: the ladder rotates with it (scopes UIUX §2.2.1 rule 1 to within a scene; extends UIUX §2.2 with §2.2.2; leaves B55's one platform edge and B58's scene untouched)
+
+Rob: *"New background colors for just the idea boards and the note
+boards. To do boards retain their ink well blue background. Idea boards
+update to a deep hunter green with same stylization and graphic effects.
+Note boards background color updates to a deep, light violet."*
+
+Two screenshots came with the issue and could not be read from the
+build environment, so the values were **derived rather than sampled** —
+Rob's own call: rotate the shipped ladder in hue at matched lightness
+and chroma. The hexes are in `UIUX §2.2.2`; this entry is why.
+
+**What "matched" turned out to mean, precisely.** OKLCH lightness and
+chroma and WCAG relative luminance cannot all be held across a hue
+rotation — OKLab lightness and WCAG luminance are different functions of
+the same colour. Only one can be pinned, and it has to be **luminance**,
+because luminance is what every ratio in `UIUX §2` is computed from and
+what `§2.2.1` rule 1 means by "one axis". So L and C became the aiming
+coordinates, held as closely as 8-bit sRGB allows (L within 0.010, C
+within 0.007), and luminance is exact to the 4dp the record prints.
+`UIUX §2.2.2` prints the residuals rather than claiming they are zero.
+
+**The rule this bends, said out loud.** `UIUX §2.2.1` rule 1 is "one
+axis: luminance — nothing is distinguished from another surface by hue
+alone." Taken flat, three coloured boards violate it. Taken as written,
+it does not: the rule exists so that *reading the page* — card from
+deep, water from canvas, note from ground — never depends on a channel
+a person's eyes may not deliver. It governs **rungs within a scene**.
+Board type is not a rung; it is the whole scene, every rung moving
+together. So rule 1 gains the qualifier "within one scene," and the
+distinction is made honest by construction rather than by exemption:
+**every rung holds its To-Do luminance to the 4dp the record prints.**
+The three ladders are the same ladder. Turn the hue off and they are
+indistinguishable — which is exactly the property rule 1 protects.
+
+**Where the gamut binds, recorded so it is not re-derived.** The Idea
+card sits at `C = 0.043` against the blue's `0.050`, and the Idea deep at
+`0.025` against `0.027`. Both are the **sRGB maximum** at that luminance
+in that hue arc — checked by scanning every 8-bit triple, not estimated.
+sRGB's blue primary is very dark, so a dark blue buys chroma almost free
+by pushing `B`; green's primary carries 0.7152 of the luminance, so a
+dark green must keep `G` small and its chroma is capped. A more
+chromatic dark green card at that luminance **does not exist**.
+
+**Rule 4 is satisfied, with the numbers.** Fourteen new values, each
+one put through `§2.3.1`'s crossover and `§2.3.2`'s forbidden band
+before it existed: all fourteen sit outside 0.163–0.196, every ground
+below 0.1788 still takes `--ink-light`, every note above it still takes
+`--ink-dark`. Necessarily so, since each sits at its To-Do rung's
+luminance — which is the point of deriving them that way rather than
+picking them.
+
+**B52's precedent, met.** B52 rejected a hex that had not earned a job.
+These have one, and it is a job no existing value could do: the app has
+had three board categories since B42, and until now type drove **zero**
+rendering — the category was a fact about the list, invisible the moment
+you opened the board. A person with a to-do board and an idea board open
+across two sessions had nothing on the page telling them which they were
+in. The hue is the first thing the board itself says about what kind of
+board it is, and it says it without a label, a badge or a legend —
+`PRD §1.2`'s zero cognitive tax, and every pixel earning its place.
+
+**Bound by rebinding, not by overriding — and that is the whole of
+"same stylization and graphic effects."** The board is four layers: the
+flat `var(--deep)` fill, the SVG turbulence dither, the band's radial
+vignette over its three-stop fall, and the Parking Lot mirroring it.
+All four read tokens through `var()`. Rebinding the token *names* under
+`#board[data-cat=…]` carries the hue into all four at once. The
+alternative considered and rejected — a new `--board-bg` token with
+`#board`'s background pointed at it — would have recoloured the fill and
+left blue furniture standing on a green ground, and it would also have
+broken `test/tokens.js`'s assertion that the canvas is literally
+`var(--deep)`.
+
+**The list and rail cards rotate with their section.** `UIUX §10` calls
+a card "a small rendering of what it names," and a card is drawn in the
+water's upper fall — so once the water is per type, a blue card opening
+a green board is the card lying about its board. The section *ground*
+stays `--chrome`. The **drag ghost** is the one card that leaves its
+section: it is fixed to the viewport off `document.body`, outside the
+scope, so it carries the attribute itself and keeps its hue in the air.
+A card that changed colour the moment you picked it up would be the same
+lie, told during the one gesture that is *about* its category.
+
+**A record with no category renders violet, and that is the coherent
+answer.** `catOf()` is a read-site default and a record without a
+category IS the third bucket (B21's idiom) — the list already files it
+under Note Boards. Forking the default so the board rendered blue while
+its card sat in the violet section would have reintroduced exactly the
+lie the card preview removes. The consequence, owned: every pre-#58
+legacy record opens violet, and so does the board `newBoardRecord()`
+makes on a fresh install, since neither writes a category. Seeding the
+first-run board as `'todo'` is a separate call and a separate entry.
+
+**Three things deliberately do not rotate.** `--chrome`, because there
+is one room and it sits behind all three boards at once (B55's one
+platform edge stands: `index.html`'s `theme-color` and the manifest's
+two colours all still wear `#020812`, so **a green board's OS chrome is
+the blue** — owned, not overlooked). The two **ink poles**, because ink
+is per surface, not per app (`UIUX §2.3`) — and because rotating them
+would move `§2.3.1`'s crossover and break `§2.7`'s ring, whose whole
+claim is that the poles are complementary on every ground. The three
+**accents**, because they live on chrome (`UIUX §2.6`).
+
+**What actually moved, and what did not.** `§2.3`'s five ink pairings,
+`§2.5`'s seven adjacencies, `§2.7`'s six ring rows and `§2.3.1`'s
+crossover are functions of luminance alone, and no luminance moved:
+every one of them reproduces on all three ladders, and `test/tokens.js`
+now asserts each against all three with a single expected number. (The
+sections' radial falloff is a second alpha composite whose luminance also
+moves; no published ratio is computed from the vignetted ground, because
+`§2.8` asserts every adjacency against the fall's declared stops. Said
+out loud in `§4.3` so the next value derived from the band's real ground
+is derived per ladder.) The
+only **published** table that moves is `§4.3`'s scratch pair, because a
+strike is an *alpha composite* — a function of the ground's three
+channels, not of its luminance — so rotating the hue re-quantises the mix
+at 8 bits. The six marks shift by at most 0.04, stated per ladder in
+`§4.3` rather than averaged, and the law they serve is asserted separately so it cannot be
+satisfied by editing a constant: every mark clears 3:1 on every stop of
+every ladder, every burial stays a smudge. Reproducing all twenty-four
+published numbers exactly was attempted first and is **not achievable at
+8 bits** — the search is over-constrained — which is itself worth
+recording, so the next agent does not spend the afternoon on it.
+
+**Pinned.** `test/tokens.js` now parses the palette **per scope** rather
+than flat, because a last-wins scan would read whichever ladder came
+last in the file as if it were `:root`'s — and it asserts the rung
+values, the shared luminances, that the two spellings of the darkest
+stop agree (`--water-bot` / `--water-bot-a`), that `--chrome`, the poles
+and the accents are *not* rebound, and that `app.js` sets the scope from
+the record while carrying no hex of its own. `test/desktop.js` [D16]
+adds the **rendered** pin, which is the one that matters: tokens.js
+reads stylesheet text, and only a real browser can say the cascade
+reaches the page — it asserts the computed fill, rule, card, band and
+lot of an open Note board, its rail card's preview, the drag ghost
+mid-flight, and that a swap to a To-Do board repaints the page blue and
+the return swap repaints it violet. `docs/proofs/proof-10-the-second-swap.html`
+renders all three scenes side by side; nothing tests that file, so it
+was updated in the same commit.

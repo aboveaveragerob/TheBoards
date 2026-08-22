@@ -528,8 +528,21 @@ function sanitizeBoard(board) {
   return board.notes.length !== n || board.parkingLot.length !== l;
 }
 
+/* The ladder rotates with the board type (issue #96 / B65). This attribute is
+   the whole of what app.js says about colour: styles.css rebinds the ladder's
+   token names under #board[data-cat=...], so every layer that draws the board
+   picks up the new hue through the var() it already reads. No hex belongs
+   here (UIUX §2.2 is the rendering authority). catOf() is the read-site
+   default, so a record without a category renders as a Note board — the same
+   bucket the list files it in, which is the agreement the card preview
+   depends on. Both call sites have already established `current`. */
+function applyBoardCat() {
+  el.board.dataset.cat = catOf(current);
+}
+
 function renderBoard() {
   clearSelection();                  // note DOM is about to be rebuilt
+  applyBoardCat();
   if (sanitizeBoard(current)) scheduleSave();
   // Anchors.
   for (const key of ['title', 'components', 'requirements']) {
@@ -2742,6 +2755,7 @@ async function dropBoardCard(b, cat) {
   if (current && current.id === b.id) {
     current.category = cat;
     current.catStamp = Date.now();
+    applyBoardCat();                   // the open board's ladder rotates with it (B65)
     saveNow();
   } else {
     const rec = await idbGet(b.id);
@@ -2838,6 +2852,12 @@ function attachBoardCardGestures(card, row, b, opts) {
       if (!isDesktop && navigator.vibrate) navigator.vibrate(10);
       ghost = card.cloneNode(true);
       ghost.classList.add('card-drag-ghost');
+      // The ghost is fixed to the viewport off document.body, which takes it
+      // out of its section's [data-cat] token scope — so it carries the scope
+      // with it (B65). Without this the card lifts off green and turns blue
+      // mid-drag, because .board-row/.pane-card's water would resolve against
+      // :root. The attribute is the same one styles.css binds the ladder on.
+      ghost.dataset.cat = catOf(b);
       const r = card.getBoundingClientRect();
       ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
       document.body.appendChild(ghost);
