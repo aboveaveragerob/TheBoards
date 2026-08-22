@@ -1891,9 +1891,9 @@ folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
 
 ---
 
-## T. The board list reorders itself (issue #97)
+## X. The board list reorders itself (issue #97)
 
-### B65. A section orders by last touch, newest first (supersedes B24's `createdAt`-desc/immutable-slot clause, as carried forward by B42 and B44; leaves `boot()`/`ensureCurrentValid()` untouched)
+### B69. A section orders by last touch, newest first (supersedes B24's `createdAt`-desc/immutable-slot clause, as carried forward by B42 and B44; leaves `boot()`/`ensureCurrentValid()` untouched)
 
 Issue #97 asks for four boards a page, "organized by most recently updated".
 The second clause is a reversal, not a refinement. B24 ruled the shared

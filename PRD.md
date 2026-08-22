@@ -250,7 +250,7 @@ pending Undo (B13).
 A committing write stamps `updatedAt`; the flush on the way **out** of a board
 (a rail swap, opening another board from the list, a create) writes but stamps
 only if an edit was actually pending.
-Leaving a board is not updating it — and since B65 orders every board listing
+Leaving a board is not updating it — and since B69 orders every board listing
 by that stamp, the difference is now visible.
 
 **A write may never block capture.** The save queue is behind the caret, always.
@@ -530,7 +530,7 @@ never sees its events. Cards are compact.
 
 Both surfaces order a section by **last touch, newest first** — the later of
 `updatedAt` and `catStamp`, floored at `createdAt`, with `createdAt` desc + an
-`id` tiebreak closing it (B65, superseding B24's immutable slot; `UIUX §10`).
+`id` tiebreak closing it (B69, superseding B24's immutable slot; `UIUX §10`).
 A card's slot therefore moves when you edit the board: §1.3 keeps *positions*
 permanent, and a listing's order was never a position.
 

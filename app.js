@@ -243,7 +243,7 @@ function saveNow() {
 }
 /* Flush on the way OUT of a board (swapBoard, openBoardById, newBoardIn): the
    pending edit is written, but `updatedAt` is stamped only if there was one. Leaving a board is
-   not updating it — and since B65 orders every listing by that stamp, an
+   not updating it — and since B69 orders every listing by that stamp, an
    unconditional stamp here would send the card you just LEFT to the top of its
    section on desktop, while mobile (which never flushes) left it where it was:
    one law, two skins, disagreeing. It would also outrank a board created in
@@ -254,7 +254,7 @@ function flushSave() {
   if (dirty) stampUpdated();
   persist();
 }
-/* The stamp is the whole of B65's order key. It deliberately does NOT turn the
+/* The stamp is the whole of B69's order key. It deliberately does NOT turn the
    card's section back to page 1: a save renders nothing, and B42's page state
    exists so a re-render keeps the reader's place. An edit can therefore leave
    the open board's card on a page the reader is not looking at — as paging
@@ -2594,7 +2594,7 @@ let listOpen = false;
 
 // Creation order, newest first, with an id tiebreak so equal-millisecond
 // creates can't reorder between renders (issue #14). Since issue #97 this is
-// no longer what orders a listing — catOrder sorts by last touch, and B65
+// no longer what orders a listing — catOrder sorts by last touch, and B69
 // supersedes B24's immutable-slot clause — but it stays catOrder's final
 // tiebreak, which is what keeps that sort a total order. boot() and
 // ensureCurrentValid() read updatedAt for a different job and are untouched:
@@ -2628,7 +2628,7 @@ const BOARD_CATS = ['todo', 'idea', 'unsorted'];
 const CAT_COPY = { todo: 'catTodo', idea: 'catIdea', unsorted: 'catUnsorted' };
 const catOf = (b) =>
   (b.category === 'todo' || b.category === 'idea') ? b.category : 'unsorted';
-/* In-category order is last touch, newest first (issue #97 / B65, superseding
+/* In-category order is last touch, newest first (issue #97 / B69, superseding
    B24's immutable slot): a board you just edited comes back to the top of its
    section. Two writes are a touch and both have a claim on the first slot —
    updatedAt, stamped by saveNow() on every committing action, and catStamp,
@@ -2945,7 +2945,7 @@ async function deleteBoard(id, row) {
 async function openBoardById(id) {
   finalizeItemUndo();                                   // see swapBoard (finding 1)
   flushSave();                                          // the mobile twin of swapBoard's
-                                                        // flush: one law, two skins (B65)
+                                                        // flush: one law, two skins (B69)
   const rec = await idbGet(id);
   if (!rec) return;
   current = rec;
@@ -2967,7 +2967,7 @@ async function newBoardIn(cat) {
   finalizeItemUndo();                                   // see swapBoard (finding 1)
   flushSave();                                          // stamp any pending edit BEFORE the
                                                         // new board's own, so B63's "lands
-                                                        // first" holds under B65's order
+                                                        // first" holds under B69's order
   const board = newBoardRecord();
   board.category = cat;
   board.catStamp = Date.now();                          // lands first by catOrder, like a drop
@@ -3115,7 +3115,7 @@ async function ensureCurrentValid() {
   if (current) { const still = await idbGet(current.id); if (still) return; }
   // The board being replaced is gone from storage; drop its pending debounce
   // with it, or the timer would fire against its successor and stamp a board
-  // nobody edited — which under B65 would move that card (§3's `dirty` rides
+  // nobody edited — which under B69 would move that card (§3's `dirty` rides
   // whatever `current` is, so it is cleared wherever `current` is replaced).
   clearTimeout(saveTimer); dirty = false;
   const all = await idbGetAll();

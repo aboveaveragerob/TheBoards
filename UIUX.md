@@ -787,13 +787,13 @@ the board (B9). Back is never intercepted, shadowed or disabled.
 sitting outside `#board` so the recognizer never sees its events. Cards are
 the water's upper fall on `--chrome`, compact.
 
-**Both surfaces order a section by last touch, newest first** (B65, superseding
+**Both surfaces order a section by last touch, newest first** (B69, superseding
 B24's immutable slot): the key is the later of `updatedAt` (written on every
 committing action) and `catStamp` (written by a drop or a create), floored at
 `createdAt`, with `createdAt` desc + an `id` tiebreak closing it so the sort is
 total and no card can change slots between two renders of the same data. A card's
 slot therefore **does** move — editing a board returns it to the top of its
-section, which is the cost B65 accepted.
+section, which is the cost B69 accepted.
 
 Both surfaces sort into **To-Do / Idea / Note** (B63 renamed the third at the
 label only — its storage key remains `unsorted`), and a pointer-drag moves a

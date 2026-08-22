@@ -1274,7 +1274,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('a page turn opened no board',
        await page.evaluate(() => document.querySelector('#list-view').hidden === false));
 
-    // ---- most recently updated first (issue #97, B65) --------------------
+    // ---- most recently updated first (issue #97, B69) --------------------
     // The order key is last touch, not creation: a board edited through the
     // app's own save path comes back to the top of its section. The order
     // must also be TOTAL — two builds of the same records have to slice the
