@@ -1891,9 +1891,9 @@ folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
 
 ---
 
-## T. Four cards a page (issue #97)
+## W. Four cards a page (issue #97)
 
-### B65. An empty category collapses to its head row, and the rows sit on the touch floor (supersedes B44's "two empty thirds" clause and B63's two-cards-per-page clause; B42's "measured, never a constant" law stands and is restated)
+### B68. An empty category collapses to its head row, and the rows sit on the touch floor (supersedes B44's "two empty thirds" clause and B63's two-cards-per-page clause; B42's "measured, never a constant" law stands and is restated)
 
 Issue #97 asks for four boards a page where the phone shows two. There is no
 constant to change and there must not be: B42 made the budget a *measurement*

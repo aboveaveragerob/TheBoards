@@ -1120,9 +1120,9 @@ const activeIsNoteText = page => page.evaluate(() =>
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
     // The section itself, not its .cat-cards: To-Do holds nothing yet, so it
-    // is collapsed to its head row (B65) and its cards box measures zero. The
+    // is collapsed to its head row (B68) and its cards box measures zero. The
     // drop hit-test has always been the .board-cat rect — that is exactly what
-    // keeps an empty category droppable (B44's requirement, B65's obligation).
+    // keeps an empty category droppable (B44's requirement, B68's obligation).
     const to = await page.evaluate(() => {
       const r = document.querySelector('.board-cat[data-cat="todo"]').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -1189,7 +1189,7 @@ const activeIsNoteText = page => page.evaluate(() =>
 
     // ---- overflow pages, never scrolls -----------------------------------
     // Enough to keep Note Boards at three or more pages now that the collapse
-    // of an empty Idea Boards raises the measured budget (B65): the pager is
+    // of an empty Idea Boards raises the measured budget (B68): the pager is
     // only under test while there is something to page.
     await page.evaluate(async () => {
       for (let i = 0; i < 14; i++) {
@@ -1299,7 +1299,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     const { ctx, page, errors } = await newMobilePage(browser);
     // Every section holds something, so every section draws its whole grid —
     // head, control, cards, pager — which is what this scenario measures. (An
-    // empty one collapses to its head row under B65 and is [21]'s subject.)
+    // empty one collapses to its head row under B68 and is [21]'s subject.)
     // Note Boards is seeded past the budget so the pager row is under test.
     await page.evaluate(async () => {
       const put = async (cat, n, tag) => {
@@ -1408,9 +1408,9 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
-  // ---- 21. four cards a page: the empty category collapses (issue #97, B65) --
+  // ---- 21. four cards a page: the empty category collapses (issue #97, B68) --
   // The budget stays MEASURED (B42/B44) — nothing here pins a constant. What
-  // is pinned is the shape B65 rules: an empty section gives up its cards and
+  // is pinned is the shape B68 rules: an empty section gives up its cards and
   // pager slots but keeps its head row, so the populated sections clear four.
   console.log('\n[21] Four cards a page: empty categories collapse to their head row (issue #97)');
   {

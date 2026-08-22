@@ -808,14 +808,14 @@ are **removed** — creation lives in the categories: a section's control
 writes `category` (+ `catStamp`, so the new card lands first, like a drop)
 and **opens the new board at once**.
 
-**A card is 44px and the gaps are two values** (B65). The row height is
+**A card is 44px and the gaps are two values** (B68). The row height is
 `§6`'s touch floor and stops there: a card is a tap target, and what makes it
 read as a discrete object with its own edge is the hairline and the water
 fill, never the height. **4px** separates card from card inside a section;
 **8px** separates section from section — one number could not say both, and
 the second is what keeps three categories reading as three.
 
-**An empty category collapses to its head row** (B65): its label and its own
+**An empty category collapses to its head row** (B68): its label and its own
 New board control stay — it is still somewhere to create, and still a target
 to drop onto, one furniture row tall (44px on mobile, §6's floor; 32px on the
 rail, past §6's B23 pointer floor) — and its cards and pager slots go to the
@@ -823,7 +823,7 @@ sections that have boards. The pager's slot is reserved wherever cards are
 drawn, even when a single page hides the pager, so the budget cannot flap
 between one- and many-page states.
 
-**The per-page budget is measured, never a constant** (B42, restated B65):
+**The per-page budget is measured, never a constant** (B42, restated B68):
 the surface's real content height, less every section's furniture, in whole
 rows. On a 384×846 phone that comes out at **twelve** cards with one category
 populated, **five** with two and **three** with all three; the rail at

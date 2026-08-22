@@ -614,7 +614,7 @@ body {
 /* A row is a card now, not a list line: it can be picked up and carried to
    another category, so it has to read as a discrete object with its own edge
    (issue #74) — which is the hairline and the water fill, not the height, so
-   B65 takes the height to §6's 44px floor and no further to buy issue #97's
+   B68 takes the height to §6's 44px floor and no further to buy issue #97's
    fourth card. PANE_ROW_H in app.js. */
 /* A board card is a small rendering of what it names (UIUX §10): the field's
    own upper fall as its fill, edged with the chrome's hairline. */
@@ -656,7 +656,7 @@ body {
 }
 
 /* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44, issue #88 / B63,
-   issue #97 / B65) -- Three sections — To-Do, Idea, Note — on both the mobile
+   issue #97 / B68) -- Three sections — To-Do, Idea, Note — on both the mobile
    list and the desktop rail, from one DOM shape: head, add, cards, pager.
    Equal while all three hold boards; an empty one collapses (below). Overflow
    turns pages, never scrolls, so .cat-cards clips and the pager navigates.
@@ -668,7 +668,7 @@ body {
    spends LIST_CAT_ROW (44) twice, desktop PANE_CAT_HEAD + PANE_PAGER_H
    (32 + 32), restated below.
 
-   A section holding nothing collapses to its head row (B65, issue #97): the
+   A section holding nothing collapses to its head row (B68, issue #97): the
    label and its own New board control survive — an empty category is still a
    place to create in and still a target to drop onto (B44's refusal, kept) —
    and the cards and pager slots go back to the sections that have boards. The
@@ -718,7 +718,7 @@ body {
    14px (§13.1) so the 24px header keeps its whole name beside it at B32's
    384px floor.
 
-   position: relative because B65 took the row down to the control's own
+   position: relative because B68 took the row down to the control's own
    height: the primary species wears its signature outside its border box —
    the offset shadow, and §2.7's focus ring at outline-offset 2px — and with
    no slack left in the row those fall on the cards track. Positioned, the
@@ -854,7 +854,7 @@ html.desktop #pane {
    here are shared law with app.js: head row = PANE_CAT_HEAD (32), pager row
    = PANE_PAGER_H (32), row = 44 + 4 gap; catPageCap() derives the card
    budget from them. The collapse is surface-neutral like everything else
-   here (B65) — the rail's empty section keeps its own 32px head row. ---- */
+   here (B68) — the rail's empty section keeps its own 32px head row. ---- */
 html.desktop .board-cat {
   grid-template-rows: 32px 1fr 32px;   /* = PANE_CAT_HEAD / PANE_PAGER_H in app.js */
 }

@@ -666,7 +666,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('the drag did not switch boards', await page.evaluate(() => current.id) === beforeId);
 
     // Overflow pages, never scrolls: seed 12 more boards into Unsorted, and
-    // two into Idea so no section collapses (B65) — a collapsed Idea would
+    // two into Idea so no section collapses (B68) — a collapsed Idea would
     // hand its slots to the others and could page the overflow away.
     await page.evaluate(async () => {
       for (let i = 0; i < 12; i++) {
@@ -1035,7 +1035,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     const { ctx, page, errors } = await newDesktopPage(browser);
     // Every section holds something, so every section draws its whole grid —
     // head, control, cards, pager — which is what this scenario measures. (An
-    // empty one collapses to its head row under B65.) Note Boards is seeded
+    // empty one collapses to its head row under B68.) Note Boards is seeded
     // past the budget so the pager row is under test.
     await page.evaluate(async () => {
       const put = async (cat, n, tag) => {

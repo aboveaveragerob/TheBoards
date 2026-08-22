@@ -36,13 +36,13 @@ const PANE_CAT_HEAD = 32;            // .cat-head/.cat-add row, desktop (issue #
 const PANE_PAGER_H = 32;             // .cat-pager row, desktop (issue #58)
 // Mobile spends two of these rows per section (B63): the head row — label
 // left, the category's own New board control right — above the cards, and the
-// pager row below them. B65 takes the row down to HIT_FLOOR exactly — the
+// pager row below them. B68 takes the row down to HIT_FLOOR exactly — the
 // 44px control IS the row — and the card down with it, because the fourth
 // card issue #97 asks for is bought out of exactly this furniture. The
 // constant covers the whole row, so catPageCap()'s budget stays exact.
 const LIST_CAT_ROW = 44;             // .board-cat head/pager rows, mobile (issues #74, #88, #97)
 const PANE_ROW_H = 44;               // .pane-card / .board-row min-height — §6's floor, not below it
-// Two gaps, because they say two things (B65): card to card inside a section,
+// Two gaps, because they say two things (B68): card to card inside a section,
 // and section to section. The first tightens to buy the fourth card; the
 // second is what keeps three categories reading as three, and it holds at 8.
 const PANE_ROW_GAP = 4;              // .cat-cards flex gap
@@ -2624,9 +2624,9 @@ let catCap = 0;                        // 0 = never rendered; the capacity check
 let catFilled = 0;                     // populated sections the last render measured
 let dragCancel = null;                 // the live card-drag's teardown, if one is mid-flight
 
-/* The per-page card budget, measured — never a constant (B42, restated B65).
+/* The per-page card budget, measured — never a constant (B42, restated B68).
    `filled` is how many of the three sections hold at least one board: an empty
-   section collapses to its head row alone (B65), so the cards and pager slots
+   section collapses to its head row alone (B68), so the cards and pager slots
    it is not using come back to the sections that have something to show. */
 function catPageCap(filled) {
   const host = isDesktop ? el.paneCards : el.listRows;
@@ -2635,7 +2635,7 @@ function catPageCap(filled) {
   const pager = isDesktop ? PANE_PAGER_H : LIST_CAT_ROW;
   const n = Math.max(1, Math.min(BOARD_CATS.length, filled | 0));
   // The content box, not clientHeight: the list's own bottom padding sits
-  // inside clientHeight and outside the flex line, and at B65's row heights
+  // inside clientHeight and outside the flex line, and at B68's row heights
   // that 12px is most of a card. Measure what the sections actually get.
   const cs = getComputedStyle(host);
   const avail = host.clientHeight
@@ -2659,7 +2659,7 @@ function makeCatSection(cat, boards, cap, makeCard) {
 
   const sec = document.createElement('div');
   sec.className = 'board-cat'; sec.dataset.cat = cat;
-  // A section with nothing in it collapses to its head row (B65, superseding
+  // A section with nothing in it collapses to its head row (B68, superseding
   // B44's two empty thirds): the label and its own New board control stay —
   // it is still a place to create in, and that row is still the .board-cat
   // rect the drop hit-test finds — and only the cards and pager slots go back
