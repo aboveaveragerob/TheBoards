@@ -935,17 +935,24 @@ A save-failure toast must never clobber a pending Undo (B13).
 
 ## §10 The board list and the rail
 
-**Mobile:** a full-screen list on `--chrome`, newest first, opening straight
-onto the categories — **there is no page heading** (B66): the screen is reached
-by choosing "All boards", and a title repeating the choice you just made is a
-pixel that does not earn its place. Routing uses the History API specifically
-so the OS back gesture returns you to the board (B9). Back is never
+**Mobile:** a full-screen list on `--chrome`, most recently updated first,
+opening straight onto the categories — **there is no page heading** (B66): the
+screen is reached by choosing "All boards", and a title repeating the choice you
+just made is a pixel that does not earn its place. Routing uses the History API
+specifically so the OS back gesture returns you to the board (B9). Back is never
 intercepted, shadowed or disabled.
 
 **Desktop:** an always-visible 300px rail (B24) — **sunken, not floating** (§2.4),
 sitting outside `#board` so the recognizer never sees its events. Cards are
-the water's upper fall on `--chrome`, compact, ordered `createdAt` desc with an `id` tiebreak:
-immutable, so a card's slot never moves.
+the water's upper fall on `--chrome`, compact.
+
+**Both surfaces order a section by last touch, newest first** (B69, superseding
+B24's immutable slot): the key is the later of `updatedAt` (written on every
+committing action) and `catStamp` (written by a drop or a create), floored at
+`createdAt`, with `createdAt` desc + an `id` tiebreak closing it so the sort is
+total and no card can change slots between two renders of the same data. A card's
+slot therefore **does** move — editing a board returns it to the top of its
+section, which is the cost B69 accepted.
 
 Both surfaces sort into **To-Do / Idea / Note** (B63 renamed the third at the
 label only — its storage key remains `unsorted`), and a pointer-drag moves a

@@ -819,6 +819,87 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     s = await unState();
     ok('first returns to page 1', s.ind === '1/' + pages && s.first === p0.first, s.ind);
 
+    // ---- most recently updated first (issue #97, B69) --------------------
+    // The rail and the list share one comparator, so this is the same law as
+    // test/mobile.js [19]: last touch orders a section, and the order is
+    // total — two builds of the same records slice the same page.
+    const unSorted = () => page.evaluate(async () => {
+      const all = await idbGetAll();
+      return all.map(b => (current && b.id === current.id) ? current : b)
+                .filter(b => catOf(b) === 'unsorted').sort(catOrder).map(b => b.id);
+    });
+    const unShown = () => page.evaluate(() =>
+      [...document.querySelectorAll('.board-cat[data-cat="unsorted"] .pane-card')]
+        .map(c => c.dataset.id));
+    const order0 = await unSorted();
+    const shown0 = await unShown();
+    await page.evaluate(() => renderPane());
+    await page.waitForTimeout(200);
+    ok('two builds of the same records give the same order',
+       order0.length >= 3 && order0.join(',') === (await unSorted()).join(',') &&
+       shown0.join(',') === (await unShown()).join(','), order0.join(','));
+
+    // Swap to a card that is on the page and is not already first, then edit
+    // the board it opens. The swap alone must NOT reorder anything: leaving a
+    // board is not updating it, so swapBoard's flush stamps nothing (B69).
+    const leaving = await page.evaluate(() => current.id);
+    const stampOf = (id) => page.evaluate((i) => idbGet(i).then(r => r.updatedAt), id);
+    const leftStamp = await stampOf(leaving);
+    const target = shown0.find(id => id !== leaving && id !== order0[0]);
+    ok('a non-first, non-open card is under test', !!target, String(target));
+    if (target) {
+    await page.click('.pane-card[data-id="' + target + '"]');
+    await page.waitForTimeout(800);                     // delayAction 400 + swap 260
+    ok('the card opened its board', await page.evaluate(() => current.id) === target);
+    ok('the swap did not stamp the board it left — leaving is not updating',
+       (await stampOf(leaving)) === leftStamp,
+       leftStamp + ' -> ' + (await stampOf(leaving)));
+    ok('and nothing reordered', (await unSorted()).join(',') === order0.join(','),
+       (await unSorted()).join(',') + ' vs ' + order0.join(','));
+
+    // Page away from the open board's card, then edit it. The order changes
+    // underneath; the reader's PAGE does not (B42) — a save renders nothing.
+    await clickPager('Next page');
+    await page.waitForTimeout(150);
+    ok('paged off the active card', await page.evaluate(() =>
+      !document.querySelector('.board-cat[data-cat="unsorted"] .pane-card.active')));
+    await page.mouse.click(800, 600);                   // capture on empty canvas
+    await page.waitForTimeout(500);                     // past B18's window
+    await page.keyboard.type('touched');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(300);
+    const order1 = await unSorted();
+    ok('the edited board is now first in its section', order1[0] === target,
+       order1.join(',') + ' (edited ' + target + ')');
+    // The rail re-sorts when it is BUILT, not while you type (B69): the card
+    // must not jump out from under the pointer mid-edit.
+    ok('but the rail on screen has not moved yet',
+       (await unShown()).indexOf(target) === -1, (await unShown()).join(','));
+    await page.evaluate(() => renderPane());
+    await page.waitForTimeout(200);
+    ok('and a rebuild keeps the reader on the page they turned to (B42)',
+       (await page.evaluate(() =>
+         document.querySelector('.board-cat[data-cat="unsorted"] .cat-pages').textContent))
+         .startsWith('2/'));
+    await clickPager('First page');
+    await page.waitForTimeout(150);
+    ok('page 1 is where the edited board now is',
+       (await unShown())[0] === target, (await unShown()).join(','));
+    ok('the boards nobody touched keep their relative order',
+       order1.filter(id => id !== target).join(',') ===
+       order0.filter(id => id !== target).join(','),
+       order1.join(',') + ' vs ' + order0.join(','));
+
+    // B63 under B69: a board created in the section the OPEN board already
+    // sits in still lands first — the swap's flush must not outrank it.
+    await page.click('.board-cat[data-cat="unsorted"] .cat-add');
+    await page.waitForTimeout(800);
+    const made = await page.evaluate(() => current.id);
+    ok('a board created beside the open one still lands first',
+       (await unSorted())[0] === made && (await unShown())[0] === made,
+       (await unShown()).join(','));
+    }
+
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
