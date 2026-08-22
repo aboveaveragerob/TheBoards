@@ -1226,7 +1226,9 @@ const activeIsNoteText = page => page.evaluate(() =>
     // of an empty Idea Boards raises the measured budget (B68): the pager is
     // only under test while there is something to page.
     await page.evaluate(async () => {
-      for (let i = 0; i < 14; i++) {
+      // 30, not 14: B70 put two cards on a row, so a page holds twice what it
+      // did and the old seed no longer reached the 3+ pages this block asserts.
+      for (let i = 0; i < 30; i++) {
         const r = newBoardRecord();
         r.title = 'Seed ' + i;
         r.category = 'unsorted';        // written, not defaulted: B67 seeds 'todo'
@@ -1634,6 +1636,8 @@ const activeIsNoteText = page => page.evaluate(() =>
         }),
         cardFloor: Math.min(99, ...[...document.querySelectorAll('.board-row')]
           .map(c => c.getBoundingClientRect().height)),
+        cols: getComputedStyle(secs[0].querySelector('.cat-cards'))
+          .gridTemplateColumns.split(' ').filter(Boolean).length,
         clip: secs.every(s => {
           const c = s.querySelector('.cat-cards');
           return c.scrollHeight <= c.clientHeight + 1;
@@ -1652,6 +1656,11 @@ const activeIsNoteText = page => page.evaluate(() =>
          JSON.stringify(s.labels) + ' ' + JSON.stringify(s.addBox));
       ok(where + ': no card is under the 44px touch floor (UIUX §6)',
          s.cardFloor >= 44, String(s.cardFloor));
+      // B70: the vertical axis is at §6's floor, so the row carries two. Pinned
+      // as the rendered track count, not the declaration — a card that spanned
+      // both columns would still pass a text check on the stylesheet.
+      ok(where + ': the cards track is two columns wide (B70)',
+         s.cols === 2, String(s.cols));
       ok(where + ': no section overflows its clip', s.clip);
       ok(where + ': the list view itself does not scroll', s.listNoScroll);
     };
@@ -1671,8 +1680,8 @@ const activeIsNoteText = page => page.evaluate(() =>
       ok('one populated: a collapsed section is exactly its head row (44px)',
          s.empty.every((e, i) => !e || Math.abs(s.secH[i] - 44) < 0.5),
          JSON.stringify(s.secH));
-      ok('one populated: four or more cards on the page (issue #97)',
-         s.cards[2] >= 4, JSON.stringify(s.cards));
+      ok('one populated: six or more cards on the page (issue #97, B70)',
+         s.cards[2] >= 6, JSON.stringify(s.cards));
 
       // A collapsed category is still a place to create in — B63's control is
       // the whole reason the head row survives the collapse.
@@ -1705,8 +1714,8 @@ const activeIsNoteText = page => page.evaluate(() =>
       invariants(s, 'two populated');
       ok('two populated: only the empty To-Do collapses',
          s.empty.join(',') === 'true,false,false', JSON.stringify(s.empty));
-      ok('two populated: four or more cards on the page (issue #97)',
-         s.cards[2] >= 4, JSON.stringify(s.cards));
+      ok('two populated: six or more cards on the page (issue #97, B70)',
+         s.cards[2] >= 6, JSON.stringify(s.cards));
       ok('no page errors', errors.length === 0, errors.join(' | '));
       await ctx.close();
     }
@@ -1726,6 +1735,10 @@ const activeIsNoteText = page => page.evaluate(() =>
          s.empty.join(',') === 'false,false,false', JSON.stringify(s.empty));
       ok('three populated: the sections share the height evenly',
          Math.max(...s.secH) - Math.min(...s.secH) < 1, JSON.stringify(s.secH));
+      // The state the issue's number is really about: nothing empty to reclaim,
+      // so the six come from the row holding two rather than from a collapse.
+      ok('three populated: six cards on the page, all three sections drawn (B70)',
+         s.cards[2] >= 6, JSON.stringify(s.cards));
       ok('three populated: the budget is measured, and the pager says so',
          s.cards[2] >= 3 && s.inds[2] === '1/' + Math.ceil(9 / s.cards[2]),
          JSON.stringify(s.cards) + ' ' + JSON.stringify(s.inds));

@@ -998,11 +998,13 @@ between one- and many-page states.
 
 **The per-page budget is measured, never a constant** (B42, restated B68):
 the surface's real content height, less every section's furniture, in whole
-rows. On a 384×846 phone that comes out at **thirteen** cards with one category
-populated, **six** with two and **three** with all three; the rail at
-1440×900 holds four. Where the measurement falls short of what is asked for,
-the pager states it — a number that clipped off the bottom of a short phone
-would be a lie about the height.
+rows — **times the cards a row holds** (B70). The list puts **two** to a row;
+the rail keeps one, because `PANE_W` is 300 and two would be narrower than the
+titles they name. On a 384×846 phone that comes out at **twenty-six** cards
+with one category populated, **twelve** with two and **six** with all three;
+the rail at 1440×900 holds four. Where the measurement falls short of what is
+asked for, the pager states it — a number that clipped off the bottom of a
+short phone would be a lie about the height.
 
 **Truncation is always indicated** — `text-overflow: ellipsis`, never a hard cut.
 

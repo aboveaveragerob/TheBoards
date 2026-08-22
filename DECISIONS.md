@@ -2444,3 +2444,48 @@ records is identical; [D16] also pins the flush (a swap leaves the outgoing
 board's `updatedAt` alone), the page (a rebuild keeps the reader where they
 turned to) and B63's create-beside-the-open-board. `UIUX §10` states the order,
 `PRD §4.2` the flush, `PRD §6.7` the cost.
+
+## Y. Two cards to a row (issue #97, reopened)
+
+### B70. A row carries two cards: the list doubles sideways, since §6 closed the vertical (supersedes B68's per-page counts and UIUX §10's budget formula; keeps B68's collapse, its row heights and B42's measured-not-constant law)
+
+Issue #97 asked to go from two boards a page to four. B68 delivered that by
+collapsing empty categories and taking every row down to `UIUX §6`'s 44px
+floor, and stated the honest consequence: with all three categories populated
+a 384×846 phone showed **three**, because a fourth 44px row did not fit. Rob
+saw the shipped screen and said so plainly — three visible, not the six he was
+after, and asked why the cards were not split to fit them.
+
+**The vertical axis was closed; the horizontal one was never asked.** Per
+section the phone gives 268.7px: a 44px head row, a 44px pager row, and 180.7px
+of cards. Every one of those numbers is already at the touch floor, so nothing
+can be shaved — B68 was right that four rows do not fit. But a board card is a
+*name*, and a name does not need the sheet's full width: at 384px the card for
+`8/21` was a fifth of its own box, and the rest was ground. **The row carries
+two cards.** Three rows of two is six boards in the 140px that three rows of
+one spent on three — the same height, the same 44px targets, twice the boards.
+
+**Measured, on the merged tree, at 384×846:** twenty-six cards with one
+category populated, twelve with two, **six with all three** — exactly double
+B68's thirteen / six / three, which is what a second column buys and no more.
+The number the issue asked for is now cleared in every fill state rather than
+only the sparse ones.
+
+**Capacity stays measured** (B42, restated B68 and again here): rows are what
+the height buys, columns are what a row holds, and the budget is their product.
+Nothing here pins a constant — `catPageCap` still measures the surface, and the
+pager still states what did not fit. `LIST_CARD_COLS` names the second column
+in `app.js` and the `grid-template-columns` track names it in `styles.css`, the
+same two-sided idiom `LIST_CAT_ROW` and `PANE_ROW_H` already use.
+
+**The rail keeps one column.** `PANE_W` is 300px; halved, a desktop card would
+be narrower than the titles it names, and the rail's problem was never density
+— it holds four at 1440×900 and always could. `html.desktop` overrides the
+track back to one, so the two skins stay one DOM shape (B44) and differ by a
+CSS decision, as they already did.
+
+**The cost, owned.** A half-width card truncates sooner: `LinkedIn Learnings
+To Do` now ellipsizes where it did not. That is `UIUX §10`'s existing rule —
+truncation is always indicated, never a hard cut — and the trade is deliberate:
+a title you can read half of and reach in one screen beats a title you can read
+all of on page two. The board's own title card is unaffected.

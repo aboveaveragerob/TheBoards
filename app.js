@@ -45,7 +45,11 @@ const PANE_ROW_H = 44;               // .pane-card / .board-row min-height — �
 // Two gaps, because they say two things (B68): card to card inside a section,
 // and section to section. The first tightens to buy the fourth card; the
 // second is what keeps three categories reading as three, and it holds at 8.
-const PANE_ROW_GAP = 4;              // .cat-cards flex gap
+const PANE_ROW_GAP = 4;              // .cat-cards grid gap
+// Cards to a row in the list (B70, issue #97). §6's 44px floor closed the
+// vertical axis, so the horizontal one buys the boards: a card names a board
+// and does not need the sheet's width. The rail stays at one — PANE_W is 300.
+const LIST_CARD_COLS = 2;            // = .cat-cards grid-template-columns
 const CAT_SEC_GAP = 8;               // #list-rows / #pane-cards flex gap
 const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
 // Three durations paired to styles.css §8 values — they move together
@@ -2762,7 +2766,10 @@ function catPageCap(filled) {
   // surfaces stack the head row above the cards and the pager row below (B63
   // unmerges B44's strip). The pager's slot is reserved even when a single page
   // hides it, so the budget cannot flap between one- and many-page states.
-  return Math.max(1, Math.floor((avail / n - head - pager) / (PANE_ROW_H + PANE_ROW_GAP)));
+  // Rows are what the height buys; columns are what a row holds. Capacity is
+  // their product, so the pager still counts cards and B42's law is untouched.
+  const rows = Math.max(1, Math.floor((avail / n - head - pager) / (PANE_ROW_H + PANE_ROW_GAP)));
+  return rows * (isDesktop ? 1 : LIST_CARD_COLS);
 }
 
 /* One section, both surfaces: head, add, cards, pager — the same four children
