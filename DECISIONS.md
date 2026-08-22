@@ -1888,3 +1888,129 @@ large-but-lying: the board is a *spatial* record, and a shear is a lie about
 space. Pinned by `test/mobile.js` [12c] (shape held, size uniform, storage
 untouched, round trip exact) and `test/desktop.js` [D13] (the silent grab
 folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
+
+---
+
+## T. The board list reorders itself (issue #97)
+
+### B65. A section orders by last touch, newest first (supersedes B24's `createdAt`-desc/immutable-slot clause, as carried forward by B42 and B44; leaves `boot()`/`ensureCurrentValid()` untouched)
+
+Issue #97 asks for four boards a page, "organized by most recently updated".
+The second clause is a reversal, not a refinement. B24 ruled the shared
+comparator `createdAt` desc + `id` tiebreak — "immutable, so a card's slot
+never moves" — and read that as §1.3, positions permanent, applied to card
+order; B42 carried it into the rail's categories and B44 into the mobile
+list, so the claim has been restated three times. The owner was asked and
+chose `updatedAt`. **This entry overturns the ordering clause and nothing
+else** — B24's rail, its 300px, its swap, its delete paths, its `HIT_FLOOR`
+neighbour all stand.
+
+**Positions permanent was the wrong principle to be spending here.** §1.3
+protects what the user *placed*: a note's `x`/`y`, authored by hand and never
+mutated by a layout change. Nobody places a board card. Its slot is computed,
+it already moved on every create, and since B42 it moves on every drop between
+sections. What the reader of a listing actually needs is the board they were
+last in — and making them scan three sections and turn a page to find work
+they closed a minute ago is the cognitive tax the principles at the top of this
+file rank above a stable-looking slot. The listing is a **finding** surface; the board is the
+spatial record.
+
+**The key is last touch: `max(updatedAt, catStamp)`, floored at `createdAt`.**
+Two writes are a touch and each has a genuine claim on the first slot.
+`updatedAt` is stamped by `saveNow()` on every committing action — capture,
+edit, move, complete, delete, z-order — and `catStamp` by a drop or a create,
+which B42 and B63 defined *as* moved-to-top. Neither subsumes the other: a
+drop onto a board you have not edited in a week writes no `updatedAt` (it is
+a whole-record put on a record that is not `current`, B13's write path), and
+an edit writes no `catStamp`. Taking the later of the two lets both claims
+stand and lets the more recent one win, which is the only answer that reads
+the same to the user under either verb. `createdAt` is the floor, so a board
+that has been neither edited nor moved still sorts where it always did.
+
+**Read-site defaulted, the B21 idiom — `catOf`'s pattern, one line above it.**
+`touchedAt` ors each field to `0` before the `max`, so a record missing
+`updatedAt` or `catStamp` orders by what it does have. Nothing migrates and no
+DB version moves, exactly as B42 did for `category`/`catStamp`.
+
+**B24's comparator survives as the tiebreak, and that is load-bearing.**
+`boardOrder` still closes `catOrder`, so two boards touched in the same
+millisecond fall to `createdAt` and then to `id` — a **total** order with no
+tie left unresolved. Without it a sort could return either arrangement for
+identical data, and `makeCatSection`'s page clamp would slice a different card
+set on two renders of the same records. One comparator still serves both
+surfaces (B44's one law, two skins): the rail and the list cannot disagree.
+
+**`boot()` and `ensureCurrentValid()` are untouched, and B24's parenthesis
+still holds there.** They read `updatedAt` to choose which board to *open* —
+continuity — and that was never the question issue #97 asked. What changes is
+only that `updatedAt` now also orders space; the two readings no longer
+disagree, so the rail's first To-Do card and the board that opens at launch
+tend to be the same board, which is the outcome the issue wanted.
+
+**The listing re-sorts when it is *built*, not while you type.** No save
+re-renders the rail or the list — `saveNow` writes, and the surface picks the
+new order up the next time `renderPane`/`renderList` runs (a swap, a create, a
+delete, opening the list, a mode flip, a reload). This is deliberate, not an
+omission: the rail is on screen the whole time you are working, and a card that
+slid to the top on a 300ms debounce, mid-keystroke, would be the jumping
+interface B24 rightly feared. Mobile never notices — its list is built fresh
+every time it opens, so it is always current.
+
+**Leaving a board is not updating it: the flush stops stamping.** `swapBoard`
+flushes the outgoing board before it loads the next, because B13's whole-record
+put needs the live edits — and `saveNow()` stamped `updatedAt` unconditionally,
+which under this order meant clicking card B sent **A**'s card to the top of its
+section. Two things break there. Mobile's `openBoardById` does not flush at all,
+so the same act would order the two surfaces differently — against B44's one
+law, two skins, the very sharing this entry relies on. And `newBoardIn` stamps
+the new board's `catStamp` *before* `swapBoard` runs, so the flush would outrank
+it and B63's "the new card lands first" would quietly stop being true whenever
+you created a board in the section the open one already sat in. So §3 splits the
+write in two: `saveNow()` (a committing action — stamp, then persist) and
+`flushSave()` (on the way out — persist always, stamp only if a debounced edit
+is actually pending, tracked by one `dirty` flag `scheduleSave` sets). The write
+itself is still unconditional, so nothing can be lost; only the claim "this was
+updated" is now reserved for something the user actually did. `newBoardIn`
+flushes first for the same reason, so the board it creates is always the later
+stamp, and mobile's `openBoardById` flushes too — it is `swapBoard`'s twin, and
+that is what makes the two surfaces agree rather than merely share a
+comparator. `dirty` describes `current`, so it is cleared wherever `current` is
+replaced: `ensureCurrentValid` drops the pending debounce of the board that
+just went missing, or its timer would fire against the successor and stamp a
+board nobody edited.
+
+**The stamp does not turn the page, and that was the harder call.** An edit can
+now move the open board's card off the page the reader is on — and the rail puts
+its delete control on the active card alone (B24), so that control goes with it.
+Resetting `catPage` from the save path would fix it in one line, and
+`dropBoardCard`/`newBoardIn` set that same line already. **Refused**: those two
+reset a page they are about to render in the same turn, and a save renders
+nothing, so the reset would sit stored and fire later against a render the
+reader cannot attribute to anything. B42 ruled page state exists *so a re-render
+keeps the reader's place*; overturning that as a side effect of an ordering
+change is not a trade this entry is allowed to make. Nothing becomes
+unreachable: paging away already put the active card out of view, deleting a
+board is also on B24's right-click-any-card path, and page 1 — where an edited
+board now is — is one press away.
+
+**The cost, owned.** A card's slot now moves when you edit the board — which
+is precisely what B24 was protecting against. Open a board, type one note,
+come back to the list, and it has jumped to the top of its section; a card you
+had learned the position of is no longer there. On a paged section it can also
+push the last card of a page onto the next one. That is accepted: the
+reordering is *caused by the reader's own action*, immediately after it, and a
+listing whose top is stale is the more expensive failure.
+
+A smaller cost goes with it: `fillRowContent` still dates an **untitled** card
+by `createdAt`, so a section can now read Aug 22 / Aug 10 / Aug 21 top to bottom
+and the only visible date no longer explains the order. Left alone deliberately
+— that date is there to tell two untitled boards apart, not to justify a slot,
+and re-pointing it at last touch would make every untitled board say today.
+
+Pinned by `test/mobile.js` [19] and `test/desktop.js` [D16] — a seeded board
+edited through the app's own save path moves to its section's first slot, the
+untouched cards keep their relative order, and a second render of the same
+records is identical; [D16] also pins the flush (a swap leaves the outgoing
+board's `updatedAt` alone), the page (a rebuild keeps the reader where they
+turned to) and B63's create-beside-the-open-board. `UIUX §10` states the order,
+`PRD §4.2` the flush, `PRD §6.7` the cost.

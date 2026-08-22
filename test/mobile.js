@@ -1274,6 +1274,61 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('a page turn opened no board',
        await page.evaluate(() => document.querySelector('#list-view').hidden === false));
 
+    // ---- most recently updated first (issue #97, B65) --------------------
+    // The order key is last touch, not creation: a board edited through the
+    // app's own save path comes back to the top of its section. The order
+    // must also be TOTAL — two builds of the same records have to slice the
+    // same page, or a card could change slots for no reason the user caused.
+    const unSorted = () => page.evaluate(async () => {
+      const all = await idbGetAll();
+      return all.map(b => (current && b.id === current.id) ? current : b)
+                .filter(b => catOf(b) === 'unsorted').sort(catOrder).map(b => b.id);
+    });
+    const unShown = () => page.evaluate(() =>
+      [...document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row')]
+        .map(c => c.dataset.id));
+    const order0 = await unSorted();
+    const shown0 = await unShown();
+    await page.evaluate(() => renderList());
+    await page.waitForTimeout(200);
+    ok('two builds of the same records give the same order',
+       order0.length >= 3 && order0.join(',') === (await unSorted()).join(',') &&
+       shown0.join(',') === (await unShown()).join(','), order0.join(','));
+
+    // Open the SECOND card on page 1 — already visible, and not already first.
+    const target = shown0[1];
+    ok('a non-first card is under test', !!target && target !== order0[0], String(target));
+    if (target && target !== order0[0]) {
+    const tbox = await page.evaluate((id) => {
+      const r = document.querySelector('.board-row[data-id="' + id + '"]').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }, target);
+    await tap(page, tbox.x, tbox.y);
+    await page.waitForTimeout(600);                     // past ACTION_DELAY
+    ok('the second card opened its board',
+       await page.evaluate(() => current.id) === target);
+    // A genuine edit, not a poked field: capture a note and commit it — the
+    // commit's saveNow() is what stamps updatedAt.
+    await tap(page, 200, 500);
+    await page.waitForTimeout(80);
+    await page.keyboard.type('touched');
+    // The capture above is a genuine touch (B27b); the commit is a blur so a
+    // second tap doesn't leave a stray empty note behind.
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(400);
+    await page.evaluate(() => goToList());
+    await page.waitForTimeout(300);
+    const order1 = await unSorted();
+    ok('the edited board is now first in its section', order1[0] === target,
+       order1.join(',') + ' (edited ' + target + ')');
+    ok('and its card is first on the page',
+       (await unShown())[0] === target, (await unShown()).join(','));
+    ok('the boards nobody touched keep their relative order',
+       order1.filter(id => id !== target).join(',') ===
+       order0.filter(id => id !== target).join(','),
+       order1.join(',') + ' vs ' + order0.join(','));
+    }
+
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

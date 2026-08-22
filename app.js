@@ -233,12 +233,35 @@ function newBoardRecord() {
 
 // Single-flight persist with exponential backoff; capture is never blocked.
 let saveTimer = null, persisting = false, dirtyAgain = false, retryDelay = 1000;
-function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, SAVE_DEBOUNCE); }
+let dirty = false;                   // `current` holds an edit the debounce hasn't written
+function scheduleSave() { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, SAVE_DEBOUNCE); }
 function saveNow() {
   clearTimeout(saveTimer);
   if (!current) return;
-  current.updatedAt = Date.now();
+  stampUpdated();
   persist();
+}
+/* Flush on the way OUT of a board (swapBoard, openBoardById, newBoardIn): the
+   pending edit is written, but `updatedAt` is stamped only if there was one. Leaving a board is
+   not updating it — and since B65 orders every listing by that stamp, an
+   unconditional stamp here would send the card you just LEFT to the top of its
+   section on desktop, while mobile (which never flushes) left it where it was:
+   one law, two skins, disagreeing. It would also outrank a board created in
+   that same moment, undoing B63's "the new card lands first". */
+function flushSave() {
+  clearTimeout(saveTimer);
+  if (!current) return;
+  if (dirty) stampUpdated();
+  persist();
+}
+/* The stamp is the whole of B65's order key. It deliberately does NOT turn the
+   card's section back to page 1: a save renders nothing, and B42's page state
+   exists so a re-render keeps the reader's place. An edit can therefore leave
+   the open board's card on a page the reader is not looking at — as paging
+   away already could — until they turn to page 1 and find it at the front. */
+function stampUpdated() {
+  current.updatedAt = Date.now();
+  dirty = false;
 }
 function persist() {
   if (!current) return;
@@ -2569,10 +2592,13 @@ async function exportBoardPdf(board) {
 /* --- 11. Board list + routing -------------------------------------------- */
 let listOpen = false;
 
-// One comparator for every board listing (issue #14): creation order, newest
-// first — immutable, so a card's slot never moves — with an id tiebreak so
-// equal-millisecond creates can't reorder between renders. Boot/recovery keep
-// updatedAt deliberately: updatedAt selects continuity, createdAt orders space.
+// Creation order, newest first, with an id tiebreak so equal-millisecond
+// creates can't reorder between renders (issue #14). Since issue #97 this is
+// no longer what orders a listing — catOrder sorts by last touch, and B65
+// supersedes B24's immutable-slot clause — but it stays catOrder's final
+// tiebreak, which is what keeps that sort a total order. boot() and
+// ensureCurrentValid() read updatedAt for a different job and are untouched:
+// updatedAt selects which board to open (continuity), not where its card sits.
 const boardOrder = (a, b) => (b.createdAt - a.createdAt) ||
   (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
 
@@ -2597,15 +2623,24 @@ function fillRowContent(node, b) {
    without one IS the third bucket (storage key 'unsorted'; B63 renamed only
    its label), so pre-#58 boards need no migration and no DB version bump.
    Since B63 every new board writes its category (+ catStamp) explicitly at
-   creation — the read-site default now covers only the legacy records.
-   In-category order is catStamp (written on drop or create, = moved-to-top)
-   falling back to createdAt, with B24's immutable comparator as tiebreak. */
+   creation — the read-site default now covers only the legacy records. */
 const BOARD_CATS = ['todo', 'idea', 'unsorted'];
 const CAT_COPY = { todo: 'catTodo', idea: 'catIdea', unsorted: 'catUnsorted' };
 const catOf = (b) =>
   (b.category === 'todo' || b.category === 'idea') ? b.category : 'unsorted';
-const catOrder = (a, b) =>
-  ((b.catStamp || b.createdAt) - (a.catStamp || a.createdAt)) || boardOrder(a, b);
+/* In-category order is last touch, newest first (issue #97 / B65, superseding
+   B24's immutable slot): a board you just edited comes back to the top of its
+   section. Two writes are a touch and both have a claim on the first slot —
+   updatedAt, stamped by saveNow() on every committing action, and catStamp,
+   stamped by a drop or a create (= moved-to-top) — so the key is whichever
+   happened later, with createdAt as the floor. Read-site defaulted, the B21
+   idiom (catOf's pattern): a record missing either field orders by what it
+   does have, so nothing migrates and no DB version moves. boardOrder closes
+   it, leaving no tie unresolved — the sort must be total or a card could
+   change slots between two renders of the same data. */
+const touchedAt = (b) =>
+  Math.max(b.updatedAt || 0, b.catStamp || 0, b.createdAt || 0);
+const catOrder = (a, b) => (touchedAt(b) - touchedAt(a)) || boardOrder(a, b);
 
 /* Pagination (issue #58): overflow turns pages, never scrolls. Page state is
    per-category and module-level so a re-render keeps the reader's place, and
@@ -2909,6 +2944,8 @@ async function deleteBoard(id, row) {
 
 async function openBoardById(id) {
   finalizeItemUndo();                                   // see swapBoard (finding 1)
+  flushSave();                                          // the mobile twin of swapBoard's
+                                                        // flush: one law, two skins (B65)
   const rec = await idbGet(id);
   if (!rec) return;
   current = rec;
@@ -2928,6 +2965,9 @@ function openBoardObj(board) {
    go find would tax the very moment it exists to serve. */
 async function newBoardIn(cat) {
   finalizeItemUndo();                                   // see swapBoard (finding 1)
+  flushSave();                                          // stamp any pending edit BEFORE the
+                                                        // new board's own, so B63's "lands
+                                                        // first" holds under B65's order
   const board = newBoardRecord();
   board.category = cat;
   board.catStamp = Date.now();                          // lands first by catOrder, like a drop
@@ -2959,7 +2999,7 @@ async function swapBoard(id) {
   if (current && current.id === id) return;
   finalizeItemUndo();
   swapping = true;
-  saveNow();                          // persist() snapshots `current` synchronously — safe
+  flushSave();                        // persist() snapshots `current` synchronously — safe
   const rec = await idbGet(id);
   if (!rec) { swapping = false; renderPane(); return; }
   el.board.classList.add('swapping');
@@ -3073,6 +3113,11 @@ async function showList() {
 }
 async function ensureCurrentValid() {
   if (current) { const still = await idbGet(current.id); if (still) return; }
+  // The board being replaced is gone from storage; drop its pending debounce
+  // with it, or the timer would fire against its successor and stamp a board
+  // nobody edited — which under B65 would move that card (§3's `dirty` rides
+  // whatever `current` is, so it is cleared wherever `current` is replaced).
+  clearTimeout(saveTimer); dirty = false;
   const all = await idbGetAll();
   current = all.length ? all.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a)) : newBoardRecord();
   if (!all.length) await idbPut(current);

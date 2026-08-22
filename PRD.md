@@ -247,6 +247,12 @@ single-flight queue with exponential backoff; a failure raises a polite
 `role="status"` toast ("Couldn't save — retrying.") which never clobbers a
 pending Undo (B13).
 
+A committing write stamps `updatedAt`; the flush on the way **out** of a board
+(a rail swap, opening another board from the list, a create) writes but stamps
+only if an edit was actually pending.
+Leaving a board is not updating it — and since B65 orders every board listing
+by that stamp, the difference is now visible.
+
 **A write may never block capture.** The save queue is behind the caret, always.
 
 ### §4.3 What earns persistence
@@ -514,15 +520,19 @@ Multiple boards; the board is the unit. An empty database creates and opens one
 blank board — **the list is never the landing view** (B10), because the desk
 always shows a working page.
 
-**Mobile:** a full-screen list, newest first. Routing uses the History API
-(`pushState` / `popstate`) specifically so the OS back gesture returns you to the
-board (B9). Back is never intercepted, shadowed or disabled.
+**Mobile:** a full-screen list, most recently updated first. Routing uses the
+History API (`pushState` / `popstate`) specifically so the OS back gesture
+returns you to the board (B9). Back is never intercepted, shadowed or disabled.
 
 **Desktop:** the list is replaced by an always-visible 300px **rail** (B24),
 sunken rather than floating, sitting outside `#board` so the gesture recognizer
-never sees its events. Cards are compact and ordered `createdAt` desc with an
-`id` tiebreak — immutable, so a card's slot never moves (§1.3 applied to card
-order).
+never sees its events. Cards are compact.
+
+Both surfaces order a section by **last touch, newest first** — the later of
+`updatedAt` and `catStamp`, floored at `createdAt`, with `createdAt` desc + an
+`id` tiebreak closing it (B65, superseding B24's immutable slot; `UIUX §10`).
+A card's slot therefore moves when you edit the board: §1.3 keeps *positions*
+permanent, and a listing's order was never a position.
 
 The rail sorts into three sections — **To-Do / Idea / Note** (the third
 renamed at the label only; its storage key remains `unsorted`, B63) — and a
