@@ -1090,11 +1090,20 @@ const activeIsNoteText = page => page.evaluate(() =>
     const { ctx, page, errors } = await newMobilePage(browser);
     // A second board, so Unsorted holds one the drag can move without it also
     // being the open board (which takes dropBoardCard's other write path).
+    // Two genuine pre-#58 legacy records — no `category` field at all. B67 makes
+    // `newBoardRecord()` seed 'todo', so it is deleted here: this scenario is
+    // about what a record that NEVER had a category reads as, which is the half
+    // of B21's idiom B67 deliberately left alone.
     await page.evaluate(async () => {
-      const r = newBoardRecord();
-      r.title = 'Draggable';
-      r.createdAt = r.updatedAt = Date.now() - 50000;   // older: sorts below the open board
-      await idbPut(r);
+      const mk = async (title, ageMs) => {
+        const r = newBoardRecord();
+        r.title = title;
+        delete r.category;
+        r.createdAt = r.updatedAt = Date.now() - ageMs;  // older: sorts below the open board
+        await idbPut(r);
+      };
+      await mk('Draggable', 50000);
+      await mk('Stays put', 60000);
     });
     await page.reload();
     await page.waitForTimeout(500);
@@ -1108,13 +1117,15 @@ const activeIsNoteText = page => page.evaluate(() =>
        JSON.stringify(heads));
 
     // Category is read-site defaulted (B21 idiom): a record that never had one
-    // IS Unsorted, so nothing was written to put these two there.
-    ok('both boards start in Unsorted, none elsewhere', await page.evaluate(() =>
+    // IS Unsorted, so nothing was written to put the two legacy records there.
+    // The third board is the first-run one, seeded 'todo' by B67.
+    ok('the legacy records start in Unsorted, the seeded board in To-Do', await page.evaluate(() =>
       document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row').length === 2 &&
-      !document.querySelector('.board-cat[data-cat="todo"] .board-row') &&
+      document.querySelectorAll('.board-cat[data-cat="todo"] .board-row').length === 1 &&
       !document.querySelector('.board-cat[data-cat="idea"] .board-row')));
-    ok('no category was written to storage', await page.evaluate(async () =>
-      (await idbGetAll()).every(b => b.category === undefined && b.catStamp === undefined)));
+    ok('nothing was written to file the legacy records (B21)', await page.evaluate(async () =>
+      (await idbGetAll())
+        .filter(b => b.category === undefined && b.catStamp === undefined).length === 2));
 
     // ---- touch-drag Unsorted -> To-Do ------------------------------------
     const beforeId = await page.evaluate(() => current.id);
@@ -1126,8 +1137,12 @@ const activeIsNoteText = page => page.evaluate(() =>
         .find(c => c.textContent.includes('Draggable')).getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
+    // The section itself, not its .cat-cards: To-Do holds nothing yet, so it
+    // is collapsed to its head row (B68) and its cards box measures zero. The
+    // drop hit-test has always been the .board-cat rect — that is exactly what
+    // keeps an empty category droppable (B44's requirement, B68's obligation).
     const to = await page.evaluate(() => {
-      const r = document.querySelector('.board-cat[data-cat="todo"] .cat-cards').getBoundingClientRect();
+      const r = document.querySelector('.board-cat[data-cat="todo"]').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
     // Press and move, all inside LONGPRESS_MS — movement past MOVE_THRESHOLD
@@ -1172,13 +1187,29 @@ const activeIsNoteText = page => page.evaluate(() =>
       [...document.querySelectorAll('#menu button')].map(b => b.textContent));
     ok('and it is still Export then Delete', items.length === 2 &&
        /Export/.test(items[0]) && /Delete/.test(items[1]), JSON.stringify(items));
-    // Dismiss on the page heading: B30's inert-dismiss covers presses that
-    // land on #board, so a dismiss onto another card would open that board.
-    const title = await page.evaluate(() => {
-      const r = document.querySelector('#list-title').getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    // Dismiss on a category head: B30's inert-dismiss only covers presses that
+    // land on #board, so a dismiss onto a board card would open that board,
+    // and .cat-add / the pager buttons are controls. A .cat-head is aria-hidden
+    // furniture with no listener of its own — the press dismisses and does
+    // nothing else. (It replaces #list-title, deleted with the heading by B66.)
+    // The menu is drawn at the press point, so take a head the menu is not
+    // covering and that really is the topmost thing at that point.
+    const dismiss = await page.evaluate(() => {
+      const m = document.querySelector('#menu').getBoundingClientRect();
+      const heads = [...document.querySelectorAll('.cat-head')].map((h) => {
+        const r = h.getBoundingClientRect();
+        const p = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        const hit = document.elementFromPoint(p.x, p.y);
+        p.clear = !(p.x >= m.left && p.x <= m.right && p.y >= m.top && p.y <= m.bottom) &&
+                  (hit === h || h.contains(hit));
+        return p;
+      });
+      // null, never a point we have not cleared: tapping a point the menu is
+      // over would hit Delete and destroy the board the rest of [19] asserts on.
+      return heads.find(p => p.clear) || null;
     });
-    await tap(page, title.x, title.y);
+    ok('an inert category head is clear of the open menu', !!dismiss);
+    if (dismiss) await tap(page, dismiss.x, dismiss.y);
     await page.waitForTimeout(600);                      // let any window drain
     ok('dismissing the menu opened nothing',
        await page.evaluate(() => document.querySelector('#list-view').hidden === false));
@@ -1191,10 +1222,14 @@ const activeIsNoteText = page => page.evaluate(() =>
        await page.evaluate(() => current.id) === dragId);
 
     // ---- overflow pages, never scrolls -----------------------------------
+    // Enough to keep Note Boards at three or more pages now that the collapse
+    // of an empty Idea Boards raises the measured budget (B68): the pager is
+    // only under test while there is something to page.
     await page.evaluate(async () => {
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < 14; i++) {
         const r = newBoardRecord();
         r.title = 'Seed ' + i;
+        r.category = 'unsorted';        // written, not defaulted: B67 seeds 'todo'
         r.createdAt = r.updatedAt = Date.now() - (i + 2) * 100000;
         await idbPut(r);
       }
@@ -1240,6 +1275,11 @@ const activeIsNoteText = page => page.evaluate(() =>
     const pages = Math.ceil(pg.total / pg.onPage);
     ok('indicator reads 1/' + pages, pg.ind === '1/' + pages,
        pg.ind + ' (total=' + pg.total + ' onPage=' + pg.onPage + ')');
+    // The seed is sized to the measured budget, not to a constant: if a future
+    // capacity change swallowed the overflow, every pager assertion below would
+    // pass vacuously. Three pages keep first/prev/next/last distinguishable.
+    ok('the seed still overflows into 3+ pages', pages >= 3,
+       'pages=' + pages + ' (total=' + pg.total + ' onPage=' + pg.onPage + ')');
     // The load-bearing pair: overflow PAGES. Neither the category nor the
     // screen itself may scroll — B44 trades the scroll away for the drag.
     ok('the shown page does not overflow its clip', pg.noScroll);
@@ -1347,14 +1387,26 @@ const activeIsNoteText = page => page.evaluate(() =>
   console.log('\n[20] Per-category New board: head row, pager below, create-in-category (issue #88)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
-    // Seed enough that Note Boards pages — the pager row is under test too.
+    // Every section holds something, so every section draws its whole grid —
+    // head, control, cards, pager — which is what this scenario measures. (An
+    // empty one collapses to its head row under B68 and is [21]'s subject.)
+    // Note Boards is seeded past the budget so the pager row is under test.
     await page.evaluate(async () => {
-      for (let i = 0; i < 5; i++) {
-        const r = newBoardRecord();
-        r.title = 'Fill ' + i;
-        r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
-        await idbPut(r);
-      }
+      const put = async (cat, n, tag) => {
+        for (let i = 0; i < n; i++) {
+          const r = newBoardRecord();
+          r.title = tag + ' ' + i;
+          // Written, never defaulted: B67 seeds newBoardRecord() 'todo', so an
+          // omitted category would file these in To-Do, not Note Boards.
+          r.category = cat;
+          r.catStamp = Date.now() - (i + 1) * 100000;
+          r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
+          await idbPut(r);
+        }
+      };
+      await put('todo', 2, 'To-do');
+      await put('idea', 2, 'Idea');
+      await put('unsorted', 8, 'Fill');
     });
     await page.reload();
     await page.waitForTimeout(500);
@@ -1380,6 +1432,7 @@ const activeIsNoteText = page => page.evaluate(() =>
           ? [...pager.children].map(k => k.getBoundingClientRect()) : null;
         return {
           adds: adds.length,
+          empty: sec.classList.contains('empty'),
           addRight: a ? Math.abs(a.right - s.right) : 99,
           headH: h.height, addH: a ? a.height : 0, addW: a ? a.width : 0,
           headOverflow: sec.querySelector('.cat-head span').scrollWidth >
@@ -1397,6 +1450,8 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('one New board per section, anchored right (±1)', geo.length === 3 &&
        geo.every(g => g.adds === 1 && g.addRight <= 1),
        JSON.stringify(geo.map(g => [g.adds, g.addRight])));
+    ok('every section is populated here, so every grid is drawn whole',
+       geo.every(g => !g.empty), JSON.stringify(geo.map(g => g.empty)));
     ok('the head row is one box: header height = button height',
        geo.every(g => Math.abs(g.headH - g.addH) < 0.5),
        JSON.stringify(geo.map(g => [g.headH, g.addH])));
@@ -1444,6 +1499,255 @@ const activeIsNoteText = page => page.evaluate(() =>
        await page.evaluate(() => current.id) !== before);
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
+  }
+
+  // ---- 21. the compartment's handle: the menu, named, on the title card ----
+  console.log('\n[21] The compartment names its menu (issue #94, B65)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    const geo = await page.evaluate(() => {
+      const b = document.querySelector('#title-menu');
+      const r = b.getBoundingClientRect();
+      const card = document.querySelector('#anchor-title').getBoundingClientRect();
+      const rule = document.querySelector('#band-rule').getBoundingClientRect();
+      const hit = parseFloat(getComputedStyle(b).getPropertyValue('--hit')) || 0;
+      return { label: b.textContent, expanded: b.getAttribute('aria-expanded'),
+               pop: b.getAttribute('aria-haspopup'), child: document.querySelector('#anchor-title').contains(b),
+               r: { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom },
+               card: { right: card.right, bottom: card.bottom }, ruleTop: rule.top, hit };
+    });
+    ok('the handle says Menu', geo.label === 'Menu', geo.label);
+    ok('and declares the popup it opens', geo.pop === 'menu' && geo.expanded === 'false',
+       JSON.stringify([geo.pop, geo.expanded]));
+    // The whole reason it is a sibling: contenteditable is toggled onto
+    // #anchor-title itself, so a child would be edited along with the title.
+    ok('it is a SIBLING of the title, never inside the editable region', geo.child === false);
+    ok('flush with the compartment\'s right edge (±0.5)',
+       Math.abs(geo.r.right - geo.card.right) < 0.5, JSON.stringify([geo.r.right, geo.card.right]));
+    ok('bisected by the compartment\'s bottom edge (±1)',
+       Math.abs((geo.r.y + geo.r.h / 2) - geo.card.bottom) < 1,
+       JSON.stringify([geo.r.y + geo.r.h / 2, geo.card.bottom]));
+    // B38/B47 are untouched: the handle is out of flow and nothing measures it.
+    ok('the compartment did not grow: bottom is still rule + 22 (B38/B47)',
+       Math.abs(geo.card.bottom - (geo.ruleTop + 22)) < 1,
+       JSON.stringify([geo.card.bottom, geo.ruleTop]));
+    // UIUX §6 / B7: the hit area expands, the visual frame does not.
+    ok('the visual frame stays small (32px)', Math.abs(geo.r.h - 32) < 0.5, String(geo.r.h));
+    ok('the hit target clears the 44px touch floor',
+       geo.r.h + 2 * geo.hit >= 44 && geo.r.w + 2 * geo.hit >= 44,
+       JSON.stringify([geo.r.w + 2 * geo.hit, geo.r.h + 2 * geo.hit]));
+
+    // The collar is asymmetric on purpose (B65): all of it goes DOWNWARD, onto
+    // the deep, because upward is the title's own words.
+    ok('the collar never reaches up into the title\'s words',
+       await page.evaluate(() => {
+         const b = document.querySelector('#title-menu');
+         const box = b.getBoundingClientRect();
+         const collar = getComputedStyle(b, '::before');
+         return collar.top === '0px' && parseFloat(collar.bottom) <= 0 && box.height > 0;
+       }));
+    // Press the BOTTOM of the collar — past the card, over bare canvas — so the
+    // classifier, not the painted box, is what is under test.
+    const before = await noteCount(page);
+    await tap(page, geo.r.x + geo.r.w / 2, geo.r.bottom + 2 * geo.hit - 1);
+    await page.waitForTimeout(80);
+    ok('acknowledged inside the window: #title-menu.tapped, menu still shut (B18)',
+       await page.evaluate(() => !!document.querySelector('#title-menu.tapped') &&
+         document.querySelector('#menu').hidden === true));
+    await page.waitForTimeout(500);
+    const opened = await page.evaluate(() => ({
+      open: document.querySelector('#menu').hidden === false,
+      items: [...document.querySelectorAll('#menu button')].map(b => b.textContent),
+      expanded: document.querySelector('#title-menu').getAttribute('aria-expanded'),
+    }));
+    ok('the collar opened the menu — no note on the canvas beneath it',
+       opened.open && (await noteCount(page)) === before, JSON.stringify(opened.open));
+    // Exactly the anchor menu B43 pins, unchanged: the handle is a second door
+    // to one room, not a second room.
+    ok('and it is the anchor menu unchanged: Export then All boards',
+       opened.items.length === 2 && /Export/.test(opened.items[0]) &&
+       /All boards/.test(opened.items[1]), JSON.stringify(opened.items));
+    ok('the handle reports itself expanded', opened.expanded === 'true', opened.expanded);
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(120);
+    ok('Escape shuts it, collapsed, with focus back on the handle',
+       await page.evaluate(() => document.querySelector('#menu').hidden === true &&
+         document.querySelector('#title-menu').getAttribute('aria-expanded') === 'false' &&
+         document.activeElement === document.querySelector('#title-menu')));
+
+    // Issue #94's own condition: the gesture path is not replaced.
+    const t = await page.evaluate(() => {
+      const r = document.querySelector('#anchor-title').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + 24 };
+    });
+    await tap(page, t.x, t.y, 700);
+    await page.waitForTimeout(200);
+    ok('long-press on the title still opens the same menu — both paths exist',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
+         [...document.querySelectorAll('#menu button')].length === 2));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 22. four cards a page: the empty category collapses (issue #97, B68) --
+  // The budget stays MEASURED (B42/B44) — nothing here pins a constant. What
+  // is pinned is the shape B68 rules: an empty section gives up its cards and
+  // pager slots but keeps its head row, so the populated sections clear four.
+  console.log('\n[22] Four cards a page: empty categories collapse to their head row (issue #97)');
+  {
+    // The fill state has to be EXACTLY what is asked for, so the first-run
+    // board goes first: B67 seeds it 'todo', and a To-Do that is never empty
+    // is a To-Do that never collapses — which is the whole subject here.
+    // Clearing also makes this scenario independent of whatever the seed's
+    // category happens to be, rather than re-encoding today's answer.
+    const seed = (page, counts) => page.evaluate(async (c) => {
+      for (const b of await idbGetAll()) await idbDelete(b.id);
+      const cats = ['todo', 'idea', 'unsorted'];
+      let n = 0;
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < c[i]; j++) {
+          const r = newBoardRecord();
+          r.title = cats[i].toUpperCase() + ' ' + j;
+          r.category = cats[i];
+          r.catStamp = r.createdAt = r.updatedAt = Date.now() - (++n) * 100000;
+          await idbPut(r);
+        }
+      }
+    }, counts);
+    // What every fill state must be true of, whatever the measured number is.
+    const survey = (page) => page.evaluate(() => {
+      const secs = [...document.querySelectorAll('#list-rows .board-cat')];
+      const v = document.querySelector('#list-view');
+      return {
+        sections: secs.length,
+        cats: secs.map(s => s.dataset.cat),
+        empty: secs.map(s => s.classList.contains('empty')),
+        cards: secs.map(s => s.querySelectorAll('.board-row').length),
+        secH: secs.map(s => +s.getBoundingClientRect().height.toFixed(1)),
+        // Label and control survive a collapse: it is still somewhere to
+        // create in (B63) and still somewhere to drop onto (B44).
+        labels: secs.map(s => s.querySelector('.cat-head span').textContent),
+        addBox: secs.map(s => {
+          const r = s.querySelector('.cat-add').getBoundingClientRect();
+          return [Math.round(r.width), Math.round(r.height)];
+        }),
+        cardFloor: Math.min(99, ...[...document.querySelectorAll('.board-row')]
+          .map(c => c.getBoundingClientRect().height)),
+        clip: secs.every(s => {
+          const c = s.querySelector('.cat-cards');
+          return c.scrollHeight <= c.clientHeight + 1;
+        }),
+        listNoScroll: v.scrollHeight <= v.clientHeight + 1,
+        inds: secs.map(s => (s.querySelector('.cat-pager').hidden
+          ? null : s.querySelector('.cat-pages').textContent)),
+      };
+    });
+    const invariants = (s, where) => {
+      ok(where + ': all three sections are still drawn, in order',
+         s.sections === 3 && s.cats.join(',') === 'todo,idea,unsorted', JSON.stringify(s.cats));
+      ok(where + ': every section still names itself and offers New board',
+         s.labels.join('|') === 'To-Do Boards|Idea Boards|Note Boards' &&
+         s.addBox.every(b => b[0] >= 44 && b[1] >= 44),
+         JSON.stringify(s.labels) + ' ' + JSON.stringify(s.addBox));
+      ok(where + ': no card is under the 44px touch floor (UIUX §6)',
+         s.cardFloor >= 44, String(s.cardFloor));
+      ok(where + ': no section overflows its clip', s.clip);
+      ok(where + ': the list view itself does not scroll', s.listNoScroll);
+    };
+
+    // -- one category populated: two collapse, and it clears four ----------
+    {
+      const { ctx, page, errors } = await newMobilePage(browser);
+      await seed(page, [0, 0, 8]);
+      await page.reload();
+      await page.waitForTimeout(500);
+      await page.evaluate(() => goToList());
+      await page.waitForTimeout(300);
+      const s = await survey(page);
+      invariants(s, 'one populated');
+      ok('one populated: To-Do and Idea collapse, Note Boards does not',
+         s.empty.join(',') === 'true,true,false', JSON.stringify(s.empty));
+      ok('one populated: a collapsed section is exactly its head row (44px)',
+         s.empty.every((e, i) => !e || Math.abs(s.secH[i] - 44) < 0.5),
+         JSON.stringify(s.secH));
+      ok('one populated: four or more cards on the page (issue #97)',
+         s.cards[2] >= 4, JSON.stringify(s.cards));
+
+      // A collapsed category is still a place to create in — B63's control is
+      // the whole reason the head row survives the collapse.
+      const btn = await page.evaluate(() => {
+        const r = document.querySelector('.board-cat[data-cat="todo"] .cat-add')
+          .getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      });
+      await tap(page, btn.x, btn.y);
+      await page.waitForTimeout(600);
+      ok('one populated: New board in a collapsed To-Do still creates there',
+         await page.evaluate(async () => {
+           const all = await idbGetAll();
+           const newest = all.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
+           return newest.category === 'todo' && newest.id === current.id;
+         }));
+      ok('no page errors', errors.length === 0, errors.join(' | '));
+      await ctx.close();
+    }
+
+    // -- two populated: one collapses, and it still clears four ------------
+    {
+      const { ctx, page, errors } = await newMobilePage(browser);
+      await seed(page, [0, 3, 8]);
+      await page.reload();
+      await page.waitForTimeout(500);
+      await page.evaluate(() => goToList());
+      await page.waitForTimeout(300);
+      const s = await survey(page);
+      invariants(s, 'two populated');
+      ok('two populated: only the empty To-Do collapses',
+         s.empty.join(',') === 'true,false,false', JSON.stringify(s.empty));
+      ok('two populated: four or more cards on the page (issue #97)',
+         s.cards[2] >= 4, JSON.stringify(s.cards));
+      ok('no page errors', errors.length === 0, errors.join(' | '));
+      await ctx.close();
+    }
+
+    // -- all three populated: nothing collapses, and the pager states the
+    //    honest budget rather than a constant clipping off the bottom -------
+    {
+      const { ctx, page, errors } = await newMobilePage(browser);
+      await seed(page, [3, 3, 8]);
+      await page.reload();
+      await page.waitForTimeout(500);
+      await page.evaluate(() => goToList());
+      await page.waitForTimeout(300);
+      const s = await survey(page);
+      invariants(s, 'three populated');
+      ok('three populated: nothing collapses',
+         s.empty.join(',') === 'false,false,false', JSON.stringify(s.empty));
+      ok('three populated: the sections share the height evenly',
+         Math.max(...s.secH) - Math.min(...s.secH) < 1, JSON.stringify(s.secH));
+      ok('three populated: the budget is measured, and the pager says so',
+         s.cards[2] >= 3 && s.inds[2] === '1/' + Math.ceil(9 / s.cards[2]),
+         JSON.stringify(s.cards) + ' ' + JSON.stringify(s.inds));
+      ok('no page errors', errors.length === 0, errors.join(' | '));
+      await ctx.close();
+    }
+
+    // -- nothing at all: the open board is the only record ------------------
+    {
+      const { ctx, page, errors } = await newMobilePage(browser);
+      await page.evaluate(() => goToList());
+      await page.waitForTimeout(300);
+      const s = await survey(page);
+      invariants(s, 'empty app');
+      // Not seeded: this is the genuine first-run state. B67 seeds that board
+      // 'todo', so To-Do is the section held open and the other two collapse —
+      // the mirror of what this block asserted before the ladder rotated.
+      ok('empty app: the first-run board holds To-Do open, Idea and Note collapse',
+         s.empty.join(',') === 'false,true,true', JSON.stringify(s.empty));
+      ok('no page errors', errors.length === 0, errors.join(' | '));
+      await ctx.close();
+    }
   }
 
   await browser.close();

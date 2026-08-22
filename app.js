@@ -36,12 +36,17 @@ const PANE_CAT_HEAD = 32;            // .cat-head/.cat-add row, desktop (issue #
 const PANE_PAGER_H = 32;             // .cat-pager row, desktop (issue #58)
 // Mobile spends two of these rows per section (B63): the head row — label
 // left, the category's own New board control right — above the cards, and the
-// pager row below them. 48 = HIT_FLOOR's 44px control plus the 2px above and
-// below that keeps it off the cards — the constant covers the whole row, so
-// catPageCap()'s budget stays exact.
-const LIST_CAT_ROW = 48;             // .board-cat head/pager rows, mobile (issues #74, #88)
-const PANE_ROW_H = 56;               // .pane-card / .board-row min-height
-const PANE_ROW_GAP = 8;              // .cat-cards flex gap
+// pager row below them. B68 takes the row down to HIT_FLOOR exactly — the
+// 44px control IS the row — and the card down with it, because the fourth
+// card issue #97 asks for is bought out of exactly this furniture. The
+// constant covers the whole row, so catPageCap()'s budget stays exact.
+const LIST_CAT_ROW = 44;             // .board-cat head/pager rows, mobile (issues #74, #88, #97)
+const PANE_ROW_H = 44;               // .pane-card / .board-row min-height — §6's floor, not below it
+// Two gaps, because they say two things (B68): card to card inside a section,
+// and section to section. The first tightens to buy the fourth card; the
+// second is what keeps three categories reading as three, and it holds at 8.
+const PANE_ROW_GAP = 4;              // .cat-cards flex gap
+const CAT_SEC_GAP = 8;               // #list-rows / #pane-cards flex gap
 const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
 // Three durations paired to styles.css §8 values — they move together
 // (PRD §9.5): the 200ms set and the 260ms board swap, on §8's one curve.
@@ -54,8 +59,9 @@ const ACTION_DELAY = 400;            // click → action; the window is acknowle
 
 const COPY = {
   // "All boards" (issue #60): the menu item is a destination, and "Boards"
-  // alone read as a category label. One key renames every menu site at once;
-  // the #list-title page heading is not a menu and keeps its own text.
+  // alone read as a category label. One key renames every menu site at once
+  // — and it is now the only place the word is written: B43's exception for
+  // the #list-title page heading is gone with the heading itself (B66).
   complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'All boards',
   // Plural labels for a multi-selection (issue #55): the count is visible on
   // the board itself — every member wears a ring — so the label says "all",
@@ -218,6 +224,7 @@ const el = {
   toast: document.getElementById('toast'),
   pane: document.getElementById('pane'),
   paneCards: document.getElementById('pane-cards'),
+  titleMenu: document.getElementById('title-menu'),   // the compartment's handle (B65)
 };
 const anchorEls = {
   title: document.getElementById('anchor-title'),
@@ -225,9 +232,17 @@ const anchorEls = {
   requirements: document.getElementById('anchor-requirements'),
 };
 
+/* The category is written, not defaulted (B67, extending B63's rule to the one
+   creation path that predates it): since the ladder rotates with the type, an
+   unwritten category is no longer invisible — it renders. A fresh install's
+   board would open violet on an app named for its To-Do boards. `newBoardIn`
+   overwrites this with the section the board is made in; the two empty-database
+   paths (`ensureCurrentValid`, `boot`) are the ones this is for. Legacy pre-#58
+   records still carry no category and still read as Note Boards — that is B21's
+   read-site idiom, and changing it would cost a migration and a version bump. */
 function newBoardRecord() {
   const now = Date.now();
-  return { id: uuid(), createdAt: now, updatedAt: now,
+  return { id: uuid(), createdAt: now, updatedAt: now, category: 'todo',
            title: '', requirements: '', components: '', notes: [], parkingLot: [] };
 }
 
@@ -334,7 +349,7 @@ function applyLayout() {
   // catCap is 0 until the first render, so boot's renderBoard → applyLayout
   // chain doesn't draw the rail twice back to back. Off-desktop the same
   // check covers a rotation while the list is open (issue #74).
-  if (catCap && catPageCap() !== catCap) {
+  if (catCap && catPageCap(catFilled) !== catCap) {
     if (isDesktop && el.paneCards) renderPane();
     else if (!isDesktop && listOpen) renderList();
   }
@@ -501,19 +516,33 @@ const lotH = () => {
 };
 
 /* One site sets both sections' geometry, called wherever their content
-   changes: layout, anchor input, and every lot insertion/removal. */
+   changes: layout, anchor input, and every lot insertion/removal. The
+   compartment's handle rides the card's bottom-right corner (B65), so it is
+   set from here too — the card's MEASURED height, read after --rule-y lands,
+   because a title past the two-line floor grows the box the handle sits on. */
 function updateBoardGeometry() {
   el.board.style.setProperty('--rule-y', bandRuleY() + 'px');
   el.board.style.setProperty('--lot-h', lotH() + 'px');
+  // offsetHeight, not the rect: it is transform-independent, so this is the
+  // card's LOGICAL bottom edge on both paths (the rect would arrive scaled).
+  el.board.style.setProperty('--card-bottom', anchorEls.title.offsetHeight + 'px');
+  // The handle's own frame is fixed, so only renderScale can move it off the
+  // floor — and that changes here, on every layout (UIUX §6, B7).
+  el.titleMenu.style.setProperty('--hit', hitInset(el.titleMenu, renderScale) + 'px');
+}
+
+/* §6/B7's law is not the note's alone: any board-space target expands its hit
+   area to the floor without growing its visual frame. `k` is what the element
+   draws at — one arithmetic, both callers. */
+function hitInset(node, k) {
+  const physW = node.offsetWidth * k, physH = node.offsetHeight * k;   // logical x draw scale
+  const floor = isDesktop ? HIT_FLOOR_DESKTOP : HIT_FLOOR;
+  return Math.max(0, (floor - physW) / 2, (floor - physH) / 2) / (k || 1);
 }
 
 function setHitInset(node, note) {
-  const w = node.offsetWidth, h = node.offsetHeight;   // logical (transform-independent)
-  const k = effScale(note) * renderScale;              // what the note draws at (issue #57)
-  const physW = w * k, physH = h * k;
-  const floor = isDesktop ? HIT_FLOOR_DESKTOP : HIT_FLOOR;
-  const inset = Math.max(0, (floor - physW) / 2, (floor - physH) / 2) / (k || 1);
-  node.style.setProperty('--hit', inset + 'px');
+  // effScale x renderScale is what the note draws at (issue #57).
+  node.style.setProperty('--hit', hitInset(node, effScale(note) * renderScale) + 'px');
 }
 
 function placeCaretAtPoint(node, clientX, clientY) {
@@ -551,8 +580,21 @@ function sanitizeBoard(board) {
   return board.notes.length !== n || board.parkingLot.length !== l;
 }
 
+/* The ladder rotates with the board type (issue #96 / B67). This attribute is
+   the whole of what app.js says about colour: styles.css rebinds the ladder's
+   token names under #board[data-cat=...], so every layer that draws the board
+   picks up the new hue through the var() it already reads. No hex belongs
+   here (UIUX §2.2 is the rendering authority). catOf() is the read-site
+   default, so a record without a category renders as a Note board — the same
+   bucket the list files it in, which is the agreement the card preview
+   depends on. Both call sites have already established `current`. */
+function applyBoardCat() {
+  el.board.dataset.cat = catOf(current);
+}
+
 function renderBoard() {
   clearSelection();                  // note DOM is about to be rebuilt
+  applyBoardCat();
   if (sanitizeBoard(current)) scheduleSave();
   // Anchors.
   for (const key of ['title', 'components', 'requirements']) {
@@ -655,6 +697,10 @@ function classifyTarget(target) {
   const selBtn = target.closest('.sel-btn');
   if (selBtn) return { type: 'sel-btn', node: selBtn };
   if (target.closest('#selection')) return { type: 'sel-frame', node: selEl };
+  // The compartment's handle (B65). It is a SIBLING of #anchor-title, so it
+  // would otherwise fall through to 'canvas' and drop a note — and its hit
+  // collar reaches past the card, which is exactly where that would happen.
+  if (target.closest('#title-menu')) return { type: 'title-menu', node: el.titleMenu };
   const note = target.closest('.note');
   if (note) return { type: 'note', node: note };
   const lotItem = target.closest('.lot-item');
@@ -962,6 +1008,9 @@ function handleTap(target, x, y, shift) {
       if (isDesktop) delayAction(target.node, () => editText(target.node, x, y));
       else editText(target.node, x, y);                         // B27
       break;
+    case 'title-menu':
+      tapTitleMenu();
+      break;
   }
 }
 
@@ -1107,11 +1156,12 @@ el.board.addEventListener('input', (e) => {
   } else if (t.classList.contains('anchor')) {
     current[t.dataset.anchor] = t.textContent;
     t.classList.toggle('filled', !!t.textContent.length);
-    if (t.dataset.anchor === 'title') {
-      if (isDesktop) updateActiveCardTitle();
-    } else {
-      updateBoardGeometry();           // the band sizes to its tallest zone, live (B47)
-    }
+    if (t.dataset.anchor === 'title' && isDesktop) updateActiveCardTitle();
+    // The band sizes to its tallest zone, live (B47) — and the title now has a
+    // geometry consequence of its own: the compartment's handle rides its
+    // bottom edge, so a title that grows past the floor moves it (B65). One
+    // call covers both; it is a no-op for whichever of the two did not change.
+    updateBoardGeometry();
     scheduleSave();
   }
 });
@@ -1150,7 +1200,7 @@ function commitAnchor(node) {
   current[node.dataset.anchor] = node.textContent;
   node.classList.toggle('filled', !!node.textContent.length);
   if (isDesktop && node.dataset.anchor === 'title') renderPane(); // reconcile the date line
-  if (node.dataset.anchor !== 'title') updateBoardGeometry();     // the band follows its zones (B47)
+  updateBoardGeometry();      // the band follows its zones (B47), the handle its card (B65)
   saveNow();
 }
 
@@ -1833,6 +1883,41 @@ function openMenuFor(target, clientX, clientY) {
   buildMenu(items, clientX, clientY);
 }
 
+/* The compartment's handle (issue #94, B65): the SAME menu the title's
+   long-press and right-click already give, opened from a control that says it
+   exists. Neither gesture path is touched — this only removes the requirement
+   to know one. The menu drops from the handle's own bottom-right corner, so
+   buildMenu's viewport flip right-aligns it under the control on a phone.
+
+   Through delayAction like every other control (B18): a menu that lands under
+   the finger must not take the second half of an impatient double-tap, and the
+   fill is the acknowledgment that the press was heard. */
+function openTitleMenu() {
+  // #54's law: an open editor commits before the menu acts on committed state.
+  if (isEditing(document.activeElement)) document.activeElement.blur();
+  const r = el.titleMenu.getBoundingClientRect();
+  menuInvoker = el.titleMenu;          // focus returns to the handle on close
+  el.titleMenu.setAttribute('aria-expanded', 'true');
+  openMenuFor({ type: 'anchor', node: anchorEls.title }, r.right, r.bottom);
+}
+const tapTitleMenu = () => delayAction(el.titleMenu, openTitleMenu);
+
+/* The recognizer owns pointers, so the keyboard is the one path it cannot see.
+   preventDefault stops the native click the key would otherwise synthesize, and
+   stopPropagation keeps the press off the desktop keyboard grammar below — the
+   handle is the first focusable thing inside #board that is neither an editor
+   nor the selection, so without it Enter would ALSO edit the selected note and
+   Delete would destroy it. Auto-repeat is dropped: held past ~500ms the repeats
+   would land on the menu item buildMenu had just focused. */
+el.titleMenu.addEventListener('keydown', (e) => {
+  const activates = e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar';
+  if (!activates && e.key !== 'Delete' && e.key !== 'Backspace') return;
+  e.stopPropagation();                 // Escape still reaches the grammar below
+  if (!activates) return;
+  e.preventDefault();
+  if (!e.repeat) tapTitleMenu();
+});
+
 /* Desktop right-click on a note (issue #55): the selection's own menu, ONE
    delegated listener. Right-click on empty canvas or the lot keeps the
    BROWSER's native menu, and an active editor keeps its own (paste, spelling);
@@ -1951,6 +2036,7 @@ function closeMenu() {
   el.menu.classList.remove('show');
   el.menu.hidden = true;
   menuOpen = false;
+  el.titleMenu.setAttribute('aria-expanded', 'false');   // collapsed, whoever opened it (B65)
   if (menuKeyHandler) document.removeEventListener('keydown', menuKeyHandler, true);
   if (menuOutsideHandler) document.removeEventListener('pointerdown', menuOutsideHandler, true);
   menuKeyHandler = menuOutsideHandler = null;
@@ -2647,21 +2733,36 @@ const catOrder = (a, b) => (touchedAt(b) - touchedAt(a)) || boardOrder(a, b);
    it is shared by the rail and the list because the two are never on screen at
    once (applyMode pops the list state on the flip to desktop) — each renderer
    clamps every render, so a differing capacity heals itself. catCap is the
-   budget the last render used — applyLayout compares against it. */
+   budget the last render used, and catFilled the fill state it measured
+   against — applyLayout compares both. */
 let catPage = { todo: 0, idea: 0, unsorted: 0 };
 let catCap = 0;                        // 0 = never rendered; the capacity check waits
+let catFilled = 0;                     // populated sections the last render measured
 let dragCancel = null;                 // the live card-drag's teardown, if one is mid-flight
 
-function catPageCap() {
+/* The per-page card budget, measured — never a constant (B42, restated B68).
+   `filled` is how many of the three sections hold at least one board: an empty
+   section collapses to its head row alone (B68), so the cards and pager slots
+   it is not using come back to the sections that have something to show. */
+function catPageCap(filled) {
   const host = isDesktop ? el.paneCards : el.listRows;
   if (!host) return 1;
-  // A third of the surface, minus the section's own furniture, in whole rows.
-  // Both surfaces stack the head row above the cards and the pager row below
-  // (B63 unmerges B44's strip). The pager's slot is reserved even when a single
-  // page hides it, so the budget cannot flap between one- and many-page states.
-  const catH = (host.clientHeight - PANE_ROW_GAP * (BOARD_CATS.length - 1)) / BOARD_CATS.length;
-  const furniture = isDesktop ? PANE_CAT_HEAD + PANE_PAGER_H : LIST_CAT_ROW * 2;
-  return Math.max(1, Math.floor((catH - furniture) / (PANE_ROW_H + PANE_ROW_GAP)));
+  const head = isDesktop ? PANE_CAT_HEAD : LIST_CAT_ROW;
+  const pager = isDesktop ? PANE_PAGER_H : LIST_CAT_ROW;
+  const n = Math.max(1, Math.min(BOARD_CATS.length, filled | 0));
+  // The content box, not clientHeight: the list's own bottom padding sits
+  // inside clientHeight and outside the flex line, and at B68's row heights
+  // that 12px is most of a card. Measure what the sections actually get.
+  const cs = getComputedStyle(host);
+  const avail = host.clientHeight
+    - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+    - CAT_SEC_GAP * (BOARD_CATS.length - 1)    // every section is drawn: the gaps all stand
+    - head * (BOARD_CATS.length - n);          // a collapsed section still keeps its head row
+  // A populated section's share, minus its own furniture, in whole rows. Both
+  // surfaces stack the head row above the cards and the pager row below (B63
+  // unmerges B44's strip). The pager's slot is reserved even when a single page
+  // hides it, so the budget cannot flap between one- and many-page states.
+  return Math.max(1, Math.floor((avail / n - head - pager) / (PANE_ROW_H + PANE_ROW_GAP)));
 }
 
 /* One section, both surfaces: head, add, cards, pager — the same four children
@@ -2674,6 +2775,12 @@ function makeCatSection(cat, boards, cap, makeCard) {
 
   const sec = document.createElement('div');
   sec.className = 'board-cat'; sec.dataset.cat = cat;
+  // A section with nothing in it collapses to its head row (B68, superseding
+  // B44's two empty thirds): the label and its own New board control stay —
+  // it is still a place to create in, and that row is still the .board-cat
+  // rect the drop hit-test finds — and only the cards and pager slots go back
+  // to the populated sections.
+  if (!boards.length) sec.classList.add('empty');
   sec.setAttribute('role', 'group');
   // Page state rides the group label — the visual indicator is aria-hidden and
   // a rebuilt node can't announce, so this is where AT hears the page.
@@ -2777,6 +2884,7 @@ async function dropBoardCard(b, cat) {
   if (current && current.id === b.id) {
     current.category = cat;
     current.catStamp = Date.now();
+    applyBoardCat();                   // the open board's ladder rotates with it (B67)
     saveNow();
   } else {
     const rec = await idbGet(b.id);
@@ -2796,7 +2904,8 @@ async function renderList() {
     const rec = (current && b.id === current.id) ? current : b;
     buckets[catOf(rec)].push(rec);
   }
-  catCap = catPageCap();
+  catFilled = BOARD_CATS.filter(c => buckets[c].length).length;
+  catCap = catPageCap(catFilled);
   const focusCat = focusedCatAdd();
   el.listRows.textContent = '';
   for (const cat of BOARD_CATS)
@@ -2873,6 +2982,12 @@ function attachBoardCardGestures(card, row, b, opts) {
       if (!isDesktop && navigator.vibrate) navigator.vibrate(10);
       ghost = card.cloneNode(true);
       ghost.classList.add('card-drag-ghost');
+      // The ghost is fixed to the viewport off document.body, which takes it
+      // out of its section's [data-cat] token scope — so it carries the scope
+      // with it (B67). Without this the card lifts off green and turns blue
+      // mid-drag, because .board-row/.pane-card's water would resolve against
+      // :root. The attribute is the same one styles.css binds the ladder on.
+      ghost.dataset.cat = catOf(b);
       const r = card.getBoundingClientRect();
       ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
       document.body.appendChild(ghost);
@@ -3029,7 +3144,8 @@ async function renderPane() {
     const rec = (current && b.id === current.id) ? current : b;
     buckets[catOf(rec)].push(rec);
   }
-  catCap = catPageCap();
+  catFilled = BOARD_CATS.filter(c => buckets[c].length).length;
+  catCap = catPageCap(catFilled);
   const focusCat = focusedCatAdd();
   el.paneCards.textContent = '';
   for (const cat of BOARD_CATS)
@@ -3100,6 +3216,11 @@ function updateActiveCardTitle() {
 
 function goToList() {
   if (listOpen) return;
+  // The compartment's handle may have just taken focus back from the menu it
+  // opened (B65, closeMenu's menuInvoker return). The list is an overlay over
+  // the board, so leaving focus on a control it occludes strands a keyboard or
+  // AT user behind the page they just navigated away from.
+  if (document.activeElement === el.titleMenu) el.titleMenu.blur();
   history.pushState({ v: 'list' }, '');
   showList();
 }
@@ -3139,6 +3260,15 @@ window.addEventListener('popstate', () => {
 /* --- 12. Boot + service worker ------------------------------------------- */
 window.addEventListener('resize', onViewportResize);
 if (window.visualViewport) window.visualViewport.addEventListener('resize', onViewportResize);
+
+/* Both sections are sized by the type they hold (B37/B47), and the type arrives
+   late: the faces are font-display: swap (B50), so boot measures the fallback
+   and the real metrics land afterwards with nothing watching. Until B65 the
+   drift was invisible — a rule a pixel off. It is not any more: the handle is
+   pinned to the compartment's measured bottom edge, and a title that re-wraps
+   on the swap would leave a control floating off the corner it belongs to. One
+   re-measure when the faces land; a browser without the API keeps boot's. */
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyLayout);
 
 async function boot() {
   const all = await idbGetAll();

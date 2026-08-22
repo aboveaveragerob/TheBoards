@@ -70,6 +70,74 @@
 .on-dark  { --ink: var(--ink-light); --ink-a: 244 245 241; }
 .on-light { --ink: var(--ink-dark);  --ink-a: 3 16 25; }
 
+/* --- §2.2.2 The ladder rotates with the board type (issue #96, B67) -------
+   A board type is a whole scene, not a rung on one. The ladder's single axis
+   stays luminance (UIUX §2.2.1 rule 1): every rung below reproduces the To-Do
+   rung's WCAG relative luminance to the 4dp the record prints, so every ratio
+   UIUX §2.2/§2.3/§2.5/§2.7 publishes holds unchanged on all three. Only the
+   family's hue moves — the blue's 205°..261° to a hunter green at 139°..171°
+   and a violet at 295°..310°.
+
+   OKLCH lightness and chroma are the AIMING coordinates, held as closely as
+   8-bit sRGB allows rather than pinned: luminance is what every ratio is
+   computed from, and the two cannot both be exact across a hue change.
+   UIUX §2.2.2 prints the residuals and the one place the gamut binds.
+
+   Bound by REBINDING the token names, never by overriding a background: the
+   four layers that draw a board (the flat fill, the dither over it, the
+   band's vignette over its three-stop fall, the Parking Lot mirroring it)
+   all read var(), so they carry the new hue for free — which is what "same
+   stylization and graphic effects" means (issue #96).
+
+   --chrome does not rotate. The room behind the page is one room (B55), so
+   a green board's OS chrome and board list are still the blue. Nor do the
+   ink poles or the accents: ink is per surface, not per app (UIUX §2.3), and
+   the accents live on chrome (UIUX §2.6).
+
+   To-Do needs no block: it IS :root, which is also what a board shows before
+   app.js has spoken. A record with no category is the third bucket
+   everywhere — catOf()'s read-site default, B21's idiom — so it files under
+   Note Boards in the list AND renders violet. The two agree, which is the
+   whole point of the card preview further down. */
+#board[data-cat="idea"] {
+  --deep:        #000a06;
+  --card:        #001a0e;
+  --water-top:   #486b49;
+  --water-mid:   #345439;
+  --water-bot:   #1f3825;
+  --water-bot-a: 31 56 37;
+  --frame:       #52997f;
+  --note:        #b9d2b2;
+}
+/* Storage key 'unsorted', label "Note Boards" — B63 renamed the label only. */
+#board[data-cat="unsorted"] {
+  --deep:        #0c0512;
+  --card:        #1e0f28;
+  --water-top:   #6d5b83;
+  --water-mid:   #534769;
+  --water-bot:   #382e47;
+  --water-bot-a: 56 46 71;
+  --frame:       #9d80b9;
+  --note:        #cec6ed;
+}
+/* A list/rail card is a small rendering of what it names (UIUX §10), so it
+   previews its board's hue. A card draws exactly two rungs — the water's
+   upper fall, see .board-row / .pane-card in §10 — so only those two are
+   rebound here; rebinding the other five would be five declarations nothing
+   in a section reads. .card-drag-ghost is fixed to the viewport off
+   document.body, outside its section's scope, so app.js stamps the attribute
+   onto the ghost itself and it keeps its hue in the air. */
+.board-cat[data-cat="idea"],
+.card-drag-ghost[data-cat="idea"] {
+  --water-top:   #486b49;
+  --water-mid:   #345439;
+}
+.board-cat[data-cat="unsorted"],
+.card-drag-ghost[data-cat="unsorted"] {
+  --water-top:   #6d5b83;
+  --water-mid:   #534769;
+}
+
 /* --- Global -------------------------------------------------------------- */
 * { box-sizing: border-box; }
 
@@ -296,6 +364,89 @@ body {
      B35's 340-wide card removes that constraint, but restoring 24px is its own
      call and has not been made. */
   font-size: 15px; font-weight: 600; line-height: 1.3;
+}
+
+/* The compartment's handle (issue #94 / B65, UIUX §14). The menu was reachable
+   only by a gesture nothing on screen declared; this names it. A SIBLING of
+   #anchor-title, never a child — contenteditable is toggled onto the anchor
+   itself, so a child would be edited along with the title — positioned from
+   the same geometry the compartment is, and so never able to grow it (B38's
+   22px overhang and B47's rule are untouched, and nothing measures this box).
+
+   BISECTED BY THE COMPARTMENT'S BOTTOM EDGE, flush with its right one: the
+   card has only three drawn sides (B38) and this is the joint where two of
+   them meet, thickened into something to press. Inside the box it could not
+   go — at B32's 384px floor the compartment is 145x110 and a two-line title
+   already fills it, so a control in the corner would sit on the words. Half
+   on --card, half on --deep: 1.10:1 apart (UIUX §2.5), so the chip's ground
+   is one value either way and the bisection is seamless.
+
+   The fill is --frame, the line the compartment is drawn in — a control made
+   of the edge it sits on, and no new token. Deliberately NOT --accent-page:
+   B59 gave that to the controls that MAKE a board, and on desktop this chip
+   and the rail's New board share a screen. 5.70:1 under --ink-dark, on a fill
+   that clears 5.39:1 on the card (UIUX §2.5's published pair). The border,
+   radius, offset shadow and press-translate are UIUX §14's shared tactile
+   signature, carried whole. */
+#title-menu {
+  position: absolute;
+  z-index: 1;                          /* furniture plane; notes (z-2) stay above */
+  /* --card-bottom is the compartment's MEASURED height, set beside --rule-y in
+     updateBoardGeometry so the handle follows a title that grew past the
+     floor. The fallback is that floor, standing until JS speaks — exactly as
+     --rule-y's own 88px does. */
+  top: calc(var(--card-bottom, calc(var(--rule-y) + 22px)) - 16px);
+  right: calc(100% - var(--card-l) - var(--card-w));
+  height: 32px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center; justify-content: center;
+  background: var(--frame);
+  color: var(--ink-dark);
+  border: 2px solid var(--ink-dark);
+  border-radius: 0.4em;
+  box-shadow: 0.1em 0.1em var(--ink-dark);
+  font: inherit;
+  font-size: 13px; font-weight: 800;   /* the band's own furniture size (B54) */
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: none;
+}
+/* Decoupled hit area, exactly the note's (UIUX §6, B7): --hit is set in JS so
+   hit x renderScale clears the floor — 44px on touch, 24px on desktop — and
+   the chip's own 32px frame never grows to meet it.
+
+   The note's collar is symmetric; this one is NOT, and the asymmetry is the
+   point. The whole 2 x hit is spent DOWNWARD, onto the deep below the card,
+   because upward is the title's own words: the chip's top edge already sits
+   16px above the card's bottom, 2px inside its content box, and a symmetric
+   collar would reach 22px in — under the last line of a title long enough to
+   have grown the card, stealing the caret tap that would place the cursor
+   there. B65 rules the painted chip off the words; the collar it mandates
+   obeys the same rule. Total height stays 32 + 2 x hit either way. */
+#title-menu::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--hit, 0px));
+  right: calc(-1 * var(--hit, 0px));
+  bottom: calc(-2 * var(--hit, 0px));
+}
+@media (hover: hover) {                /* bare :hover sticks after a touch */
+  #title-menu:hover {
+    transform: translate(-0.05em, -0.05em);
+    box-shadow: 0.15em 0.15em var(--ink-dark);
+  }
+}
+#title-menu:active {
+  transform: translate(0.05em, 0.05em);
+  box-shadow: 0.05em 0.05em var(--ink-dark);
+}
+#title-menu:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark), 0.1em 0.1em var(--ink-dark);
 }
 
 /* ---- §3 / §6.5 Parking Lot (resettled B47/UIUX §3.2: a section, not a box)
@@ -559,15 +710,9 @@ body {
   display: flex;
   flex-direction: column;
 }
-#list-header {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 20px;
-}
-#list-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--ink); }
+/* No page heading (issue #95 / B66): the screen opens straight onto the
+   categories, whose own heads say what each section holds. #list-rows is the
+   view's only child and takes the whole height. */
 /* The primary species (UIUX §14, refilled by B59; moved into the categories
    by B63): the accent about boards on the controls that make one —
    --accent-page behind --ink-dark, wearing the shared tactile signature —
@@ -608,12 +753,19 @@ body {
   overflow: hidden;                    /* categories page; nothing scrolls (issue #74) */
   display: flex;
   flex-direction: column;
-  gap: 8px;                            /* = PANE_ROW_GAP in app.js */
-  padding: 0 12px 12px;
+  gap: 8px;                            /* = CAT_SEC_GAP in app.js */
+  /* The gutter closes at the top the way it already closes at the sides and
+     the bottom (issue #95 / B66): one value on four sides. With the heading
+     gone this is all that stands above the first section's head row, and the
+     head row carries a 44px control. Deliberately a constant and not
+     env(safe-area-inset-top) — see B66. */
+  padding: 12px;
 }
 /* A row is a card now, not a list line: it can be picked up and carried to
    another category, so it has to read as a discrete object with its own edge
-   (issue #74). Same 56px height it always had — PANE_ROW_H in app.js. */
+   (issue #74) — which is the hairline and the water fill, not the height, so
+   B68 takes the height to §6's 44px floor and no further to buy issue #97's
+   fourth card. PANE_ROW_H in app.js. */
 /* A board card is a small rendering of what it names (UIUX §10): the field's
    own upper fall as its fill, edged with the chrome's hairline. */
 .board-row {
@@ -621,8 +773,8 @@ body {
   align-items: baseline;
   gap: 16px;
   width: 100%;
-  min-height: 56px;                    /* = PANE_ROW_H in app.js */
-  padding: 12px 16px;
+  min-height: 44px;                    /* = PANE_ROW_H in app.js; = HIT_FLOOR (UIUX §6) */
+  padding: 8px 16px;
   background: linear-gradient(180deg, var(--water-top), var(--water-mid));
   border: 1px solid var(--hairline);
   border-radius: 3px;
@@ -653,26 +805,38 @@ body {
   color: var(--ink);
 }
 
-/* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44, issue #88 / B63) --
-   Three equal sections — To-Do, Idea, Note — on both the mobile list and the
-   desktop rail, from one DOM shape: head, add, cards, pager. Overflow turns
-   pages, never scrolls, so .cat-cards clips and the pager below navigates.
+/* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44, issue #88 / B63,
+   issue #97 / B68) -- Three sections — To-Do, Idea, Note — on both the mobile
+   list and the desktop rail, from one DOM shape: head, add, cards, pager.
+   Equal while all three hold boards; an empty one collapses (below). Overflow
+   turns pages, never scrolls, so .cat-cards clips and the pager navigates.
 
    One grid on both surfaces (B63): the head row holds the category's label
    left and its own New board control right, one box height; the pager row
    sits below the cards, centred. The fixed row heights are shared law with
    app.js, where catPageCap() derives the card budget from them — mobile
-   spends LIST_CAT_ROW (48) twice, desktop PANE_CAT_HEAD + PANE_PAGER_H
-   (32 + 32), restated below. ---- */
+   spends LIST_CAT_ROW (44) twice, desktop PANE_CAT_HEAD + PANE_PAGER_H
+   (32 + 32), restated below.
+
+   A section holding nothing collapses to its head row (B68, issue #97): the
+   label and its own New board control survive — an empty category is still a
+   place to create in and still a target to drop onto (B44's refusal, kept) —
+   and the cards and pager slots go back to the sections that have boards. The
+   collapsed height is exactly the head row, because catPageCap() reclaims
+   exactly that. ---- */
 .board-cat {
   flex: 1 1 0;
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: 48px 1fr 48px;   /* = LIST_CAT_ROW in app.js, twice */
+  grid-template-rows: 44px 1fr 44px;   /* = LIST_CAT_ROW in app.js, twice */
   grid-template-areas: "head add" "cards cards" "pager pager";
   align-items: center;
   column-gap: 8px;                     /* the label never touches the control */
+}
+.board-cat.empty {
+  flex: 0 0 auto;
+  grid-template-rows: 44px 0 0;        /* = LIST_CAT_ROW; the head row alone */
 }
 /* Mid-drag landing frame: the section under the pointer is where the board
    will move on release. Drawn just inside the section — the surface clips (it
@@ -702,9 +866,17 @@ body {
 /* The per-category create control (issue #88 / B63): the primary species,
    sized to the head row it shares with the label — its own label steps to
    14px (§13.1) so the 24px header keeps its whole name beside it at B32's
-   384px floor. */
+   384px floor.
+
+   position: relative because B68 took the row down to the control's own
+   height: the primary species wears its signature outside its border box —
+   the offset shadow, and §2.7's focus ring at outline-offset 2px — and with
+   no slack left in the row those fall on the cards track. Positioned, the
+   control paints above its in-flow siblings, so the ring stays whole and the
+   shadow lands ON the first card instead of under it. */
 .cat-add {
   grid-area: add;
+  position: relative;
   min-height: 44px;
   padding: 0 12px;
   font-size: 14px;
@@ -717,7 +889,7 @@ body {
   overflow: hidden;                    /* pagination, never a scrollbar */
   display: flex;
   flex-direction: column;
-  gap: 8px;                            /* = PANE_ROW_GAP in app.js */
+  gap: 4px;                            /* = PANE_ROW_GAP in app.js */
 }
 /* The pager: muted blue paired with --paper — the sel-btn construction, so it
    inverts ≥ AA in both themes — behind a neutral ink-shadow border that holds
@@ -823,17 +995,21 @@ html.desktop #pane {
   overflow: hidden;                    /* categories page; nothing scrolls (issue #58) */
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 8px;                            /* = CAT_SEC_GAP in app.js */
 }
 
 /* ---- Rail categories: the desktop skin of the shared §10.5 grid. Same four
    children, same areas — only the row heights and the control's size step
    down, for the desktop pointer rather than a fingertip. The fixed heights
    here are shared law with app.js: head row = PANE_CAT_HEAD (32), pager row
-   = PANE_PAGER_H (32), row = 56 + 8 gap; catPageCap() derives the card
-   budget from them. ---- */
+   = PANE_PAGER_H (32), row = 44 + 4 gap; catPageCap() derives the card
+   budget from them. The collapse is surface-neutral like everything else
+   here (B68) — the rail's empty section keeps its own 32px head row. ---- */
 html.desktop .board-cat {
   grid-template-rows: 32px 1fr 32px;   /* = PANE_CAT_HEAD / PANE_PAGER_H in app.js */
+}
+html.desktop .board-cat.empty {
+  grid-template-rows: 32px 0 0;        /* = PANE_CAT_HEAD; the head row alone */
 }
 /* The header steps back to the scale's own top step on the rail (B63): at
    24px the longest name sets 215px, and the rail's 276px cannot hold that
@@ -868,7 +1044,7 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
   display: flex;
   align-items: baseline;
   gap: 8px;
-  min-height: 56px;                    /* compact card — same height as list rows */
+  min-height: 44px;                    /* = PANE_ROW_H — same height as list rows */
   padding: 8px 12px;
   background: linear-gradient(180deg, var(--water-top), var(--water-mid));
   border: 1px solid var(--hairline);
@@ -1066,6 +1242,9 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 /* Already filled, so it acknowledges by draining instead of filling — the
    accent as text on a near-black ground, exactly UIUX §2.6's placement. */
 .primary-btn.tapped         { background: var(--ink-dark); color: var(--accent-page); }
+/* The compartment's handle drains the same way (B65): --frame as text on the
+   near-black it drains to, 5.70:1 — the same pair inverted. */
+#title-menu.tapped          { background: var(--ink-dark); color: var(--frame); }
 /* Selection action buttons rest in their fills; same drain on tap. */
 .sel-btn.sel-complete.tapped { background: var(--ink-dark); color: var(--accent-restore); }
 .sel-btn.sel-copy.tapped     { background: var(--ink-light); color: var(--ink-dark); }
