@@ -56,6 +56,13 @@ async function touchDragTo(page, from, to, steps = 8) {
     }] });
     await page.waitForTimeout(15);
   }
+  // Settle before the caller reads the DOM. Input.dispatchTouchEvent resolves
+  // when the event is DISPATCHED, not when the recognizer's handler has run and
+  // painted its consequence — so a drop-target assertion straight off the last
+  // move is a race the CI runner loses under load. The desktop twin already
+  // waits 60ms at exactly this point; this is the same wait, in the helper, so
+  // every caller gets it.
+  await page.waitForTimeout(60);
   return c;
 }
 
