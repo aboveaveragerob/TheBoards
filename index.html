@@ -64,6 +64,16 @@
            data-placeholder="What&rsquo;s up?" tabindex="0"
            role="textbox" aria-multiline="true" aria-label="Title"></div>
 
+      <!-- The compartment's handle (issue #94, B65). A SIBLING of the title,
+           never a child: contenteditable is toggled onto #anchor-title itself,
+           so anything inside it would be edited along with the title. It is
+           positioned from the same --card-l / --card-w / --card-bottom
+           geometry, so it rides the compartment's bottom-right corner without
+           touching the compartment's own box. Opens exactly the menu long-press and
+           right-click already give; both of those paths are untouched. -->
+      <button type="button" id="title-menu" aria-haspopup="menu"
+              aria-expanded="false" aria-label="Board menu">Menu</button>
+
       <!-- Parking Lot zone (PRD §6.5). Unframed stacked lines on the water
            (B58); .on-dark keeps the light pole at the section's edge
            (UIUX §2.3). -->

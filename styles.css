@@ -298,6 +298,89 @@ body {
   font-size: 15px; font-weight: 600; line-height: 1.3;
 }
 
+/* The compartment's handle (issue #94 / B65, UIUX §14). The menu was reachable
+   only by a gesture nothing on screen declared; this names it. A SIBLING of
+   #anchor-title, never a child — contenteditable is toggled onto the anchor
+   itself, so a child would be edited along with the title — positioned from
+   the same geometry the compartment is, and so never able to grow it (B38's
+   22px overhang and B47's rule are untouched, and nothing measures this box).
+
+   BISECTED BY THE COMPARTMENT'S BOTTOM EDGE, flush with its right one: the
+   card has only three drawn sides (B38) and this is the joint where two of
+   them meet, thickened into something to press. Inside the box it could not
+   go — at B32's 384px floor the compartment is 145x110 and a two-line title
+   already fills it, so a control in the corner would sit on the words. Half
+   on --card, half on --deep: 1.10:1 apart (UIUX §2.5), so the chip's ground
+   is one value either way and the bisection is seamless.
+
+   The fill is --frame, the line the compartment is drawn in — a control made
+   of the edge it sits on, and no new token. Deliberately NOT --accent-page:
+   B59 gave that to the controls that MAKE a board, and on desktop this chip
+   and the rail's New board share a screen. 5.70:1 under --ink-dark, on a fill
+   that clears 5.39:1 on the card (UIUX §2.5's published pair). The border,
+   radius, offset shadow and press-translate are UIUX §14's shared tactile
+   signature, carried whole. */
+#title-menu {
+  position: absolute;
+  z-index: 1;                          /* furniture plane; notes (z-2) stay above */
+  /* --card-bottom is the compartment's MEASURED height, set beside --rule-y in
+     updateBoardGeometry so the handle follows a title that grew past the
+     floor. The fallback is that floor, standing until JS speaks — exactly as
+     --rule-y's own 88px does. */
+  top: calc(var(--card-bottom, calc(var(--rule-y) + 22px)) - 16px);
+  right: calc(100% - var(--card-l) - var(--card-w));
+  height: 32px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center; justify-content: center;
+  background: var(--frame);
+  color: var(--ink-dark);
+  border: 2px solid var(--ink-dark);
+  border-radius: 0.4em;
+  box-shadow: 0.1em 0.1em var(--ink-dark);
+  font: inherit;
+  font-size: 13px; font-weight: 800;   /* the band's own furniture size (B54) */
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: none;
+}
+/* Decoupled hit area, exactly the note's (UIUX §6, B7): --hit is set in JS so
+   hit x renderScale clears the floor — 44px on touch, 24px on desktop — and
+   the chip's own 32px frame never grows to meet it.
+
+   The note's collar is symmetric; this one is NOT, and the asymmetry is the
+   point. The whole 2 x hit is spent DOWNWARD, onto the deep below the card,
+   because upward is the title's own words: the chip's top edge already sits
+   16px above the card's bottom, 2px inside its content box, and a symmetric
+   collar would reach 22px in — under the last line of a title long enough to
+   have grown the card, stealing the caret tap that would place the cursor
+   there. B65 rules the painted chip off the words; the collar it mandates
+   obeys the same rule. Total height stays 32 + 2 x hit either way. */
+#title-menu::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--hit, 0px));
+  right: calc(-1 * var(--hit, 0px));
+  bottom: calc(-2 * var(--hit, 0px));
+}
+@media (hover: hover) {                /* bare :hover sticks after a touch */
+  #title-menu:hover {
+    transform: translate(-0.05em, -0.05em);
+    box-shadow: 0.15em 0.15em var(--ink-dark);
+  }
+}
+#title-menu:active {
+  transform: translate(0.05em, 0.05em);
+  box-shadow: 0.05em 0.05em var(--ink-dark);
+}
+#title-menu:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark), 0.1em 0.1em var(--ink-dark);
+}
+
 /* ---- §3 / §6.5 Parking Lot (resettled B47/UIUX §3.2: a section, not a box)
    Full-bleed — left 0, right 0, bottom 0 — with its CONTENT still on the
    gutter: it lives as a section of the page, the exact mirror of the band at
@@ -1066,6 +1149,9 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 /* Already filled, so it acknowledges by draining instead of filling — the
    accent as text on a near-black ground, exactly UIUX §2.6's placement. */
 .primary-btn.tapped         { background: var(--ink-dark); color: var(--accent-page); }
+/* The compartment's handle drains the same way (B65): --frame as text on the
+   near-black it drains to, 5.70:1 — the same pair inverted. */
+#title-menu.tapped          { background: var(--ink-dark); color: var(--frame); }
 /* Selection action buttons rest in their fills; same drain on tap. */
 .sel-btn.sel-complete.tapped { background: var(--ink-dark); color: var(--accent-restore); }
 .sel-btn.sel-copy.tapped     { background: var(--ink-light); color: var(--ink-dark); }

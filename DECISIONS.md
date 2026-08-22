@@ -1888,3 +1888,116 @@ large-but-lying: the board is a *spatial* record, and a shear is a lie about
 space. Pinned by `test/mobile.js` [12c] (shape held, size uniform, storage
 untouched, round trip exact) and `test/desktop.js` [D13] (the silent grab
 folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
+
+---
+
+## T. The menu gets a door (issue #94)
+
+### B65. The compartment names its own menu: a `Menu` handle on the title card (adds a door to the anchor menu of A1/B43; supersedes nothing — long-press and right-click are untouched)
+
+The anchor menu — `Export · All boards` — was reachable only by a gesture
+nothing on screen declared. On mobile that gesture is a 500ms long-press on
+the title compartment; on desktop there is no gesture at all, because B19/issue
+#4 removed click-and-hold and `contextmenu` routes notes alone, so the board's
+own Export was reachable only by finding the same board's card in the rail and
+right-clicking *that*. **Zero cognitive tax** does not survive an interface
+whose only route to a feature is a gesture the interface never mentions. The
+issue's own reasoning is the ruling: it "visually informs user that menu exists",
+and it costs a click.
+
+**Ruling.** A `Menu` control on the title compartment, opening the *same*
+`openMenuFor({type:'anchor'})` menu, item for item. Both gesture paths stay —
+issue #94 says so in as many words, and `test/mobile.js` [21] asserts the
+long-press still opens it. The menu's contents do not change: A1's law and
+B43's order are untouched, and the two-item exact match in [21]/[D21] is what
+keeps a future hand from quietly making this control a third menu.
+
+**A sibling, never a child.** `contenteditable` is toggled onto `#anchor-title`
+itself (B2), so anything inside it would be edited along with the title — and
+committed to `current.title`. The handle is a sibling positioned from the same
+`--card-l`/`--card-w` geometry the compartment is, so B38's compartment and
+B47's rule are arithmetically untouched: nothing measures the handle's box, and
+[21] re-asserts `card.bottom === rule + 22` with the control in place.
+
+**Where: the joint, not the interior.** "Bottom right of the title card" cannot
+mean *inside* it. At B32's 384px floor the compartment is 145×110 and a
+two-line title already reaches its bottom padding; a chip in the corner would
+sit on the words. So the handle is **bisected by the card's bottom edge and
+flush with its right one** — the joint where two of the card's three drawn
+sides meet (B38: the sheet's own top edge is the fourth), thickened into
+something to press. `--card` and `--deep` are 1.10:1 apart (`UIUX §2.5`), so the
+ground under the chip is one value either way and the bisection is seamless.
+It follows a title that grows past the floor: `--card-bottom` is the
+compartment's measured height, set beside `--rule-y` in `updateBoardGeometry`,
+which the title anchor now calls too — the title had no geometry consequence
+before this and has one now. (The name is new; the retired `--card-h` of the
+pre-B47 band is not resurrected, and `UIUX §16.3`'s note about it still reads
+true.)
+
+**What it is made of: `--frame`, filled.** A control inside a box that
+otherwise holds *typed content* must not be able to read as content, which
+rules out bare ink; and `--chrome` is the deep's own value, invisible on the
+card. So the handle wears the line the compartment is drawn in — 5.70:1 under
+its `--ink-dark` label, on a fill already published at 5.39:1 on the card
+(`UIUX §2.5`) — and introduces **no new token**. Deliberately **not**
+`--accent-page`: B59 gave that to the controls that *make* a board, and on
+desktop this handle and the rail's `New board` are on screen together; two
+identical chips doing different jobs would flatten the distinction B59 had just
+drawn. `UIUX §14`'s shared tactile signature — 2px `--ink-dark` border, 0.4em
+radius, offset shadow, press-translate — is carried whole, because §14's law is
+*one signature, each species its own fill*.
+
+**The floor, without growing the frame.** The visible chip is 32px, under
+`UIUX §6`'s 44. That is B7's law, not an exception to it: the handle carries
+the note's own decoupled `--hit` collar, and `setHitInset`'s arithmetic is now
+a shared `hitInset(node, k)` with one caller per draw scale — so the target
+clears 44px physical on touch and B23's 24px on desktop at *any* renderScale
+(pinned at 0.56 in [D21], where the collar is doing the work). A chip large
+enough to meet the floor by itself would not fit the compartment.
+
+**And the collar obeys the same rule the chip does.** The note's collar is
+symmetric; this one is not. The whole `2 × hit` is spent *downward*, onto the
+deep, because upward is the title's own words — a symmetric collar reaches 22px
+into the card, under the last line of a title long enough to have grown it, and
+steals the tap that would place the caret there. Ruling the painted chip off
+the words and then letting its hit area sit on them would be the same mistake
+in an invisible layer.
+
+**The type arrives late, so the geometry is re-measured when it does.** The
+faces are `font-display: swap` (B50) and boot measures the fallback. Before
+this ruling the drift was a rule a pixel out of place; now it is a control
+visibly off the corner it is pinned to, so `document.fonts.ready` re-runs
+`applyLayout` once. `--rule-y` gets the same correction for free.
+
+**Through `delayAction`, like every control (B18).** The menu lands directly
+under the finger; without the window the second half of an impatient double-tap
+would land on a menu item. The `.tapped` fill is the acknowledgment, draining
+to `--frame` on near-black exactly as `.primary-btn` does.
+
+**Two paths in, one opener.** The recognizer owns pointers, so `classifyTarget`
+gains a `title-menu` branch ahead of the anchor check — without it the sibling
+falls through to `canvas` and the collar, which reaches past the card, drops a
+note (B30's lesson about presses that land on furniture-adjacent paper). The
+keyboard is the one path the recognizer cannot see, so `keydown` on Enter/Space
+calls the same opener and `preventDefault`s the click the key would otherwise
+synthesize: one opener, never two, and auto-repeat is dropped so a held key
+cannot walk into the item `buildMenu` has just focused.
+
+**A focused control owns its keys.** The handle also `stopPropagation`s
+Delete/Backspace. It is the first focusable thing inside `#board` that is
+neither an editor nor the selection, so B26's desktop grammar — Enter edits the
+selection, Delete destroys it — would otherwise fire *through* a focused button
+at an object the user is not looking at. The costs are not symmetric: swallowing
+these keys here costs nothing, and not swallowing them can destroy a note.
+Escape still passes through, because deselecting from anywhere is that grammar
+working as intended.
+
+`aria-haspopup="menu"` and a toggled `aria-expanded` say what the handle does;
+focus returns to it on close via the existing `menuInvoker` — except into the
+list, which is an overlay over the board, so `goToList` blurs the handle rather
+than stranding a keyboard user on a control the list is covering.
+
+**Impermanent in one respect, named here so it is not rediscovered:** the
+handle is a *second door to one room*. The day the anchor menu grows a third
+item, or a second control wants the same corner, this becomes a question about
+what the compartment is for — not a question about this chip.
