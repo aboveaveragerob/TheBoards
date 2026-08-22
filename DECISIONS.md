@@ -1888,3 +1888,79 @@ large-but-lying: the board is a *spatial* record, and a shear is a lie about
 space. Pinned by `test/mobile.js` [12c] (shape held, size uniform, storage
 untouched, round trip exact) and `test/desktop.js` [D13] (the silent grab
 folds k); `UIUX §11` now states the law and `PRD §2.5`'s deferral row closes.
+
+---
+
+## T. The list opens onto the boards (issue #95)
+
+### B66. The board list carries no page heading (supersedes B43's `#list-title` clause; B43's "All boards" rename stands)
+
+Issue #95: the word `Boards` sat alone at the top of the list, one line above
+three category heads that already read `TO-DO BOARDS`, `IDEA BOARDS`,
+`NOTE BOARDS`. B43 kept it on the reading that it is not a menu — it names the
+page you are standing on — and that reading was sound while the page below it
+was B24's one flat, undivided list. B44 and B63 changed what is below it. The
+screen now opens onto three labelled sections, so the heading is a fourth title
+over three titles: **every pixel earns its place**, and that one does not. It
+also answers a question nobody has by the time they can read it — the only way
+onto this screen is choosing **All boards** — and restating the reader's own
+last act is the same cognitive tax B63 named, charged at the top of the page.
+
+**What goes, exactly.** `<header id="list-header">` and its only child
+`<h1 id="list-title">Boards</h1>`, with their two rules in `styles.css §10`.
+`#list-rows` is `#list-view`'s only child now and takes the whole height, and
+the `app.js` and `UIUX §7` statements of the old rule go with them — a record
+that keeps asserting a superseded clause is worse than no record. **B43's other
+clause is untouched:** every menu still says `All boards` through the one
+`COPY.boards` key. With the heading gone, that key is now the only place the
+word is written at all — which is precisely what B43's exception was carved out
+of.
+
+**The page keeps its name where a name is still owed.** `#list-view` already
+carries `aria-label="Boards"`, and nothing ever pointed an `aria-labelledby` at
+the `h1`, so the region announces itself to a screen reader exactly as it did
+before; each section's `role="group"` label (B44, with B63's page state) is
+untouched. Removing a visible heading is not removing an accessible name.
+
+**What it does cost, stated rather than left to be discovered:** the `h1` was
+the app's only heading element, so a rotor's Headings list on this screen is now
+empty. The structure is still announced — the region by its label, each section
+by its group label — but it is no longer *jumpable* by heading. The fix would be
+a real heading on each section, and B63 ruled the opposite for a reason that has
+not changed: `.cat-head` is `aria-hidden` precisely so AT does not hear every
+section twice, once from the group label and once from its own text. Re-opening
+that inside an issue that asked for a deletion would be the wrong place; it is
+recorded here so it is a known cost and not a silent one.
+
+**The gutter closes at the top.** The header's 16px top padding was the only
+thing between the first section's head row — a label and a 44px control — and
+the top of the screen. `#list-rows` therefore goes from `0 12px 12px` to a
+symmetric `12px`: the view's own gutter, one value on four sides, not a
+reinstated header. The header spent 53px; 41px of it is returned, ~14px to each
+section's cards row, where B63 left the slack. **The per-page budget does not
+move:** a third card costs 64px, so `catPageCap()` still yields two on B32's
+384×846 floor, and `test/mobile.js` [19]'s and [20]'s no-overflow / no-scroll
+pairs — the assertions B44 rests its whole drag on — still bind.
+
+**The 12px is a constant, and `env(safe-area-inset-top)` was considered and
+declined.** Three reasons, in order of weight. The app declares
+`apple-mobile-web-app-status-bar-style: default`, not `black-translucent`, so
+iOS standalone starts the web view *below* the status bar and the top inset is
+zero — `viewport-fit=cover` buys the landscape notch and the home indicator,
+not a top overlay; Android standalone paints its own bar over `theme-color` the
+same way. The app uses no `env()` anywhere, and one lone use is an idiom half
+the codebase does not speak. And it would actively hurt where it claimed to
+help: `catPageCap()` measures `clientHeight`, which *includes* padding, so an
+inset would grow the measured budget by exactly the height it took away from the
+flex line — an optimistic cap on the shortest screens, which is the overflow
+B42 forbids. If the platform edge ever does need honouring, it is one ruling
+for the whole app — the board's own 14px band label sits in the same zone —
+and not a patch on this one rule.
+
+**The dismiss target moves to furniture that is genuinely inert.**
+`test/mobile.js` [19] tapped `#list-title` to dismiss an open board menu.
+B30's `swallowTap` makes a dismissing press inert only where it lands on
+`#board` — B44's "Not ruled here", still not ruled here — so the replacement
+could not be a board card, and `.cat-add` and the pager are controls. It is a
+`.cat-head`: aria-hidden furniture carrying no listener of its own, picked at
+run time from whichever head the open menu is not covering.

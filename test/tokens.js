@@ -347,8 +347,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v15 — B36 is the definition of shipped',
-    /const CACHE = 'todo-boards-v15';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v17 — B36 is the definition of shipped',
+    /const CACHE = 'todo-boards-v17';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));

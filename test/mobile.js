@@ -1165,13 +1165,29 @@ const activeIsNoteText = page => page.evaluate(() =>
       [...document.querySelectorAll('#menu button')].map(b => b.textContent));
     ok('and it is still Export then Delete', items.length === 2 &&
        /Export/.test(items[0]) && /Delete/.test(items[1]), JSON.stringify(items));
-    // Dismiss on the page heading: B30's inert-dismiss covers presses that
-    // land on #board, so a dismiss onto another card would open that board.
-    const title = await page.evaluate(() => {
-      const r = document.querySelector('#list-title').getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    // Dismiss on a category head: B30's inert-dismiss only covers presses that
+    // land on #board, so a dismiss onto a board card would open that board,
+    // and .cat-add / the pager buttons are controls. A .cat-head is aria-hidden
+    // furniture with no listener of its own — the press dismisses and does
+    // nothing else. (It replaces #list-title, deleted with the heading by B66.)
+    // The menu is drawn at the press point, so take a head the menu is not
+    // covering and that really is the topmost thing at that point.
+    const dismiss = await page.evaluate(() => {
+      const m = document.querySelector('#menu').getBoundingClientRect();
+      const heads = [...document.querySelectorAll('.cat-head')].map((h) => {
+        const r = h.getBoundingClientRect();
+        const p = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        const hit = document.elementFromPoint(p.x, p.y);
+        p.clear = !(p.x >= m.left && p.x <= m.right && p.y >= m.top && p.y <= m.bottom) &&
+                  (hit === h || h.contains(hit));
+        return p;
+      });
+      // null, never a point we have not cleared: tapping a point the menu is
+      // over would hit Delete and destroy the board the rest of [19] asserts on.
+      return heads.find(p => p.clear) || null;
     });
-    await tap(page, title.x, title.y);
+    ok('an inert category head is clear of the open menu', !!dismiss);
+    if (dismiss) await tap(page, dismiss.x, dismiss.y);
     await page.waitForTimeout(600);                      // let any window drain
     ok('dismissing the menu opened nothing',
        await page.evaluate(() => document.querySelector('#list-view').hidden === false));

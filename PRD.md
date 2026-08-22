@@ -493,7 +493,8 @@ Ordering is navigation first, then the item's own actions in rising severity
 hairline** — and, per `UIUX §1`, never distinguished by colour alone. The
 menu's geometry and the exhaustive list of its variants are `UIUX §7`.
 
-Every menu says "All boards" (the list view's own heading stays "Boards").
+Every menu says "All boards" — and since B66 removed the list view's page
+heading, that is the only place the word is written.
 
 No long-press timer is armed over bare canvas or lot background — the release
 still captures — and the `pointerdown` that dismisses an open menu is inert and

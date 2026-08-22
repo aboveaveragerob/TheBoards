@@ -724,7 +724,10 @@ Ordering is **navigation first, then the item's own actions in rising severity**
 behind a hairline** — and never distinguished by colour alone (§1): position and
 the divider carry the meaning independently.
 
-Every menu says "All boards"; the list view's own heading stays "Boards".
+Every menu says "All boards", and that is now the only place the word is
+written: the list view carries no visible page heading (B66 supersedes B43's
+heading clause) — its three category heads say where you are, and the screen's
+accessible name lives on `#list-view`'s `aria-label`.
 
 No long-press timer is armed over bare canvas or lot background — the release
 still captures — and the `pointerdown` that dismisses an open menu is inert and
@@ -779,9 +782,12 @@ A save-failure toast must never clobber a pending Undo (B13).
 
 ## §10 The board list and the rail
 
-**Mobile:** a full-screen list on `--chrome`, newest first. Routing uses the
-History API specifically so the OS back gesture returns you to the board (B9).
-Back is never intercepted, shadowed or disabled.
+**Mobile:** a full-screen list on `--chrome`, newest first, opening straight
+onto the categories — **there is no page heading** (B66): the screen is reached
+by choosing "All boards", and a title repeating the choice you just made is a
+pixel that does not earn its place. Routing uses the History API specifically
+so the OS back gesture returns you to the board (B9). Back is never
+intercepted, shadowed or disabled.
 
 **Desktop:** an always-visible 300px rail (B24) — **sunken, not floating** (§2.4),
 sitting outside `#board` so the recognizer never sees its events. Cards are
