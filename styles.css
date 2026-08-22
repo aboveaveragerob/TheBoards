@@ -70,6 +70,74 @@
 .on-dark  { --ink: var(--ink-light); --ink-a: 244 245 241; }
 .on-light { --ink: var(--ink-dark);  --ink-a: 3 16 25; }
 
+/* --- §2.2.2 The ladder rotates with the board type (issue #96, B67) -------
+   A board type is a whole scene, not a rung on one. The ladder's single axis
+   stays luminance (UIUX §2.2.1 rule 1): every rung below reproduces the To-Do
+   rung's WCAG relative luminance to the 4dp the record prints, so every ratio
+   UIUX §2.2/§2.3/§2.5/§2.7 publishes holds unchanged on all three. Only the
+   family's hue moves — the blue's 205°..261° to a hunter green at 139°..171°
+   and a violet at 295°..310°.
+
+   OKLCH lightness and chroma are the AIMING coordinates, held as closely as
+   8-bit sRGB allows rather than pinned: luminance is what every ratio is
+   computed from, and the two cannot both be exact across a hue change.
+   UIUX §2.2.2 prints the residuals and the one place the gamut binds.
+
+   Bound by REBINDING the token names, never by overriding a background: the
+   four layers that draw a board (the flat fill, the dither over it, the
+   band's vignette over its three-stop fall, the Parking Lot mirroring it)
+   all read var(), so they carry the new hue for free — which is what "same
+   stylization and graphic effects" means (issue #96).
+
+   --chrome does not rotate. The room behind the page is one room (B55), so
+   a green board's OS chrome and board list are still the blue. Nor do the
+   ink poles or the accents: ink is per surface, not per app (UIUX §2.3), and
+   the accents live on chrome (UIUX §2.6).
+
+   To-Do needs no block: it IS :root, which is also what a board shows before
+   app.js has spoken. A record with no category is the third bucket
+   everywhere — catOf()'s read-site default, B21's idiom — so it files under
+   Note Boards in the list AND renders violet. The two agree, which is the
+   whole point of the card preview further down. */
+#board[data-cat="idea"] {
+  --deep:        #000a06;
+  --card:        #001a0e;
+  --water-top:   #486b49;
+  --water-mid:   #345439;
+  --water-bot:   #1f3825;
+  --water-bot-a: 31 56 37;
+  --frame:       #52997f;
+  --note:        #b9d2b2;
+}
+/* Storage key 'unsorted', label "Note Boards" — B63 renamed the label only. */
+#board[data-cat="unsorted"] {
+  --deep:        #0c0512;
+  --card:        #1e0f28;
+  --water-top:   #6d5b83;
+  --water-mid:   #534769;
+  --water-bot:   #382e47;
+  --water-bot-a: 56 46 71;
+  --frame:       #9d80b9;
+  --note:        #cec6ed;
+}
+/* A list/rail card is a small rendering of what it names (UIUX §10), so it
+   previews its board's hue. A card draws exactly two rungs — the water's
+   upper fall, see .board-row / .pane-card in §10 — so only those two are
+   rebound here; rebinding the other five would be five declarations nothing
+   in a section reads. .card-drag-ghost is fixed to the viewport off
+   document.body, outside its section's scope, so app.js stamps the attribute
+   onto the ghost itself and it keeps its hue in the air. */
+.board-cat[data-cat="idea"],
+.card-drag-ghost[data-cat="idea"] {
+  --water-top:   #486b49;
+  --water-mid:   #345439;
+}
+.board-cat[data-cat="unsorted"],
+.card-drag-ghost[data-cat="unsorted"] {
+  --water-top:   #6d5b83;
+  --water-mid:   #534769;
+}
+
 /* --- Global -------------------------------------------------------------- */
 * { box-sizing: border-box; }
 

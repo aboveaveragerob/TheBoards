@@ -14,6 +14,12 @@
  * pole-flipped on the lot by B58), and the sw-update.js marker pair
  * (UIUX §16.3).
  *
+ * Since B67 (issue #96) the ladder has THREE bindings — one per board type,
+ * the same rungs at three hues (UIUX §2.2.2). Every §2 table below is asserted
+ * against all three with one expected number, because B67 moved no luminance;
+ * only §4.3's alpha composites are stated per ladder. The palette is therefore
+ * parsed per scope rather than flat: see propsIn() below.
+ *
  * Run: node test/tokens.js
  */
 'use strict';
@@ -53,9 +59,28 @@ const mix = (fg, bg, a) => {
 const r2 = x => Math.round(x * 100) / 100;
 const r4 = x => Math.round(x * 10000) / 10000;
 
-/* ---- The declared palette, parsed from styles.css ------------------------ */
-const declared = {};
-for (const m of css.matchAll(/(--[\w-]+)\s*:\s*(#[0-9a-fA-F]{6})\s*[;}]/g)) declared[m[1]] = m[2];
+/* ---- The declared palette, parsed from styles.css ------------------------
+ * Parsed PER SCOPE since B67: the ladder has three bindings, and a flat
+ * last-wins scan would read whichever came last in the file as if it were
+ * :root's. Comments are stripped first so a brace inside one cannot end a
+ * block early; `[^{}]*` then matches innermost rules only, which is what a
+ * custom-property block is. */
+const cssBody = css.replace(/\/\*[\s\S]*?\*\//g, '');
+const cssBlocks = [];
+for (const m of cssBody.matchAll(/([^{}]+)\{([^{}]*)\}/g))
+  cssBlocks.push([m[1].trim().replace(/\s+/g, ' '), m[2]]);
+// Every 6-digit custom property declared in blocks whose selector list mentions
+// `needle`. Only 6-digit hexes count — a 3-digit shorthand or a var() alias is
+// invisible here, and would be a way to smuggle a value past this witness.
+const propsIn = needle => {
+  const out = {};
+  for (const [sel, body] of cssBlocks) {
+    if (!sel.includes(needle)) continue;
+    for (const d of body.matchAll(/(--[\w-]+)\s*:\s*(#[0-9a-fA-F]{6})\s*[;}]/g)) out[d[1]] = d[2];
+  }
+  return out;
+};
+const declared = propsIn(':root');
 const allHexes = new Set([...css.matchAll(/#[0-9a-fA-F]{6}\b/g)].map(m => m[0].toLowerCase()));
 
 /* The ladder (UIUX §2.2 under B58) and its satellites. tokens.js restates the
@@ -67,6 +92,28 @@ const T = {
   inkLight: '#f4f5f1', inkDark: '#031019',
   accentRestore: '#b6dee2', accentPage: '#6d9cb0', danger: '#E2A08C',
 };
+/* B67 (issue #96): the same ladder at two more hues, one per board type. Each
+   rung reproduces the To-Do rung's WCAG relative luminance to the 4dp UIUX §2.2
+   prints — the ladder's one axis is literally unmoved — so every ratio in
+   §2.2/§2.3/§2.5/§2.7 below is asserted against ALL THREE with the same
+   expected number. (OKLCH lightness and chroma were the aiming coordinates,
+   not the pinned ones; they cannot both be exact across a hue change, and
+   UIUX §2.2.2 prints the residuals. Luminance is what this file measures,
+   because luminance is what the ratios are made of.) Only §4.3's alpha
+   composites move (≤0.04, from 8-bit quantisation of the mix), and those are
+   stated per ladder in [8]. `sel` is the scope styles.css binds them under;
+   To-Do has no block because To-Do IS :root. */
+const LADDER = {
+  'To-Do': { sel: ':root', deep: T.deep, card: T.card, frame: T.frame, note: T.note,
+             waterTop: T.waterTop, waterMid: T.waterMid, waterBot: T.waterBot },
+  'Idea':  { sel: '#board[data-cat="idea"]',
+             deep: '#000a06', card: '#001a0e', frame: '#52997f', note: '#b9d2b2',
+             waterTop: '#486b49', waterMid: '#345439', waterBot: '#1f3825' },
+  'Note':  { sel: '#board[data-cat="unsorted"]',
+             deep: '#0c0512', card: '#1e0f28', frame: '#9d80b9', note: '#cec6ed',
+             waterTop: '#6d5b83', waterMid: '#534769', waterBot: '#382e47' },
+};
+const LADDER_NAMES = Object.keys(LADDER);
 // The retired sand family (B58/B59): present anywhere = the swap regressed.
 const SAND = ['#e3d2b5', '#eaddc7', '#dbc7a3', '#d7b7ad', '#bec3bb', '#d4bfa0'];
 
@@ -104,17 +151,88 @@ console.log('\n[1] The surface ladder — tokens declared, luminances reproduce 
   }
 }
 
+console.log('\n[1b] The ladder rotates with the board type — three bindings, one axis (UIUX §2.2.2, B67)');
+{
+  // The rung -> token-name map, and the luminance each rung must hold on EVERY
+  // ladder. This is the whole claim of B67: hue moves, the axis does not.
+  const RUNG = { deep: '--deep', card: '--card', frame: '--frame', note: '--note',
+                 waterTop: '--water-top', waterMid: '--water-mid', waterBot: '--water-bot' };
+  const WANT_L = { deep: 0.0023, card: 0.0077, frame: 0.2611, note: 0.5962,
+                   waterTop: 0.1237, waterMid: 0.0737, waterBot: 0.0325 };
+  for (const name of LADDER_NAMES) {
+    const lad = LADDER[name];
+    const decl = propsIn(lad.sel);
+    for (const [rung, token] of Object.entries(RUNG)) {
+      ok(`${name}: ${token} is ${lad[rung]}`,
+        (decl[token] || '').toLowerCase() === lad[rung].toLowerCase(), `declared ${decl[token]}`);
+      ok(`${name}: ${token} luminance is the ladder's own ${WANT_L[rung]}`,
+        r4(lum(lad[rung])) === WANT_L[rung], String(r4(lum(lad[rung]))));
+    }
+  }
+  // The vignette reads the darkest stop as channels; the two spellings of one
+  // colour must agree, on every ladder (styles.css --water-bot / --water-bot-a).
+  for (const name of LADDER_NAMES) {
+    const lad = LADDER[name];
+    const want = rgbOf(lad.waterBot).join(' ');
+    const body = cssBlocks.filter(([sel]) => sel.includes(lad.sel)).map(([, b]) => b).join('');
+    ok(`${name}: --water-bot-a is ${want} — the darkest stop's own channels`,
+      new RegExp('--water-bot-a:\\s*' + want.replace(/ /g, '\\s+') + '\\s*;').test(body), body.match(/--water-bot-a:[^;]*/));
+  }
+  // The rotation is real: no two ladders may share a rung's value, or a board
+  // type would be a relabel rather than a scene.
+  for (const rung of Object.keys(RUNG)) {
+    const vals = LADDER_NAMES.map(n => LADDER[n][rung].toLowerCase());
+    ok(`the three ladders differ at ${RUNG[rung]}`, new Set(vals).size === 3, vals.join(' '));
+  }
+  // --chrome does not rotate: the room behind the page is one room (B55).
+  for (const name of LADDER_NAMES.filter(n => n !== 'To-Do')) {
+    ok(`${name}: --chrome is not rebound — one room behind all three (B55)`,
+      !('--chrome' in propsIn(LADDER[name].sel)));
+  }
+  // The binding is a rebinding, not a bypass: the four layers still read var().
+  ok('the list/rail cards rotate with their section (UIUX §10)',
+    /\.board-cat\[data-cat="idea"\]/.test(css) && /\.board-cat\[data-cat="unsorted"\]/.test(css));
+  ok('app.js sets the scope from the record and carries no colour of its own (B67)',
+    /el\.board\.dataset\.cat = catOf\(current\)/.test(app));
+  // The drag ghost is fixed off document.body, outside its section's scope, so
+  // it has to carry the attribute itself or a green card turns blue in the air.
+  ok('the card drag ghost carries its own scope (B67)',
+    /ghost\.dataset\.cat = catOf\(b\)/.test(app) &&
+    /\.card-drag-ghost\[data-cat="idea"\]/.test(css) &&
+    /\.card-drag-ghost\[data-cat="unsorted"\]/.test(css));
+  // A section and its ghost draw the water's upper fall and nothing else, so
+  // the two stops they read must agree with the board's — one hue, not two.
+  for (const name of LADDER_NAMES.filter(n => n !== 'To-Do')) {
+    const lad = LADDER[name], cat = lad.sel.match(/"([^"]+)"/)[1];
+    const cardScope = propsIn(`.board-cat[data-cat="${cat}"]`);
+    ok(`${name}: the card's water agrees with the board's`,
+      cardScope['--water-top'] === lad.waterTop && cardScope['--water-mid'] === lad.waterMid,
+      JSON.stringify(cardScope));
+  }
+  // The ink poles and the accents are app-level, not scene-level.
+  for (const name of LADDER_NAMES.filter(n => n !== 'To-Do')) {
+    const decl = propsIn(LADDER[name].sel);
+    for (const dead of ['--ink-light', '--ink-dark', '--accent-restore', '--accent-page', '--danger'])
+      ok(`${name}: ${dead} is not rebound per board type`, !(dead in decl), decl[dead]);
+  }
+}
+
 console.log('\n[2] One ink per surface — every published ratio reproduces (UIUX §2.3, B58)');
 {
+  // One expected number per row, asserted against every ladder (B67): the ink
+  // ratios are a function of luminance alone, and B67 moved no luminance.
   const rows = [
-    ['light ink on the deep', T.deep, T.inkLight, 18.33],
-    ['light ink on the card', T.card, T.inkLight, 16.62],
-    ['light ink on the water, lightest stop', T.waterTop, T.inkLight, 5.52],
-    ['light ink on the water, darkest stop', T.waterBot, T.inkLight, 11.62],
-    ['dark ink on the note', T.note, T.inkDark, 11.84],
+    ['light ink on the deep', 'deep', T.inkLight, 18.33],
+    ['light ink on the card', 'card', T.inkLight, 16.62],
+    ['light ink on the water, lightest stop', 'waterTop', T.inkLight, 5.52],
+    ['light ink on the water, darkest stop', 'waterBot', T.inkLight, 11.62],
+    ['dark ink on the note', 'note', T.inkDark, 11.84],
   ];
-  for (const [name, g, ink, want] of rows) {
-    ok(`${name} = ${want}`, r2(contrast(g, ink)) === want, String(r2(contrast(g, ink))));
+  for (const [name, rung, ink, want] of rows) {
+    for (const lname of LADDER_NAMES) {
+      const g = LADDER[lname][rung];
+      ok(`${name} = ${want} (${lname})`, r2(contrast(g, ink)) === want, String(r2(contrast(g, ink))));
+    }
   }
   const onDark = css.match(/\.on-dark\s*{([^}]*)}/);
   const onLight = css.match(/\.on-light\s*{([^}]*)}/);
@@ -138,41 +256,61 @@ console.log('\n[3] The crossover and the forbidden band (UIUX §2.3.1, §2.3.2)'
 {
   const cross = Math.sqrt((lum(T.inkLight) + 0.05) * (lum(T.inkDark) + 0.05)) - 0.05;
   ok('crossover from the poles is 0.1788', r4(cross) === 0.1788, String(r4(cross)));
-  const grounds = [T.deep, T.chrome, T.card, T.waterTop, T.waterMid, T.waterBot, T.note];
+  // UIUX §2.2.1 rule 4: every new value clears the crossover test before it
+  // exists. B67 authored fourteen, so all three ladders are put through it.
+  const grounds = [T.chrome, ...LADDER_NAMES.flatMap(n =>
+    ['deep', 'card', 'waterTop', 'waterMid', 'waterBot', 'note'].map(r => LADDER[n][r]))];
   for (const g of grounds) {
     const L = lum(g);
     ok(`ground ${g} (L=${r4(L)}) is outside the forbidden band`, L <= 0.163 || L >= 0.196);
   }
-  for (const g of [T.deep, T.chrome, T.card, T.waterTop, T.waterMid, T.waterBot]) {
+  const darkGrounds = [T.chrome, ...LADDER_NAMES.flatMap(n =>
+    ['deep', 'card', 'waterTop', 'waterMid', 'waterBot'].map(r => LADDER[n][r]))];
+  for (const g of darkGrounds) {
     ok(`ground ${g} is below the crossover (takes light ink)`, lum(g) < cross);
   }
-  ok(`ground ${T.note} is above the crossover (takes dark ink)`, lum(T.note) > cross);
+  for (const n of LADDER_NAMES) {
+    ok(`ground ${LADDER[n].note} is above the crossover (takes dark ink)`, lum(LADDER[n].note) > cross);
+  }
 }
 
 console.log('\n[4] Edges, rules and hairlines — every adjacency at the worst extreme (UIUX §2.5, B58)');
 {
+  // Every adjacency on the sheet, on every ladder (B67). An adjacency is a
+  // ratio between two rungs of the SAME scene — a board never mixes ladders.
   const rows = [
-    ['card border on the card', T.frame, T.card, 5.39],
-    ['card border on the deep', T.frame, T.deep, 5.95],
-    ['lot / canvas fill, the water\'s lightest stop', T.waterTop, T.deep, 3.32],
-    ['note / canvas fill', T.note, T.deep, 12.36],
-    ['note / water, lightest stop', T.note, T.waterTop, 3.72],
-    ['note / note edge — dark ink on the note', T.note, T.inkDark, 11.84],
-    ['card / deep fill — deliberately quiet', T.card, T.deep, 1.10],
+    ['card border on the card', 'frame', 'card', 5.39],
+    ['card border on the deep', 'frame', 'deep', 5.95],
+    ['lot / canvas fill, the water\'s lightest stop', 'waterTop', 'deep', 3.32],
+    ['note / canvas fill', 'note', 'deep', 12.36],
+    ['note / water, lightest stop', 'note', 'waterTop', 3.72],
+    ['card / deep fill — deliberately quiet', 'card', 'deep', 1.10],
   ];
   for (const [name, a, b, want] of rows) {
-    ok(`${name} = ${want}`, r2(contrast(a, b)) === want, String(r2(contrast(a, b))));
+    for (const lname of LADDER_NAMES) {
+      const x = LADDER[lname][a], y = LADDER[lname][b];
+      ok(`${name} = ${want} (${lname})`, r2(contrast(x, y)) === want, String(r2(contrast(x, y))));
+    }
+  }
+  for (const lname of LADDER_NAMES) {
+    const n = LADDER[lname].note;
+    ok(`note / note edge — dark ink on the note = 11.84 (${lname})`,
+      r2(contrast(n, T.inkDark)) === 11.84, String(r2(contrast(n, T.inkDark))));
   }
   // B58's structural inversion: the band's water darkens to its bottom stop at
   // the rule, meeting the deep at 1.58 — under the 3:1 fill floor — so the
   // band's rule is LOAD-BEARING now, and must clear 3:1 on both its grounds.
-  ok('the band/canvas seam fails by fill at the dark extreme (1.58): the rule must carry it',
-    r2(contrast(T.waterBot, T.deep)) === 1.58, String(r2(contrast(T.waterBot, T.deep))));
-  ok('the load-bearing rule clears 3:1 on the deep (5.95)',
-    contrast(T.frame, T.deep) >= 3);
-  ok('the load-bearing rule clears 3:1 on the water\'s darkest stop (3.77)',
-    r2(contrast(T.frame, T.waterBot)) === 3.77 && contrast(T.frame, T.waterBot) >= 3,
-    String(r2(contrast(T.frame, T.waterBot))));
+  // B67 rotated the hue and left this seam exactly where B58 put it.
+  for (const lname of LADDER_NAMES) {
+    const { deep, frame, waterBot } = LADDER[lname];
+    ok(`the band/canvas seam fails by fill at the dark extreme (1.58): the rule must carry it (${lname})`,
+      r2(contrast(waterBot, deep)) === 1.58, String(r2(contrast(waterBot, deep))));
+    ok(`the load-bearing rule clears 3:1 on the deep (5.95) (${lname})`,
+      contrast(frame, deep) >= 3);
+    ok(`the load-bearing rule clears 3:1 on the water's darkest stop (3.77) (${lname})`,
+      r2(contrast(frame, waterBot)) === 3.77 && contrast(frame, waterBot) >= 3,
+      String(r2(contrast(frame, waterBot))));
+  }
   // B61: both ends of the sheet close with the same line.
   ok('#lot-rule is drawn in --frame — the same idiom at both ends (B61)',
     /#lot-rule\s*{[^}]*background:\s*var\(--frame\)/s.test(css));
@@ -213,9 +351,8 @@ console.log('\n[5] Accents — values, worst-extreme ratios, and the placement r
   // the only warm hue left in the application is the destructive one.
   ok('the primary control is --accent-page filled (B59)',
     /\.primary-btn\s*{[^}]*background:\s*var\(--accent-page\)/s.test(css));
-  const cssBare = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const accentText = [];
-  for (const m of cssBare.matchAll(/([^{}]+){[^}]*color:\s*var\((--danger|--accent-restore|--accent-page)\)[^}]*}/g)) {
+  for (const m of cssBody.matchAll(/([^{}]+){[^}]*color:\s*var\((--danger|--accent-restore|--accent-page)\)[^}]*}/g)) {
     accentText.push(m[1].trim().replace(/\s+/g, ' '));
   }
   const chromeGrounded = /^(#menu|#toast|\.pane-del|\.sel-btn\.[\w-]+\.tapped|\.primary-btn\.tapped)/;
@@ -231,18 +368,28 @@ console.log('\n[5] Accents — values, worst-extreme ratios, and the placement r
 
 console.log('\n[6] The two-tone focus ring clears 3:1 on every ground by construction (UIUX §2.7)');
 {
+  // The ring is built from the two poles, and B67 rotated neither, so every
+  // row holds on every ladder by the same construction.
   const rows = [
-    ['--deep', T.deep, 18.33, 1.04], ['--chrome', T.chrome, 18.33, 1.04],
-    ['--card', T.card, 16.62, 1.06],
-    ['the water, lightest stop', T.waterTop, 5.52, 3.18],
-    ['the water, darkest stop', T.waterBot, 11.62, 1.51],
-    ['--note', T.note, 1.48, 11.84],
+    ['--deep', 'deep', 18.33, 1.04],
+    ['--card', 'card', 16.62, 1.06],
+    ['the water, lightest stop', 'waterTop', 5.52, 3.18],
+    ['the water, darkest stop', 'waterBot', 11.62, 1.51],
+    ['--note', 'note', 1.48, 11.84],
   ];
-  for (const [name, g, wantLight, wantDark] of rows) {
-    const l = r2(contrast(g, T.inkLight)), d = r2(contrast(g, T.inkDark));
-    ok(`${name}: light ${wantLight} / dark ${wantDark}`, l === wantLight && d === wantDark,
-      `${l} / ${d}`);
-    ok(`${name}: the better tone clears 3:1`, Math.max(l, d) >= 3);
+  for (const [name, rung, wantLight, wantDark] of rows) {
+    for (const lname of LADDER_NAMES) {
+      const g = LADDER[lname][rung];
+      const l = r2(contrast(g, T.inkLight)), d = r2(contrast(g, T.inkDark));
+      ok(`${name}: light ${wantLight} / dark ${wantDark} (${lname})`,
+        l === wantLight && d === wantDark, `${l} / ${d}`);
+      ok(`${name}: the better tone clears 3:1 (${lname})`, Math.max(l, d) >= 3);
+    }
+  }
+  {
+    const l = r2(contrast(T.chrome, T.inkLight)), d = r2(contrast(T.chrome, T.inkDark));
+    ok('--chrome: light 18.33 / dark 1.04', l === 18.33 && d === 1.04, `${l} / ${d}`);
+    ok('--chrome: the better tone clears 3:1', Math.max(l, d) >= 3);
   }
   ok('the ring is the two-tone construction, not a hue',
     /outline:\s*2px\s+solid\s+var\(--ink-light\)/.test(css) &&
@@ -286,22 +433,44 @@ console.log('\n[8] The scratch pair moves together: 0.62 over 0.12, both poles (
     !/opacity:\s*0\.97/.test(css) && !/color:\s*rgb\(var\(--ink-a\)\s*\/\s*0\.4\)/.test(css));
   // The note keeps its dark-ink strike; the lot's flips to light ink on the
   // water (B58) — B53's law is pole-independent, and the numbers prove it.
-  const noteMark = contrast(mix(T.inkDark, T.note, 0.62), T.note);
-  ok('the strike on the note = 4.53, above the 3:1 mark floor',
-    r2(noteMark) === 4.53 && noteMark >= 3, String(r2(noteMark)));
-  const lotMarks = [
-    ['lightest stop', T.waterTop, 3.19], ['mid stop', T.waterMid, 4.08], ['darkest stop', T.waterBot, 5.47],
-  ];
-  for (const [name, g, want] of lotMarks) {
-    const c = contrast(mix(T.inkLight, g, 0.62), g);
-    ok(`the lot strike on the water's ${name} = ${want}, above the 3:1 mark floor`,
-      r2(c) === want && c >= 3, String(r2(c)));
+  //
+  // This is the ONE table B67 moves. A strike is an alpha composite, so its
+  // ratio is a function of the ground's channels and not of its luminance
+  // alone: rotating the hue re-quantises the mix and the number shifts in the
+  // second decimal. The values are stated per ladder rather than averaged,
+  // and the law — every mark above the 3:1 floor, every burial a smudge — is
+  // asserted separately so it cannot be satisfied by editing a constant.
+  const MARKS = {
+    'To-Do': { note: 4.53, top: 3.19, mid: 4.08, bot: 5.47, buriedNote: 1.28, buriedTop: 1.29 },
+    'Idea':  { note: 4.51, top: 3.22, mid: 4.11, bot: 5.49, buriedNote: 1.27, buriedTop: 1.30 },
+    'Note':  { note: 4.54, top: 3.20, mid: 4.12, bot: 5.50, buriedNote: 1.27, buriedTop: 1.28 },
+  };
+  for (const lname of LADDER_NAMES) {
+    const lad = LADDER[lname], want = MARKS[lname];
+    const noteMark = contrast(mix(T.inkDark, lad.note, 0.62), lad.note);
+    ok(`${lname}: the strike on the note = ${want.note}, above the 3:1 mark floor`,
+      r2(noteMark) === want.note && noteMark >= 3, String(r2(noteMark)));
+    const lotMarks = [
+      ['lightest stop', lad.waterTop, want.top], ['mid stop', lad.waterMid, want.mid],
+      ['darkest stop', lad.waterBot, want.bot],
+    ];
+    for (const [name, g, w] of lotMarks) {
+      const c = contrast(mix(T.inkLight, g, 0.62), g);
+      ok(`${lname}: the lot strike on the water's ${name} = ${w}, above the 3:1 mark floor`,
+        r2(c) === w && c >= 3, String(r2(c)));
+    }
+    const buriedNote = contrast(mix(T.inkDark, lad.note, 0.12), lad.note);
+    const buriedLot = contrast(mix(T.inkLight, lad.waterTop, 0.12), lad.waterTop);
+    ok(`${lname}: the buried text is a smudge on the note (${want.buriedNote})`,
+      r2(buriedNote) === want.buriedNote, String(r2(buriedNote)));
+    ok(`${lname}: the buried text is a smudge on the water (${want.buriedTop} at the worst extreme)`,
+      r2(buriedLot) === want.buriedTop, String(r2(buriedLot)));
+    // The law, independent of the constants above.
+    ok(`${lname}: every mark clears the 3:1 floor and every burial stays a smudge`,
+      [lad.waterTop, lad.waterMid, lad.waterBot].every(g => contrast(mix(T.inkLight, g, 0.62), g) >= 3) &&
+      contrast(mix(T.inkDark, lad.note, 0.62), lad.note) >= 3 &&
+      buriedNote < 1.4 && buriedLot < 1.4);
   }
-  const buriedNote = contrast(mix(T.inkDark, T.note, 0.12), T.note);
-  const buriedLot = contrast(mix(T.inkLight, T.waterTop, 0.12), T.waterTop);
-  ok('the buried text is a smudge on the note (1.28)', r2(buriedNote) === 1.28, String(r2(buriedNote)));
-  ok('the buried text is a smudge on the water (1.29 at the worst extreme)',
-    r2(buriedLot) === 1.29, String(r2(buriedLot)));
   ok('the export mixes its scratch at 0.62', /0\.62/.test(app) && !/\*\s*0\.97/.test(app));
 }
 
@@ -358,8 +527,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v17 — B36 is the definition of shipped',
-    /const CACHE = 'todo-boards-v17';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v18 — B36 is the definition of shipped',
+    /const CACHE = 'todo-boards-v18';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));
