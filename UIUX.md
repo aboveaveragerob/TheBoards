@@ -273,7 +273,10 @@ therefore carries the hue into all four at once, which is what issue #96's
 "same stylization and graphic effects" asks for; pointing a background at a new
 `--board-bg` token would have recoloured the fill and left the furniture blue.
 The list and rail cards rotate with the section they sit in, since a card is a
-small rendering of what it names (§10).
+small rendering of what it names (§10); since B72 the section's own tray rotates
+too, drawing its `--card` rung as its ground and its `--frame` rung as an inset
+frame, so these two rungs now have a render site in the list and rail and not
+only on the board (§10).
 
 **A board with no category reads as a Note board**, violet — because `catOf()`
 is a read-site default and a record without a category *is* the third bucket
@@ -990,15 +993,17 @@ section, which is the cost B69 accepted.
 Both surfaces sort into **To-Do / Idea / Note** (B63 renamed the third at the
 label only — its storage key remains `unsorted`), and a pointer-drag moves a
 card between sections with the target section framing itself in
-`--accent-page`. **A card wears its own section's water** (B67): the cards are
-the water's upper fall, and since B67 that fall is per board type, so a card
-previews the board it opens rather than describing a board that no longer looks
-like it. The section's ground stays `--chrome` — the list is the room, not a
-board (§2.2.2) — so the three sections read as three tones of card on one
-surface, which is also what makes a drag between them legible. The drag ghost
-carries the scope too, so a card does not change hue in the air. Overflow
-**pages** rather than scrolling, and a single page hides its own pager: no
-state, no statement (B42).
+`--accent-page` (over its resting frame, below). **A card wears its own
+section's water** (B67): the cards are the water's upper fall, and since B67
+that fall is per board type, so a card previews the board it opens rather than
+describing a board that no longer looks like it. Since B72 the section itself is
+a framed, tinted tray in the same family (its `--card` ground, its `--frame`
+frame — see below), so each category reads as its own enclosed place; the drag
+ghost carries the scope too, so a card does not change hue in the air. `--chrome`
+remains the one room behind all three trays — it does not rotate (B55) — showing
+through the list's padding and the gaps between sections. Overflow **pages**
+rather than scrolling, and a single page hides its own pager: no state, no
+statement (B42).
 
 **Each section lays out as one grid, on both surfaces** (B63): a head row —
 the category's display label left, and the section's **own `New board`
@@ -1018,8 +1023,22 @@ and **opens the new board at once**.
 `§6`'s touch floor and stops there: a card is a tap target, and what makes it
 read as a discrete object with its own edge is the hairline and the water
 fill, never the height. **4px** separates card from card inside a section;
-**8px** separates section from section — one number could not say both, and
-the second is what keeps three categories reading as three.
+**8px** separates section from section.
+
+**Each section is a framed, tinted tray in its own family** (B72, issue #107).
+The 8px gap alone left the three categories reading as one run of buttons, so a
+section now draws its own scene, not only its cards': its **`--card`** rung as
+the tray ground and its **`--frame`** rung as a **2px inset frame**, both
+rotated with the board type (§2.2.2). The card fill still sits **3.01:1** above
+the `--card` tray (§2.5), so a card stays a discrete raised object on it, and
+the frame reads **5.39:1** on the tray, **5.95:1** on the chrome around it
+(§2.5). `--chrome` stays the one room behind — it does not rotate (B55) and
+still shows through the list's padding and the section gaps — so the trays are
+three enclosed places *within* one room. To-Do's tray is the quietest (its
+`--card` is the chrome's own hue, one step up at 1.10:1); the frame is what
+separates it, by design (§2.5 — its border separates, not its fill). The three
+of ground, frame and radius are all layout-free, so the measured card budget
+below is unchanged.
 
 **An empty category collapses to its head row** (B68): its label and its own
 New board control stay — it is still somewhere to create, and still a target
