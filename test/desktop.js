@@ -1112,12 +1112,40 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return { labels: b.map(x => x.textContent), danger: b.map(x => x.classList.contains('danger')),
                seps: document.querySelectorAll('#menu .sep').length };
     });
-    ok('menu is Complete all then Delete all', shape.labels.length === 2 &&
-       /Complete all/.test(shape.labels[0]) && /Delete all/.test(shape.labels[1]),
-       JSON.stringify(shape.labels));
+    ok('menu is Complete all · Highlight all · Delete all', shape.labels.length === 3 &&
+       /Complete all/.test(shape.labels[0]) && /Highlight all/.test(shape.labels[1]) &&
+       /Delete all/.test(shape.labels[2]), JSON.stringify(shape.labels));
     ok('only Delete all is danger, and last',
-       shape.danger[0] === false && shape.danger[1] === true, JSON.stringify(shape.danger));
+       shape.danger.join('|') === 'false|false|true', JSON.stringify(shape.danger));
     ok('one separator', shape.seps === 1, String(shape.seps));
+
+    // Highlight all → both members wash amber; re-opening flips the item to
+    // remove (issue #105, B71). Left clean before the delete flow below.
+    await page.evaluate(() => {
+      [...document.querySelectorAll('#menu button')].find(b => /Highlight all/.test(b.textContent)).click();
+    });
+    await page.waitForTimeout(550);
+    ok('Highlight all washes both selected, not the third', await page.evaluate(() => {
+      const hi = t => [...document.querySelectorAll('.note')]
+        .find(x => x.querySelector('.note-text').textContent === t).classList.contains('highlight');
+      return hi('one') && hi('two') && !hi('three');
+    }));
+    ok('and it persisted on the records', await page.evaluate(() =>
+       current.notes.filter(n => n.highlighted).length === 2));
+    await page.mouse.click(m1.cx, m1.cy, { button: 'right' });
+    await page.waitForTimeout(150);
+    ok('the item flips to Remove highlights', await page.evaluate(() =>
+       [...document.querySelectorAll('#menu button')].some(b => /Remove highlights/.test(b.textContent))));
+    await page.evaluate(() => {
+      [...document.querySelectorAll('#menu button')].find(b => /Remove highlights/.test(b.textContent)).click();
+    });
+    await page.waitForTimeout(550);
+    ok('Remove highlights clears both', await page.evaluate(() =>
+       current.notes.filter(n => n.highlighted).length === 0));
+
+    // Re-open for the delete-all flow below.
+    await page.mouse.click(m1.cx, m1.cy, { button: 'right' });
+    await page.waitForTimeout(150);
 
     // Delete all → one B18 window, both gone, ONE Undo toast.
     const origTexts = await page.evaluate(() => current.notes.map(n => n.text));

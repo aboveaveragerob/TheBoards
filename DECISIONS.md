@@ -2489,3 +2489,53 @@ To Do` now ellipsizes where it did not. That is `UIUX §10`'s existing rule —
 truncation is always indicated, never a hard cut — and the trade is deliberate:
 a title you can read half of and reach in one screen beats a title you can read
 all of on page two. The board's own title card is unaffected.
+
+## Y. A note the user can mark (issue #105)
+
+### B71. Highlight is a per-note appearance the user asserts — a new axis, the first the board has (does not supersede; adds `--highlight` alongside the §2.6 accents without touching them, and reconciles with UIUX §2.2's "the note is the brightest surface" and §2.6's "accents live on chrome")
+
+Issue #105 asks for a **Highlight** item on a note's menu that washes the whole
+note box in a contrasting bright colour and, chosen again, toggles back. Nothing
+in the app had ruled on per-note appearance: every note surface is set by board
+*type* (B67), never by the note, and the accents (§2.6, B52) are forbidden the
+board surface — they signal the *app's* verbs on chrome. So this is a genuinely
+new axis, and it needed a ruling before a colour landed on a note.
+
+**Why it is not an accent, and why the chrome rule does not reach it.** An accent
+names something the application does — Delete, Restore, the primary. A highlight
+names something the *user* does to one note: it is emphasis they place, not state
+the app reports. The rule that keeps accents off the board (they would compete
+with the note for the eye) is exactly inverted here — the whole point is to make
+one note louder than its neighbours, on the board, at the user's command. B52's
+placement law is untouched; the highlight is simply a different kind of thing,
+and §2.6.1 records it as its own row rather than a fourth accent.
+
+**The value: `#F2D64B`, a warm amber.** The three note families are all cool
+pastels (B67 — blue/green/violet). The one hue that reads as "marked" against
+every one of them is a warm one, and the app already proved a single warm value
+can live in a cool scene without breaking it (`--danger`, B58). The separation
+is by **hue**, not luminance: the amber keeps the note's brightest-surface rung
+(§2.2 — its luminance 0.675 sits a hair above `--note`'s 0.596), so a highlighted
+note still reads as a note, only lit, and its dark ink holds at 13.27:1 on the
+`.on-light` surface it already binds (§2.3). Unlike the ladder, `--highlight`
+does **not** rotate with board type: an emphasis means the same thing on every
+board, so it is one constant token — asserted app-level in `test/tokens.js`
+beside the accents and the ink poles.
+
+**The mechanism mirrors complete/restore.** A boolean `note.highlighted` rides
+the same structured-clone write as every other note field (no DB version bump,
+no migration — legacy notes read falsy, B21's read-site idiom); `makeNoteEl`
+toggles a `.highlight` class on the `.note` wrapper; `.note.highlight .note-text`
+swaps only the fill, leaving border and ink untouched. It honours §6.2's "no
+empty frames" law — an empty highlighted note stays transparent until its first
+character. Every existing primitive is reused: `delayAction` gates the menu item
+(B18), the desktop path drives the same all-qualify flip as Complete on a
+multi-selection (B43's grammar, issue #55), and the PDF export — faithful to
+what is on screen (B34) — fills the highlighted note with a paper-light amber.
+
+**The label states the act, not the state.** Following B43 / UIUX §7, the item
+reads **Highlight** on a plain note and **Remove highlight** on a lit one (plural
+**Highlight all** / **Remove highlights** for a desktop selection), never a fixed
+noun that would leave the user to guess which way the toggle points. The value
+itself lives in UIUX §2.6.1, as the rendering authority requires; this entry
+records why the axis exists.

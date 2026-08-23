@@ -513,6 +513,30 @@ full stop.
 > ground it lands on and kept its value — re-chosen, not inherited. Recorded
 > as B52, where the superseded hexes live.
 
+### §2.6.1 The highlight wash (B71)
+
+| Token | Value | Role | text on it (`--ink-dark`) | vs. the note families (hue) |
+|---|---|---|---|---|
+| `--highlight` | `#F2D64B` | a note the user has toggled Highlight | 13.27:1 | amber vs. cool blue/green/violet |
+
+A highlight is **not an accent.** Accents live on chrome and signal *the app's*
+verbs (§2.6). A highlight is a fill the *user* asserts on one note — a new axis,
+the first per-note appearance state the board has (every other note surface is
+set by board *type*, not by the note). So the rule that keeps accents off the
+board surface does not reach it: the highlight is *made* to sit on the board, on
+exactly one note at a time, at the user's command.
+
+It is the one **warm** surface a note can wear. The three note families are all
+cool pastels (§2.2.2); `#F2D64B` is a bright amber that reads as "marked" against
+every one of them — the separation is **hue**, not luminance. That is deliberate:
+the note is the brightest surface on the page (§2.2), and the wash keeps that rung
+(luminance 0.675, a hair above `--note`'s 0.596) while turning warm, so a
+highlighted note still reads as a note, only lit. Its dark ink and 2px border are
+unchanged — the note already binds `--ink` to `--ink-dark` on its `.on-light`
+surface (§2.3), which holds on amber at 13.27:1. Unlike the ladder, `--highlight`
+does **not** rotate with board type: an emphasis the user places means the same
+thing on a To-Do, an Idea, and a Note board, so it is one constant value.
+
 ### §2.7 Focus
 
 **The ring is two-tone**, and that is structural rather than stylistic:
@@ -867,15 +891,24 @@ long-press is armed there (B19/issue #4) and `contextmenu` routes notes alone.
 
 | Menu | Items |
 |---|---|
-| Item | All boards · Complete/Restore · Copy · Delete |
+| Item | All boards · Complete/Restore · Highlight/Remove highlight · Copy · Delete |
 | Anchor | Export · All boards |
 | Board row / rail card | Export · Delete |
-| Desktop selection | Complete · Copy · Delete |
+| Desktop selection | Complete/Restore · Highlight/Remove highlight · Delete |
 
 Ordering is **navigation first, then the item's own actions in rising severity**
 (B43, superseding A1). The destructive action is **always last, in `--danger`,
 behind a hairline** — and never distinguished by colour alone (§1): position and
 the divider carry the meaning independently.
+
+**Highlight** (issue #105, B71) is a note-only toggle: it washes the whole note
+in `--highlight` (§2.6.1) and, chosen again, returns it to the board's default
+note surface. Its label states the act it will perform — **Highlight** on a plain
+note, **Remove highlight** on a lit one — the same Complete→Restore grammar it
+sits beside, never a fixed noun. On a desktop multi-selection the flip is on the
+whole set (it removes only when *every* selected note is already lit, exactly as
+the Complete item flips), with the plural **Highlight all** / **Remove
+highlights**. The Parking Lot has no surface to wash, so it is not offered there.
 
 Every menu says "All boards", and that is now the only place the word is
 written: the list view carries no visible page heading (B66 supersedes B43's
