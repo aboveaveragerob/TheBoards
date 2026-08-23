@@ -127,12 +127,22 @@
   --note:        #cec6ed;
 }
 /* A list/rail card is a small rendering of what it names (UIUX §10), so it
-   previews its board's hue. A card draws exactly two rungs — the water's
-   upper fall, see .board-row / .pane-card in §10 — so only those two are
-   rebound here; rebinding the other five would be five declarations nothing
-   in a section reads. .card-drag-ghost is fixed to the viewport off
-   document.body, outside its section's scope, so app.js stamps the attribute
-   onto the ghost itself and it keeps its hue in the air. */
+   previews its board's hue. Since issue #107 (B72) a section is a framed,
+   tinted tray in its own family, so it now reads FOUR rungs of the rotated
+   ladder: the water's upper fall for its cards (see .board-row / .pane-card in
+   §10), plus --card as the tray ground and --frame as the tray's inset frame
+   (see the base .board-cat in §10.5). .card-drag-ghost is fixed to the
+   viewport off document.body, outside its section's scope, so app.js stamps
+   the attribute onto the ghost itself and it keeps its hue in the air — the
+   ghost is a single card with no tray, so it takes only the two water stops. */
+.board-cat[data-cat="idea"] {
+  --frame:       #52997f;
+  --card:        #001a0e;
+}
+.board-cat[data-cat="unsorted"] {
+  --frame:       #9d80b9;
+  --card:        #1e0f28;
+}
 .board-cat[data-cat="idea"],
 .card-drag-ghost[data-cat="idea"] {
   --water-top:   #486b49;
@@ -839,6 +849,18 @@ body {
    and the cards and pager slots go back to the sections that have boards. The
    collapsed height is exactly the head row, because catPageCap() reclaims
    exactly that. ---- */
+/* Each section is a framed, tinted tray in its own family (issue #107 / B72):
+   its --card as the ground and its --frame as an inset 2px frame, so the three
+   categories read as three enclosed places rather than one run of buttons on a
+   shared ground. Both are rotated rungs (§2.2.2), so the tray carries the
+   board type's own hue — --chrome stays the one room behind, showing through
+   the #list-rows padding and the section gaps (B55 unbroken). All three of
+   background, outline and border-radius are layout-free, so catPageCap()'s
+   card budget (which measures only vertical space) is untouched. The frame is
+   inset because the surface clips — an outset outline loses its side edges,
+   exactly why .drop-target is inset below; the tray's horizontal breathing
+   room lives on .cat-cards, never here (padding on .board-cat would move the
+   New board control off the section's right edge). */
 .board-cat {
   flex: 1 1 0;
   min-height: 0;
@@ -848,6 +870,10 @@ body {
   grid-template-areas: "head add" "cards cards" "pager pager";
   align-items: center;
   column-gap: 8px;                     /* the label never touches the control */
+  background: var(--card);             /* the family's tray ground (B72) */
+  outline: 2px solid var(--frame);     /* the family's inset frame (B72) */
+  outline-offset: -2px;
+  border-radius: 6px;
 }
 .board-cat.empty {
   flex: 0 0 auto;
@@ -912,6 +938,10 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));   /* = LIST_CARD_COLS in app.js */
   align-content: start;                /* rows keep their height; the slack stays at the bottom */
   gap: 4px;                            /* = PANE_ROW_GAP in app.js */
+  /* Clears the cards off the tray's inset frame (B72). HORIZONTAL only: a
+     padding-block here would shrink the cards track invisibly to catPageCap()
+     and clip a row. */
+  padding-inline: 6px;
 }
 html.desktop .cat-cards { grid-template-columns: minmax(0, 1fr); }
 /* The pager: muted blue paired with --paper — the sel-btn construction, so it

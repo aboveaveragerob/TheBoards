@@ -2539,3 +2539,56 @@ reads **Highlight** on a plain note and **Remove highlight** on a lit one (plura
 noun that would leave the user to guess which way the toggle points. The value
 itself lives in UIUX §2.6.1, as the rendering authority requires; this entry
 records why the axis exists.
+
+## Z. Barriers between the categories in the list (issue #107)
+
+### B72. Each category section is a framed, tinted tray in its own family (supersedes, in part, B67's / UIUX §10's "the section's ground stays `--chrome` … three tones of card on one surface"; does not touch B55's one-room law)
+
+Issue #107: on the All Boards menu "they all blend together and it's a big mess
+of buttons." The three sections — To-Do / Idea / Note — were told apart only by
+their cards' water hue and an uppercase text head, sitting on one uniform
+`--chrome` ground with an 8px gap between them. B44 gave the gap the whole job of
+separating a section from a section; the issue is the report that the gap alone
+does not do it. So a section needs an edge of its own, and a barrier the eye
+does not have to hunt for is exactly UIUX §1/§6's "every pixel earns its place"
+being spent, not the tax it warns against.
+
+**What draws the barrier — rungs, not new colour.** A section becomes a **tray**:
+its family's `--card` rung as the ground and its family's `--frame` rung as a
+**2px inset frame**, both already rotated per board type (B67, UIUX §2.2.2). No
+value is invented — `--card` and `--frame` existed on every ladder and simply
+had no render site in the list before; now they do. The card fill sits 3.01:1
+above the `--card` tray and the frame reads 5.39:1 on it and 5.95:1 on the
+chrome around it — all three already published in UIUX §2.5, because B67 pinned
+luminance across the hue rotation. To-Do's tray is the quietest (its `--card` is
+the chrome's own hue one step up, 1.10:1); there the **frame** carries the
+separation, which is UIUX §2.5's own doctrine — the card's border separates, its
+fill does not.
+
+**Why this does not break B55's one room.** `--chrome` still does not rotate and
+is not touched. Each tray is drawn *on top of* the one room, which still shows
+through the list's 12px padding and the 8px gaps between sections — three
+enclosed places within one room, not three rooms. What is superseded is narrower
+and only B67-era prose: UIUX §10's "the section's ground stays `--chrome` … three
+tones of card on one surface." The ground is now the family's, the frame is the
+family's, and the room behind them is still the one blue chrome.
+
+**Height-neutral by construction, so B42/B70's measured budget is untouched.**
+`catPageCap()` measures only vertical space — the surface's content height less
+padding, gaps and the fixed furniture rows. The barrier spends `background`, an
+inset `outline` and `border-radius`, none of which change a box's height, and
+the tray's horizontal breathing room lives on `.cat-cards` as `padding-inline`
+(a `padding-block` there would silently shrink the cards track and clip a row).
+Padding is kept off `.board-cat` itself so the New board control stays flush
+with the section's right edge (the anchored-right assertion in
+`test/mobile.js` / `test/desktop.js`). The frame is **inset** for the reason
+`.drop-target` already is: the surface clips (pagination, not scroll), and an
+outset outline would lose its side edges. During a card drag `.drop-target`
+recolours the same outline to `--accent-page`, and the resting family frame
+returns on release. One DOM shape, both surfaces (B44/B63): the base `.board-cat`
+rule carries the tray to the mobile list and the desktop rail alike.
+
+**The record.** The values live in UIUX §2.2.2's ladder table (unchanged) and
+the render is described in UIUX §10; `test/tokens.js` now asserts each rotating
+section carries its family's `--frame` and `--card`, beside the existing check
+that its cards carry the family's water.

@@ -201,14 +201,25 @@ console.log('\n[1b] The ladder rotates with the board type — three bindings, o
     /ghost\.dataset\.cat = catOf\(b\)/.test(app) &&
     /\.card-drag-ghost\[data-cat="idea"\]/.test(css) &&
     /\.card-drag-ghost\[data-cat="unsorted"\]/.test(css));
-  // A section and its ghost draw the water's upper fall and nothing else, so
-  // the two stops they read must agree with the board's — one hue, not two.
+  // A section's cards draw the water's upper fall, so the two stops they read
+  // must agree with the board's — one hue, not two. The drag ghost is a single
+  // card with no tray, so it takes only these two.
   for (const name of LADDER_NAMES.filter(n => n !== 'To-Do')) {
     const lad = LADDER[name], cat = lad.sel.match(/"([^"]+)"/)[1];
     const cardScope = propsIn(`.board-cat[data-cat="${cat}"]`);
     ok(`${name}: the card's water agrees with the board's`,
       cardScope['--water-top'] === lad.waterTop && cardScope['--water-mid'] === lad.waterMid,
       JSON.stringify(cardScope));
+  }
+  // issue #107 (B72): each rotating section is a framed, tinted tray in its own
+  // family, so it also rebinds --frame (its inset frame) and --card (its ground)
+  // to the board's — the barrier is the family's, not the chrome's.
+  for (const name of LADDER_NAMES.filter(n => n !== 'To-Do')) {
+    const lad = LADDER[name], cat = lad.sel.match(/"([^"]+)"/)[1];
+    const scope = propsIn(`.board-cat[data-cat="${cat}"]`);
+    ok(`${name}: the section tray carries its family frame + ground (issue #107)`,
+      scope['--frame'] === lad.frame && scope['--card'] === lad.card,
+      JSON.stringify(scope));
   }
   // The ink poles, the accents, and the highlight wash are app-level, not
   // scene-level (the highlight means one thing on every board type — B71).
@@ -549,8 +560,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v22 — B36 is the definition of shipped',
-    /const CACHE = 'todo-boards-v22';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v23 — B36 is the definition of shipped',
+    /const CACHE = 'todo-boards-v23';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));
