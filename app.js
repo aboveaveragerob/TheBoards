@@ -511,21 +511,26 @@ function bandRuleY() {
   return Math.round(BAND_TOP + lines * BAND_LINE + BAND_GAP + BAND_LABEL + BAND_CLEAR);
 }
 
-/* The Parking Lot's height follows its contents from a two-row floor:
-   34 + clamp(2, n, maxRows) x 44 (UIUX §3.2). Empty, one row and two rows
-   all draw the same two-row shelf — furniture, not a by-product of content.
-   B37's proportional bound survives as the CEILING, re-instantiated under
-   B47's full-bleed geometry (B57): B37 accepted 182 of a 900-unit sheet
-   with the old 16px margin, and three full-bleed rows are 166, so three
-   rows hold from 166 x 900 / 182 = 821 units — the cover screen included,
-   as both ratified proof sheets draw it — and two below. A row past the
-   ceiling still exists, still saves and still exports; it is simply not
-   drawn. */
-const LOT_HEAD = 34, LOT_ROW = 44, LOT_3ROW_MIN_H = 821;
-const lotMaxRows = () => (LOGICAL_H >= LOT_3ROW_MIN_H ? 3 : 2);
+/* The Parking Lot's height follows its MEASURED contents from a two-row
+   floor: 34 + max(2 x 44, sum of the rows' rendered heights) (UIUX §3.2).
+   Each .lot-item is content-sized (min-height 44, grows with wrapped text,
+   never clipped itself — the clip lives on #lot-items), so summing their
+   offsetHeight reads true content that both grows and shrinks; this is the
+   lot's side of the same law the band already follows by scrollHeight
+   (bandRuleY), closing the gap where the lot alone stepped by row COUNT and
+   cut wrapped lines off (issue #106, B73). Empty, one row and two single
+   lines all still draw the same two-row shelf — furniture, not a by-product
+   of content. B37/B47/B57's whole-row budget and its row-count ceiling are
+   superseded; a canvas-protecting CEILING survives as half the sheet, so a
+   runaway lot cannot swallow the page. Content past it is clipped. */
+const LOT_HEAD = 34, LOT_ROW = 44, LOT_FLOOR = 2 * LOT_ROW, LOT_MAX_FRAC = 0.5;
 const lotH = () => {
-  const n = current ? current.parkingLot.length : 0;
-  return LOT_HEAD + LOT_ROW * clamp(n, 2, lotMaxRows());
+  let sum = 0;
+  for (const node of lotEls.values()) sum += node.offsetHeight;
+  return Math.min(
+    LOT_HEAD + Math.max(LOT_FLOOR, Math.round(sum)),
+    Math.round(LOGICAL_H * LOT_MAX_FRAC)
+  );
 };
 
 /* One site sets both sections' geometry, called wherever their content
@@ -1166,7 +1171,9 @@ el.board.addEventListener('input', (e) => {
     if (note) { note.text = t.textContent; setHitInset(t.closest('.note'), note); scheduleSave(); }
   } else if (t.classList.contains('lot-text')) {
     const item = current.parkingLot.find(i => i.id === t.closest('.lot-item').dataset.id);
-    if (item) { item.text = t.textContent; scheduleSave(); }
+    // The lot sizes to its rendered rows, live (issue #106, B73) — the same
+    // capture feedback the band's anchor branch below already gives.
+    if (item) { item.text = t.textContent; updateBoardGeometry(); scheduleSave(); }
   } else if (t.classList.contains('anchor')) {
     current[t.dataset.anchor] = t.textContent;
     t.classList.toggle('filled', !!t.textContent.length);
@@ -2433,9 +2440,10 @@ const EXPORT_GEO = {
   // The compartment starts at the sheet's own top edge (B38, kept by B47) and
   // overhangs the rule by 22; cardPadTop is its top padding (band-top + 6).
   cardL: 280, cardW: 340, cardTop: 0, cardOverhang: 22, cardPad: 12, cardPadTop: 20,
-  // Both sections size to their content from a floor (UIUX §3.1/§3.2); the
-  // 1000-unit export sheet keeps B37's three-row budget as the lot's ceiling.
-  lotHead: 34, lotRow: 44, lotMaxRows: 3, lotHeaderY: 8, lotItemsY: 34,
+  // Both sections size to their MEASURED content from a floor (UIUX
+  // §3.1/§3.2, B73); the lot's ceiling is half the sheet, applied in
+  // exportLotH — one law with the screen, the export's own number (B34).
+  lotHead: 34, lotRow: 44, lotHeaderY: 8, lotItemsY: 34,
   headSize: 15, headLH: 19.5,          // title, anchor text, lot header
   labelSize: 13, labelLH: 16.9,        // the band's nomenclature (13 x 1.3, B54)
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
@@ -2457,7 +2465,15 @@ function exportRuleY(rec) {
 }
 const exportLotH = (rec) => {
   const g = EXPORT_GEO;
-  return g.lotHead + g.lotRow * clamp((rec.parkingLot || []).length, 2, g.lotMaxRows);
+  // Sum the same wrapped row heights the draw loop uses, from the two-row
+  // floor, capped at half the sheet (B73) — the screen's law on the export's
+  // own frame (B34). The draw loop still clips the excess past the cap.
+  let sum = 0;
+  for (const item of rec.parkingLot || []) {
+    const lines = pdfWrap(item.text, false, g.lotSize, EXPORT_W - 2 * g.gutter);
+    sum += Math.max(g.lotRow, lines.length * g.lotLH + 4);
+  }
+  return Math.min(g.lotHead + Math.max(2 * g.lotRow, sum), Math.round(EXPORT_H * 0.5));
 };
 
 // The similarity transform (B64), resolved against the export sheet instead

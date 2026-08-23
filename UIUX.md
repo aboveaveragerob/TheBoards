@@ -689,22 +689,22 @@ gutter. It lives as a section of the page rather than a box bolted onto it.
 **This supersedes B32's "the sheet keeps one left margin"** as it applied to the
 lot.
 
-**Its height follows its contents, from a two-row floor:**
+**Its height follows its *measured* contents, from a two-row floor:**
 
 ```
-lot-h = 34 + clamp(2, n, maxRows) × 44
+lot-h = min( 34 + max(2 × 44, Σ rowHeightᵢ),  ⌈0.5 × logical-h⌉ )
 ```
 
-Empty, one row and two rows all draw the same two-row section — furniture, not a
-by-product of content. The third row grows it *upward*, since the section is
-anchored to the sheet's bottom edge. `maxRows` is B37's proportional bound,
-retained as a **ceiling** so a long lot cannot swallow the canvas and
-re-instantiated under the full-bleed geometry (B57): B37 accepted 182 of a
-900-unit sheet with the old 16px margin, and three full-bleed rows are 166, so
-**three rows hold from 821 units and two below** — the 846-unit cover screen
-draws three, exactly as proof sheets 7 and 9 render it. A row past the ceiling
-still exists, still saves and still exports. **This supersedes B37's fixed
-whole-row budget**, keeping only its cap's arithmetic.
+`rowHeightᵢ` is each row's *rendered* height (`≥ 44`, taller when its text
+wraps). Empty, one row and two single lines all draw the same two-row section —
+furniture, not a by-product of content. Beyond that the lot grows *upward*
+(the section is anchored to the sheet's bottom edge) to fit whatever its rows
+occupy, wrapped lines included — the same law the band already follows by
+measuring its tallest zone, so a multi-line item is never cut off (issue #106).
+A **ceiling of half the sheet** survives so a runaway lot cannot swallow the
+canvas; content past it is clipped (`#lot-items { overflow: hidden }`). **This
+supersedes B37's whole-row budget and B47/B57's row-count ceiling** (B73),
+which sized the lot by item *count* at a fixed 44px each and cut wrapped lines.
 
 ---
 

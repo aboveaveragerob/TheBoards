@@ -660,6 +660,70 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
+  // ---- 11e. The lot grows to its MEASURED content, unclipped (issue #106, B73)
+  // The old height was item COUNT x 44, so a row that wrapped to several lines
+  // was allotted 44 and #lot-items clipped the rest. lotH() now sums the rows'
+  // rendered heights from the two-row floor, so a wrapping item grows the lot
+  // upward and is drawn whole — a CEILING of half the sheet still holds a
+  // runaway lot off the canvas.
+  console.log('\n[11e] The lot grows with wrapped content and caps at half the sheet (B73)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Lot growth fixture';
+      rec.parkingLot = [
+        { id: 'w1', text: 'This is a deliberately long parking lot entry that will '
+          + 'certainly wrap onto several separate lines within the gutter width '
+          + 'of a phone sheet, and every one of them must stay visible.', state: 'active' },
+        { id: 'w2', text: 'A short second row', state: 'active' },
+      ];
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    const g = await page.evaluate(() => {
+      const b = document.querySelector('#board').getBoundingClientRect();
+      const lot = document.querySelector('#lot').getBoundingClientRect();
+      const items = [...document.querySelectorAll('.lot-item')];
+      return {
+        sheetH: b.height,
+        lotH: lot.height,
+        wraps: items[0].getBoundingClientRect().height > 44,
+        // every row's bottom sits within the lot section — nothing is clipped
+        allVisible: items.every(n => n.getBoundingClientRect().bottom <= lot.bottom + 0.5),
+      };
+    });
+    ok('a wrapping item grows the lot past the two-row floor (122)',
+      g.wraps && g.lotH > 122, JSON.stringify(g));
+    ok('every row is drawn within the lot, unclipped', g.allVisible, JSON.stringify(g));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(async () => {
+      const rec = newBoardRecord();
+      rec.title = 'Lot ceiling fixture';
+      rec.parkingLot = Array.from({ length: 40 }, (_, i) => ({
+        id: 'p' + i, text: 'Row ' + i + ' with enough text to occupy a full '
+          + 'single line on the phone sheet gutter', state: 'active',
+      }));
+      await idbPut(rec);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+    const g = await page.evaluate(() => {
+      const b = document.querySelector('#board').getBoundingClientRect();
+      const lot = document.querySelector('#lot').getBoundingClientRect();
+      return { cap: Math.round(b.height * 0.5), lotH: Math.round(lot.height) };
+    });
+    ok('a runaway lot is held at half the sheet (B73 ceiling)',
+      Math.abs(g.lotH - g.cap) <= 1, JSON.stringify(g));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   // ---- 12. rh keeps y portable across frames (B32) --------------------------
   console.log('\n[12] Note y is frame-relative (rh)');
   {

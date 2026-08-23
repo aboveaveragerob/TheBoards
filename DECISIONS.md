@@ -2592,3 +2592,60 @@ rule carries the tray to the mobile list and the desktop rail alike.
 the render is described in UIUX §10; `test/tokens.js` now asserts each rotating
 section carries its family's `--frame` and `--card`, beside the existing check
 that its cards carry the family's water.
+
+---
+
+### B73. The Parking Lot sizes to its measured content, not its item count (supersedes B37's whole-row budget and B47/B57's row-count ceiling for the lot; leaves the band's own content-sizing untouched)
+
+Issue #106, with a screenshot: a lot item's text wraps to several lines and
+the extra lines are **cut off** — the section stays the same height. "The
+parking lot expands as more is added to it."
+
+The lot's height was `34 + clamp(2, n, maxRows) × 44` — item **count** times a
+fixed 44px row, capped at two or three rows (B37, re-instantiated under B47's
+full bleed as B57's `LOGICAL_H ≥ 821` threshold). A row that wrapped to three
+lines was still allotted 44px, and `#lot-items { overflow: hidden }` clipped
+the rest. Meanwhile the band at the sheet's *other* end already sized to its
+tallest zone's **measured** height (`bandRuleY`, scrollHeight); B47 said "both
+ends of the sheet close the same way," but in code the lot alone stepped by
+count. That asymmetry is the whole of the bug.
+
+**Ruling — measure, don't count.** `lotH()` now sums each `.lot-item`'s
+rendered `offsetHeight` (every row is content-sized: `min-height: 44`, growing
+with its wrapped lines and never clipped itself — the clip lives on the
+parent), floors at the two-row shelf, and publishes it as `--lot-h`:
+
+```
+lot-h = min( 34 + max(2 × 44, Σ rowHeightᵢ),  ⌈0.5 × logical-h⌉ )
+```
+
+Backward-compatible where it should be: an empty lot is still 122, single-line
+rows are still 44 apiece, so the ratified count-based cases (empty 122;
+three single lines 166, proof sheets 7/9) render pixel-for-pixel as before.
+Behaviour changes only once content actually exceeds the old budget — a row
+that wraps, or more rows than the old ceiling drew — which is exactly the
+report. The `lot-text` input handler now calls `updateBoardGeometry()` too, so
+the section grows *live* while typing, the same capture feedback the band's
+`anchor` branch already gave (PRD §1: work performed stays visible).
+
+**The ceiling loosens but survives (resolved with the reporter).** B37 capped
+the lot so "a long lot cannot swallow the canvas"; that intent stands, but its
+2–3 whole rows were what cut the wrapped text. The cap is now **half the
+sheet** — generous enough that ordinary multi-line items are never clipped,
+tight enough that a pathological lot still cannot eat the page. Content past
+the cap is clipped by `#lot-items { overflow: hidden }` (it still exists,
+still saves, still exports — B35's promise, kept). The lot is bottom-anchored,
+so it grows *upward*; notes sit on the plane above it (z-2 over the furniture's
+z-1), so a taller lot never hides a note.
+
+**Screen and export follow one law, not one number (B34).** `exportLotH` sums
+the same wrapped `rowH` the export's draw loop already computed per item, from
+the two-row floor, capped at `0.5 × EXPORT_H`; `EXPORT_GEO.lotMaxRows` is
+deleted with the count formula it fed. The draw loop's existing `clip()` keeps
+the export's overflow behaviour matched to the screen's.
+
+**The record.** The formula lives in UIUX §3.2 (rewritten); `styles.css`'s §3
+comment and `app.js`'s `lotH`/`EXPORT_GEO` comments restate it. `test/mobile.js`
+gains a scenario that a wrapped item grows the lot and is drawn unclipped, and
+that a pathological lot is held at the half-sheet cap; the pre-existing
+empty-floor (122) and three-row (166) assertions stand unchanged.
