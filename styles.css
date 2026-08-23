@@ -469,10 +469,12 @@ body {
    Full-bleed — left 0, right 0, bottom 0 — with its CONTENT still on the
    gutter: it lives as a section of the page, the exact mirror of the band at
    the other end. This supersedes B32's one-left-margin as it applied to the
-   lot. Height follows its contents from a two-row floor,
-   34 + clamp(2, n, maxRows) x 44, set in applyLayout — B37's viewport-derived
-   budget survives as a CEILING only, so a long lot cannot swallow the canvas;
-   a row past it still exists, still saves and still exports. ---- */
+   lot. Height follows its MEASURED contents from a two-row floor,
+   34 + max(2 x 44, sum of the rows' rendered heights), set as --lot-h in
+   lotH() (B73, superseding B37/B47/B57's row-count budget) — the section is
+   bottom-anchored, so it grows UPWARD. A CEILING of half the sheet survives
+   so a runaway lot cannot swallow the canvas; content past it is clipped by
+   #lot-items { overflow: hidden } below. ---- */
 #lot {
   position: absolute;
   z-index: 1;                          /* furniture plane; notes (z-2) stay above */
