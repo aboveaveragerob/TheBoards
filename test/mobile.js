@@ -236,8 +236,8 @@ const activeIsNoteText = page => page.evaluate(() =>
     await page.waitForTimeout(150);
     const menuVisible = await page.evaluate(() => document.querySelector('#menu').hidden === false);
     ok('menu opened on note long-press', menuVisible);
-    // B43 (issues #59/#60): All boards · Complete · Copy · Delete, top to
-    // bottom — danger last, behind the one separator.
+    // B43 (issues #59/#60) + B71 (issue #105): All boards · Complete · Highlight
+    // · Copy · Delete, top to bottom — danger last, behind the one separator.
     const shape = await page.evaluate(() => {
       const b = [...document.querySelectorAll('#menu button')];
       return { labels: b.map(x => x.textContent),
@@ -245,11 +245,11 @@ const activeIsNoteText = page => page.evaluate(() =>
                seps: document.querySelectorAll('#menu .sep').length };
     });
     const labels = shape.labels;
-    ok('menu is All boards · Complete · Copy · Delete', labels.length === 4 &&
-       /All boards/.test(labels[0]) && /Complete/.test(labels[1]) &&
-       /Copy/.test(labels[2]) && /Delete/.test(labels[3]), JSON.stringify(labels));
+    ok('menu is All boards · Complete · Highlight · Copy · Delete', labels.length === 5 &&
+       /All boards/.test(labels[0]) && /Complete/.test(labels[1]) && /Highlight/.test(labels[2]) &&
+       /Copy/.test(labels[3]) && /Delete/.test(labels[4]), JSON.stringify(labels));
     ok('only Delete is danger, and it is last',
-       shape.danger.join('|') === 'false|false|false|true', JSON.stringify(shape.danger));
+       shape.danger.join('|') === 'false|false|false|false|true', JSON.stringify(shape.danger));
     ok('one separator before Delete', shape.seps === 1, String(shape.seps));
     // Export is board-level. The item-order law is per-menu, and a note's menu
     // is not the place to export the board it happens to sit on.
@@ -1024,6 +1024,56 @@ const activeIsNoteText = page => page.evaluate(() =>
         navigator.clipboard.readText().then(t => t === 'pocket text', () => false)));
       ok('copying deleted nothing', (await noteCount(page)) === 1);
     }
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 17b. Highlight toggles the note's wash, and the label flips (issue #105, B71)
+  console.log('\n[17b] Long-press menu Highlight washes the note, and toggles back');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 200, 400);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('mark me');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(200);
+    const box = await page.evaluate(() => {
+      const r = document.querySelector('.note').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    // A drawn-fresh note is not highlighted.
+    ok('a new note is not highlighted', await page.evaluate(() =>
+      !document.querySelector('.note').classList.contains('highlight') && !current.notes[0].highlighted));
+
+    const tapItem = async (re) => {
+      const btn = await page.evaluate((src) => {
+        const b = [...document.querySelectorAll('#menu button')].find(x => new RegExp(src).test(x.textContent));
+        if (!b) return null;
+        const r = b.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }, re);
+      if (btn) { await tap(page, btn.x, btn.y); await page.waitForTimeout(600); }
+      return btn;
+    };
+
+    // Open the menu, choose Highlight: the whole note washes amber, and it persists.
+    await tap(page, box.x, box.y, 700);
+    await page.waitForTimeout(150);
+    const onBtn = await tapItem('^Highlight$');
+    ok('the menu offers Highlight', !!onBtn);
+    ok('the note gains the highlight class', await page.evaluate(() =>
+      document.querySelector('.note').classList.contains('highlight')));
+    ok('and the record carries highlighted', await page.evaluate(() => current.notes[0].highlighted === true));
+
+    // Re-open: the item now reads "Remove highlight" (the Complete/Restore grammar).
+    await tap(page, box.x, box.y, 700);
+    await page.waitForTimeout(150);
+    ok('the item flips to Remove highlight', await page.evaluate(() =>
+      [...document.querySelectorAll('#menu button')].some(b => /Remove highlight/.test(b.textContent))));
+    await tapItem('Remove highlight');
+    ok('the wash toggles back off', await page.evaluate(() =>
+      !document.querySelector('.note').classList.contains('highlight') && current.notes[0].highlighted === false));
+    ok('highlighting deleted nothing', (await noteCount(page)) === 1);
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

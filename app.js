@@ -71,6 +71,11 @@ const COPY = {
   // the board itself — every member wears a ring — so the label says "all",
   // not a number the user would have to reconcile.
   completeAll: 'Complete all', restoreAll: 'Restore all', deleteAll: 'Delete all',
+  // Highlight (issue #105, B71): a toggle whose label states the act it will
+  // perform — the Complete/Restore grammar (B43), not a fixed noun. Plural
+  // forms mirror the "all" convention above for a multi-selection.
+  highlight: 'Highlight', unhighlight: 'Remove highlight',
+  highlightAll: 'Highlight all', unhighlightAll: 'Remove highlights',
   deleted: 'Deleted', undo: 'Undo',
   copy: 'Copy', copied: 'Copied', copyError: 'Couldn’t copy.',
   // One word, no ellipsis, no object noun — the menu's existing grammar. There
@@ -112,6 +117,10 @@ const GLYPH = {
   boards:   MARK(16, '<rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M8 1.5V14.5M1.5 8H14.5"/>'),
   export:   MARK(16, '<path d="M8 1.5V9M5 6.5L8 9.5 11 6.5"/><path d="M2 12.5h12"/>'),
   copy:     MARK(16, '<path d="M3 10.5V3.5a2 2 0 0 1 2-2h7"/><rect x="5.5" y="5.5" width="9" height="9" rx="2"/>'),
+  // A marker pen laid over its stroke (issue #105): the broad nib at top-right,
+  // the drawn line it leaves below — "colour is laid onto this", in the board's
+  // own hand. Redrawn, not code-point-swapped, if it fails to read at 16px.
+  highlight: MARK(16, '<path d="M9.5 2.5l4 4-6 6-4 1 1-4z"/><path d="M2 14.5h6"/>'),
   delete:   MARK(16, '<path d="M2 4.5h12M5.5 4.5V3a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 10.5 3v1.5M3.8 4.5l.6 8.6a1.5 1.5 0 0 0 1.5 1.4h4.2a1.5 1.5 0 0 0 1.5-1.4l.6-8.6"/>'),
   pageFirst: MARK(14, '<path d="M12.5 2.5L7 8l5.5 5.5"/><path d="M8 2.5L2.5 8 8 13.5"/>'),
   pagePrev:  MARK(14, '<path d="M10 2.5L4.5 8 10 13.5"/>'),
@@ -619,7 +628,8 @@ function makeNoteEl(note) {
   const node = document.createElement('div');
   // .on-light: the ink pole flips at the note's boundary (UIUX §2.3), and the
   // scratch-out inside strikes in the note's own dark ink.
-  node.className = 'note on-light' + (note.state === 'complete' ? ' complete' : '');
+  node.className = 'note on-light' + (note.state === 'complete' ? ' complete' : '')
+    + (note.highlighted ? ' highlight' : '');   // B71: an amber wash, toggled per note
   node.dataset.id = note.id;
   node.setAttribute('tabindex', '0');
   applyNoteWidth(node, note);                               // wrap at the sheet edge (issue #53)
@@ -1671,6 +1681,18 @@ function setNoteState(node, complete) {
 }
 function completeNote(node) { setNoteState(node, true); saveNow(); }
 function restoreNote(node) { setNoteState(node, false); saveNow(); }
+// Highlight (issue #105, B71): an appearance axis, not a status — so no
+// applyCompleteA11y here; the amber wash is decorative and reads truthily off
+// note.highlighted (legacy notes lack the field, which is falsy — B21's idiom).
+function setNoteHighlight(node, on) {
+  const note = current.notes.find(n => n.id === node.dataset.id);
+  note.highlighted = on;
+  node.classList.toggle('highlight', on);
+}
+function toggleHighlight(node) {
+  const note = current.notes.find(n => n.id === node.dataset.id);
+  setNoteHighlight(node, !note.highlighted); saveNow();
+}
 function completeLot(node) {
   const item = current.parkingLot.find(i => i.id === node.dataset.id);
   item.state = 'complete'; node.classList.add('complete');
@@ -1742,6 +1764,18 @@ function setSelectedNotesState(restore) {
   for (const id of selectedNoteIds()) {
     const node = noteEls.get(id);
     if (node) setNoteState(node, !restore);
+  }
+  saveNow();
+  updateSelectionUI();
+}
+
+/* Highlight/unhighlight every selected note in one pass (issue #105, B71). Like
+   the state path, each member is SET (not toggled) so a mixed selection lands
+   uniform; the context menu decides the direction off the whole set. */
+function setSelectedNotesHighlight(on) {
+  for (const id of selectedNoteIds()) {
+    const node = noteEls.get(id);
+    if (node) setNoteHighlight(node, on);
   }
   saveNow();
   updateSelectionUI();
@@ -1877,6 +1911,11 @@ function openMenuFor(target, clientX, clientY) {
         action: () => (isNote ? restoreNote(node) : restoreLot(node)) });
     else items.push({ label: COPY.complete, glyph: GLYPH.complete,
         action: () => (isNote ? completeNote(node) : completeLot(node)) });
+    // Highlight (issue #105, B71): a note-only appearance toggle, sitting with
+    // the other note-state action. The label flips on the live record, and the
+    // lot has no surface to wash, so it is not offered there.
+    if (isNote) items.push({ label: rec.highlighted ? COPY.unhighlight : COPY.highlight,
+        glyph: GLYPH.highlight, action: () => toggleHighlight(node) });
     // Copy reads the live record, not a snapshot — an edit between open and
     // act (impossible by gesture, cheap to honour) still copies the truth.
     items.push({ label: COPY.copy, glyph: GLYPH.copy, action: () => copyText(rec.text) });
@@ -1953,12 +1992,24 @@ el.board.addEventListener('contextmenu', (e) => {
     const n = current.notes.find(m => m.id === id);
     return n && n.state === 'complete';
   });
+  // Highlight flips to "remove" only when EVERY selected note is already
+  // highlighted (issue #105, B71) — the same all-qualify rule as Complete
+  // above, so a mixed selection reads "Highlight", the state it will make true.
+  const allHighlighted = ids.every(id => {
+    const n = current.notes.find(m => m.id === id);
+    return n && n.highlighted;
+  });
   const items = [
     allComplete
       ? { label: many ? COPY.restoreAll : COPY.restore, glyph: GLYPH.restore,
           action: () => setSelectedNotesState(true) }
       : { label: many ? COPY.completeAll : COPY.complete, glyph: GLYPH.complete,
           action: () => setSelectedNotesState(false) },
+    allHighlighted
+      ? { label: many ? COPY.unhighlightAll : COPY.unhighlight, glyph: GLYPH.highlight,
+          action: () => setSelectedNotesHighlight(false) }
+      : { label: many ? COPY.highlightAll : COPY.highlight, glyph: GLYPH.highlight,
+          action: () => setSelectedNotesHighlight(true) },
     { sep: true },                     // destructive last, behind the hairline (UIUX §7)
     { label: many ? COPY.deleteAll : COPY.delete, glyph: GLYPH.delete, danger: true,
       action: () => deleteNotes(selectedNoteIds()) },
@@ -2090,6 +2141,10 @@ const PDF_SHADE = [0.514, 0.482, 0.533];
 // an ExtGState object just to say so. (The burial half of B53's pair has no
 // print analogue: a completed item emits no text object at all — B34.)
 const PDF_SCRATCH = PDF_INK.map((c, i) => c * 0.62 + PDF_PAPER[i] * 0.38);
+// The highlight wash on paper (issue #105, B71): the screen's amber, toned down
+// to a paper-light fill so a highlighted note prints as itself, not a slab of
+// saturated ink — the same reasoning that keeps PDF_PAPER off :root.
+const PDF_HILITE = [0.949, 0.847, 0.361];
 
 /* Helvetica / Helvetica-Bold advance widths, WinAnsi 32..255, two base-36
    digits each. The PDF viewer sets in ITS Helvetica, not the browser's system
@@ -2534,7 +2589,9 @@ function exportBoardPage(rec) {
     const s = (note.scale || 1) * exportK(note);      // the similarity (B64)
     // transform-origin: top left — translate to the note, then scale in place.
     p.q().cm(s, 0, 0, s, exportX(note), exportY(note));
-    p.frame(0, 0, box.w, box.h, g.radius, g.border, PDF_PAPER);
+    // A highlighted note fills amber, matching the screen; a completed one still
+    // fills first, then the scratch draws over it (issue #105, B71).
+    p.frame(0, 0, box.w, box.h, g.radius, g.border, note.highlighted ? PDF_HILITE : PDF_PAPER);
     if (note.state === 'complete') {
       p.q().rrect(0, 0, box.w, box.h, g.radius).clip().scratch(box.w, box.h).Q();
     } else {

@@ -58,6 +58,12 @@
   --accent-restore:  #b6dee2;   /* the note's own hue and saturation, lifted 74 -> 80 */
   --accent-page:     #6d9cb0;   /* the water's hue at the old value's depth — and B59's primary fill */
   --danger:          #E2A08C;   /* the only warm hue in the application (B58 removed the qualifier's need) */
+  /* The highlight wash (issue #105, B71): a per-note emphasis the USER asserts,
+     not a board-type signal — so it does NOT rotate with the ladder above, and
+     it is the one warm surface a note can wear. A bright amber, maximally apart
+     from the three cool note families (blue/green/violet), carrying --ink-dark
+     text at >12:1 (UIUX §2.6.1). */
+  --highlight:       #F2D64B;
   --elevation:       0 2px 8px rgb(0 0 0 / 0.45);
   --elevation-inset: inset -3px 0 8px rgb(0 0 0 / 0.16), inset 0 2px 4px rgb(0 0 0 / 0.10);
 }
@@ -567,8 +573,17 @@ body {
   overflow-wrap: break-word;
   outline: none;
 }
-/* Frame draws itself on the first character; no empty frames ever (§6.2). */
-.note-text:empty {
+/* Highlight (issue #105, B71): the whole note surface takes the warm --highlight
+   wash; border and ink stay var(--ink) (dark on this .on-light surface), so the
+   toggle changes only the fill — the note's structure is untouched. */
+.note.highlight .note-text {
+  background: var(--highlight);
+}
+/* Frame draws itself on the first character; no empty frames ever (§6.2) — and
+   an empty highlighted note is no exception: the wash waits for the first
+   character exactly as the default fill does. */
+.note-text:empty,
+.note.highlight .note-text:empty {
   border-color: transparent;
   background: transparent;
 }

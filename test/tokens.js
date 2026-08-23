@@ -91,6 +91,7 @@ const T = {
   waterTop: '#34697f', waterMid: '#255265', waterBot: '#163646',
   inkLight: '#f4f5f1', inkDark: '#031019',
   accentRestore: '#b6dee2', accentPage: '#6d9cb0', danger: '#E2A08C',
+  highlight: '#F2D64B',   // the per-note highlight wash (UIUX §2.6.1, B71)
 };
 /* B67 (issue #96): the same ladder at two more hues, one per board type. Each
    rung reproduces the To-Do rung's WCAG relative luminance to the 4dp UIUX §2.2
@@ -209,10 +210,11 @@ console.log('\n[1b] The ladder rotates with the board type — three bindings, o
       cardScope['--water-top'] === lad.waterTop && cardScope['--water-mid'] === lad.waterMid,
       JSON.stringify(cardScope));
   }
-  // The ink poles and the accents are app-level, not scene-level.
+  // The ink poles, the accents, and the highlight wash are app-level, not
+  // scene-level (the highlight means one thing on every board type — B71).
   for (const name of LADDER_NAMES.filter(n => n !== 'To-Do')) {
     const decl = propsIn(LADDER[name].sel);
-    for (const dead of ['--ink-light', '--ink-dark', '--accent-restore', '--accent-page', '--danger'])
+    for (const dead of ['--ink-light', '--ink-dark', '--accent-restore', '--accent-page', '--danger', '--highlight'])
       ok(`${name}: ${dead} is not rebound per board type`, !(dead in decl), decl[dead]);
   }
 }
@@ -364,6 +366,26 @@ console.log('\n[5] Accents — values, worst-extreme ratios, and the placement r
   ok('no accent is a text colour on the water or the note',
     accentText.every(sel => sel.split(',').every(s => !onContent.test(s.trim()))),
     accentText.join(' | '));
+}
+
+console.log('\n[5b] The highlight wash — value, dark-ink contrast, note-surface placement (UIUX §2.6.1, B71)');
+{
+  ok(`--highlight is ${T.highlight}`, (declared['--highlight'] || '').toLowerCase() === T.highlight.toLowerCase(),
+    declared['--highlight']);
+  // It carries the note's dark ink at the published 13.27:1 (UIUX §2.6.1).
+  ok('--highlight with --ink-dark = 13.27', r2(contrast(T.highlight, T.inkDark)) === 13.27,
+    String(r2(contrast(T.highlight, T.inkDark))));
+  // A highlight is a NOTE SURFACE, not a chrome accent: it fills .note-text, and
+  // the note is the one .on-light island (UIUX §2.6.1 — the accent placement
+  // rule does not reach it).
+  ok('--highlight fills the highlighted note surface (.note.highlight .note-text)',
+    /\.note\.highlight\s+\.note-text\s*{[^}]*background:\s*var\(--highlight\)/s.test(css));
+  ok('--highlight is never an accent text colour', !/color:\s*var\(--highlight\)/.test(css));
+  // It sits warm against every cool note family, and keeps the note's brightest
+  // rung (a hair above --note): its own luminance, above the crossover so dark
+  // ink is correct.
+  ok('--highlight stays above the ink crossover (takes dark ink like the note)',
+    lum(T.highlight) > 0.1788, String(r4(lum(T.highlight))));
 }
 
 console.log('\n[6] The two-tone focus ring clears 3:1 on every ground by construction (UIUX §2.7)');
@@ -527,8 +549,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v21 — B36 is the definition of shipped',
-    /const CACHE = 'todo-boards-v21';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v22 — B36 is the definition of shipped',
+    /const CACHE = 'todo-boards-v22';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));
