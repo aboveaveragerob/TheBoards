@@ -126,6 +126,24 @@
   --frame:       #9d80b9;
   --note:        #cec6ed;
 }
+/* Learning Boards — the fourth rung, a pale rose (issue #112 / B74). Same
+   ladder, rotated to a coherent pink arc (355deg..2deg): every rung reproduces
+   the To-Do rung's WCAG luminance to the 4dp UIUX §2.2 prints AND its 2dp
+   ratios, so every table in UIUX §2 holds unchanged (test/tokens.js asserts it
+   against this ladder too). The dark rungs sit at To-Do's near-exact luminance
+   — where the gamut leaves them almost no chroma, invisibly, since they are
+   near-black; the light rungs are chosen for paleness within their ratio window
+   (UIUX §2.2.2 records the residuals). */
+#board[data-cat="learning"] {
+  --deep:        #11040b;
+  --card:        #260e12;
+  --water-top:   #855562;
+  --water-mid:   #6a414c;
+  --water-bot:   #472a35;
+  --water-bot-a: 71 42 53;
+  --frame:       #b57a9b;
+  --note:        #e6c2c9;
+}
 /* A list/rail card is a small rendering of what it names (UIUX §10), so it
    previews its board's hue. Since issue #107 (B72) a section is a framed,
    tinted tray in its own family, so it now reads FOUR rungs of the rotated
@@ -135,13 +153,24 @@
    viewport off document.body, outside its section's scope, so app.js stamps
    the attribute onto the ghost itself and it keeps its hue in the air — the
    ghost is a single card with no tray, so it takes only the two water stops. */
-.board-cat[data-cat="idea"] {
+/* The All-Boards picker button (issue #112 / B74) is a category made into a
+   framed tinted tray, the same idiom the section tray uses (B72) — so it rebinds
+   the same two rungs per family. To-Do is :root, so .cat-button[data-cat="todo"]
+   takes :root's --card/--frame with no block of its own. */
+.board-cat[data-cat="idea"],
+.cat-button[data-cat="idea"] {
   --frame:       #52997f;
   --card:        #001a0e;
 }
-.board-cat[data-cat="unsorted"] {
+.board-cat[data-cat="unsorted"],
+.cat-button[data-cat="unsorted"] {
   --frame:       #9d80b9;
   --card:        #1e0f28;
+}
+.board-cat[data-cat="learning"],
+.cat-button[data-cat="learning"] {
+  --frame:       #b57a9b;
+  --card:        #260e12;
 }
 .board-cat[data-cat="idea"],
 .card-drag-ghost[data-cat="idea"] {
@@ -152,6 +181,11 @@
 .card-drag-ghost[data-cat="unsorted"] {
   --water-top:   #6d5b83;
   --water-mid:   #534769;
+}
+.board-cat[data-cat="learning"],
+.card-drag-ghost[data-cat="learning"] {
+  --water-top:   #855562;
+  --water-mid:   #6a414c;
 }
 
 /* --- Global -------------------------------------------------------------- */
@@ -517,6 +551,26 @@ body {
   overflow: hidden;
   z-index: 1;
 }
+/* The All-Boards menu takes over the Parking Lot (issue #112 / B74, mobile).
+   While it is open the lot's own furniture — rule, header, items — steps aside;
+   the water field beneath (the #lot background) stays, so the menu sits on the
+   same ground the lot always had. The board's parking-lot DATA is untouched:
+   #lot-items is only hidden, and returns when the menu closes. */
+#lot.menu-open #lot-rule,
+#lot.menu-open #lot-header,
+#lot.menu-open #lot-items { display: none; }
+/* Fills the whole lot as a 2x2 grid of category tiles, gutter-inset like the
+   lot's own content. GRID_ORDER (app.js) lays the four buttons row-major, so the
+   clockwise reading from the top-left is To Do, Notes, Learning, Ideas. */
+#lot-menu {
+  position: absolute;
+  left: var(--gutter); right: var(--gutter); top: 8px; bottom: 8px;
+  z-index: 2;                          /* above the lot's own furniture plane */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+}
 /* Unframed text lines — the one place text is never framed (§4.4 / §6.5). */
 .lot-item {
   position: relative;
@@ -788,6 +842,45 @@ body {
      env(safe-area-inset-top) — see B66. */
   padding: 12px;
 }
+/* The All-Boards picker (issue #112 / B74): the four category tiles fill the
+   screen as a 2x2, the same shape and order as the mobile lot-grid, so the two
+   surfaces read as one menu. Only the desktop overlay uses #list-rows for this
+   — the mobile picker is the lot-grid (#lot-menu), never this screen. */
+#list-view.picker #list-rows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 12px;
+}
+/* A category tile: the section's own framed tinted tray (B72), enlarged into a
+   button and centred on its name. Ground and inset frame are the family's two
+   rungs (rebound per data-cat above); the label takes the ground's light pole.
+   Shared by the desktop picker and the mobile lot-grid (#lot-menu). */
+.cat-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 44px;                    /* the touch floor (UIUX §6) */
+  padding: 12px;
+  background: var(--card);             /* the family's tray ground (B72) */
+  outline: 2px solid var(--frame);     /* the family's inset frame (B72) */
+  outline-offset: -2px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink);                   /* the ground's pole (UIUX §16.2) */
+  font: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.cat-button:active { background: var(--frame); color: var(--ink-dark); }
+.cat-button:focus-visible {
+  outline: 2px solid var(--ink-light);           /* the two-tone ring (UIUX §2.7) */
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark);
+}
 /* A row is a card now, not a list line: it can be picked up and carried to
    another category, so it has to read as a discrete object with its own edge
    (issue #74) — which is the hairline and the water fill, not the height, so
@@ -893,11 +986,15 @@ body {
   gap: 8px;
   min-width: 0;
   min-height: 44px;                    /* one box with the control beside it (B63) */
-  font-size: 24px;                     /* the display step (UIUX §13.1, B63) */
+  font-size: 21px;                     /* the display step (UIUX §13.1, B63; re-tuned
+                                          down by B74 so the longest name — "Learning
+                                          Boards" — keeps its whole self beside the
+                                          control, B63's own criterion for a fourth,
+                                          longer category) */
   font-weight: 600;
   line-height: 1;                      /* one line; the row, not the type, sets the box */
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;              /* tightened with the size (B74) */
   color: var(--ink);                   /* the ground's pole (UIUX §16.2) */
 }
 .cat-head span {
@@ -1071,7 +1168,7 @@ html.desktop .board-cat.empty {
    beside any legible control — the category name is never crowded off its
    own row (B44's refusal, restated). The control's label steps to 13px
    beside it — one box height either way. */
-html.desktop .cat-head { min-height: 32px; font-size: 18px; }
+html.desktop .cat-head { min-height: 32px; font-size: 15px; }  /* B74: fits "Learning Boards" beside the control in the 300px rail */
 html.desktop .cat-add {
   min-height: 32px;
   padding: 0 10px;

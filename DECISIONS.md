@@ -2649,3 +2649,102 @@ comment and `app.js`'s `lotH`/`EXPORT_GEO` comments restate it. `test/mobile.js`
 gains a scenario that a wrapped item grows the lot and is drawn unclipped, and
 that a pathological lot is held at the half-sheet cap; the pre-existing
 empty-floor (122) and three-row (166) assertions stand unchanged.
+
+---
+
+## AA. A fourth category, and the All-Boards menu becomes a picker (issue #112)
+
+### B74. A fourth board type — Learning, pale rose — and "All boards" becomes a category picker whose boards drill to their own screens; on mobile the picker is the Parking Lot turned into a 2×2 grid (extends B67's ladder with a fourth scene; supersedes B44's stacked mobile list and its drag-between-categories; re-tunes B63's head sizes; keeps B42/B68/B70's measured budget, B9's back gesture, B72's tray idiom)
+
+Rob (issue #112): *"Add a new board category in pale pink: Learning Boards …
+All 4 board categories are the 'All Boards' menu, not the boards themselves.
+Move the boards within each category to their own screens … On Mobile Only:
+'All Boards' menu … turns the parking lot pane into the 'All Boards' menu …
+The category buttons fill the Entire parking lot space in a 2x2 grid. From top
+left going clockwise: 'To Do', 'Notes', 'learning', 'ideas'."*
+
+Three coordinated parts, resolved against the four principles at the top of
+this file (capture precedes structure · positions permanent · zero cognitive
+tax · every pixel earns its place).
+
+**Part 1 — the taxonomy is four, and Learning is a whole scene.** The app has
+had three categories since B42; "Ideas" and "Notes" already existed (`idea`
+and `unsorted`, the latter labelled "Note Boards" since B63), so **only
+Learning is new**. `BOARD_CATS` becomes `['todo', 'unsorted', 'learning',
+'idea']` — the stacked display order (rail, drill, picker) reading To Do,
+Notes, Learning, Ideas. `catOf()` gains `learning` to its named set; a record
+with no category is still `unsorted` (B21's read-site idiom, untouched, so no
+migration and no DB version bump). Learning renders as a whole scene, not a
+badge: a **pale rose ladder** derived exactly as B67 derived green and violet
+— rotate the To-Do ladder in hue, pin every rung's WCAG luminance, aim OKLCH L
+and C. The rose binds the gamut a little harder than green/violet (L within
+0.013, C within 0.012, `UIUX §2.2.2`); its dark rungs additionally sit at
+To-Do's *near-exact* raw luminance, because they anchor the 18.33:1 and
+12.36:1 ratios whose 2dp value turns on the fourth decimal — and being
+near-black they have no visible chroma to spend there. Every table in
+`UIUX §2` reproduces on the Learning ladder, and `test/tokens.js` now asserts
+all of them against four ladders, plus the `§4.3` strike marks per ladder. The
+values are in `UIUX §2.2.2`; `styles.css` gains the `#board[data-cat="learning"]`
+rung block and the `.board-cat`/`.card-drag-ghost[data-cat="learning"]` tray
+blocks, mirroring B67's three.
+
+**Part 2 — "All boards" is a picker, and boards live on drilled screens.**
+Before, the list showed every category's boards at once. Now "All boards"
+raises **four category buttons**, and choosing one opens **that category's own
+screen** (`renderCat`, one section via the shared `makeCatSection`). Routing is
+**two levels of History state** — `{v:'list'}` the picker, `{v:'cat',cat}` a
+drill — so the OS back gesture returns drill → picker → board (B9, never
+shadowed); opening a board pops the two levels in one `history.go(-depth)`.
+This is *less* cognitive tax, not more: the picker names four kinds before it
+shows a single card, and a drilled screen shows one kind at a time rather than
+three sections competing for a short phone's height.
+
+**Part 3 — on mobile the picker is the Parking Lot.** Rather than a screen of
+its own, mobile turns the **Parking Lot region into a 2×2 grid** of the four
+category buttons, at the lot's current height (expanded with it). The tension
+resolved: `#lot` normally shows the *current board's* parking-lot items, and
+that data must not be destroyed by a transient nav surface. So the grid is an
+overlay (`#lot-menu`) drawn *over* the lot — `#lot.menu-open` hides the lot's
+own rule/header/items (`display:none`, not removal), and dismissing the picker
+returns the real lot intact. The grid order is **clockwise from the top-left:
+To Do, Notes, Learning, Ideas**, which a row-major 2-col grid delivers from the
+DOM order `[todo, unsorted, idea, learning]` (`GRID_ORDER`) — genuinely
+different from the stacked `BOARD_CATS`, because a column reads top-to-bottom
+and a 2×2 reads clockwise. The board's own gesture recognizer, which captures
+`#lot`, is taught to ignore `#lot-menu` so the buttons receive native clicks.
+Desktop is untouched by this part: it keeps its always-visible rail (now four
+sections), and its "All boards" fills `#list-view` with the same four-button
+picker.
+
+**One design language across all three surfaces.** A category button — a
+mobile grid tile or a desktop picker tile — is B72's framed tinted tray made
+into a button: the family's `--card` ground and `--frame` inset frame with the
+name centred. So the picker tiles, the drilled section trays and the rail
+sections are the same four families told apart by hue, exactly as the boards
+are (B67/B72).
+
+**The head sizes re-tune, by B63's own criterion.** "Learning Boards" is the
+new longest name and would truncate beside the New board control in the 300px
+rail. B63 already sized the head "so the header keeps its whole name beside the
+control"; extending that to the fourth, longer name, the head steps down from
+24/18px at `0.05em` to **21px mobile / 15px rail at `0.02em`** (`UIUX §13.1`,
+§10). Nomenclature is untouched — every category stays "X Boards" — only the
+type is re-tuned, which is the lever B63 itself used.
+
+**What is superseded, and what stands.** B44's stacked mobile list and its
+drag-between-categories are superseded: the mobile drill shows one category, so
+re-filing there is by opening a board, and drag-between-categories now lives
+only on the desktop rail (B67/B72, still tested in `test/desktop.js` [D16]).
+B42/B68/B70's *measured, never a constant* budget stands and is restated:
+`catPageCap` gains a `drawn` argument so a single-section drill is told one
+section is present and takes the whole screen (~30 cards a phone), while the
+rail still splits four ways. B9, B18, B22, B72 are all untouched.
+
+**The record and the tests.** Values in `UIUX §2.2.2` (the ladder, four
+columns) and `§4.3` (strike marks, four columns); the nav and the head re-tune
+in `UIUX §10`/`§13.1`. `test/tokens.js` adds the Learning ladder as the fourth
+witness. `test/mobile.js` [19]/[19b]/[19c] are rewritten to the picker + drill
+model (the grid's order and touch floor, the drill's pager and last-touch
+order, the two-level back gesture); [20]/[22] test per-category creation and
+the measured single-category budget on the drilled screen. `test/desktop.js`
+[D16]/[D20] gain the fourth section in the new order.

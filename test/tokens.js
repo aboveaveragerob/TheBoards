@@ -113,6 +113,11 @@ const LADDER = {
   'Note':  { sel: '#board[data-cat="unsorted"]',
              deep: '#0c0512', card: '#1e0f28', frame: '#9d80b9', note: '#cec6ed',
              waterTop: '#6d5b83', waterMid: '#534769', waterBot: '#382e47' },
+  // The fourth ladder — Learning, a pale rose (issue #112, B74). Same axis: every
+  // rung reproduces the To-Do rung's luminance to 4dp and its 2dp ratios.
+  'Learning': { sel: '#board[data-cat="learning"]',
+             deep: '#11040b', card: '#260e12', frame: '#b57a9b', note: '#e6c2c9',
+             waterTop: '#855562', waterMid: '#6a414c', waterBot: '#472a35' },
 };
 const LADDER_NAMES = Object.keys(LADDER);
 // The retired sand family (B58/B59): present anywhere = the swap regressed.
@@ -183,7 +188,8 @@ console.log('\n[1b] The ladder rotates with the board type — three bindings, o
   // type would be a relabel rather than a scene.
   for (const rung of Object.keys(RUNG)) {
     const vals = LADDER_NAMES.map(n => LADDER[n][rung].toLowerCase());
-    ok(`the three ladders differ at ${RUNG[rung]}`, new Set(vals).size === 3, vals.join(' '));
+    ok(`the ${LADDER_NAMES.length} ladders differ at ${RUNG[rung]}`,
+      new Set(vals).size === LADDER_NAMES.length, vals.join(' '));
   }
   // --chrome does not rotate: the room behind the page is one room (B55).
   for (const name of LADDER_NAMES.filter(n => n !== 'To-Do')) {
@@ -192,7 +198,8 @@ console.log('\n[1b] The ladder rotates with the board type — three bindings, o
   }
   // The binding is a rebinding, not a bypass: the four layers still read var().
   ok('the list/rail cards rotate with their section (UIUX §10)',
-    /\.board-cat\[data-cat="idea"\]/.test(css) && /\.board-cat\[data-cat="unsorted"\]/.test(css));
+    /\.board-cat\[data-cat="idea"\]/.test(css) && /\.board-cat\[data-cat="unsorted"\]/.test(css) &&
+    /\.board-cat\[data-cat="learning"\]/.test(css));
   ok('app.js sets the scope from the record and carries no colour of its own (B67)',
     /el\.board\.dataset\.cat = catOf\(current\)/.test(app));
   // The drag ghost is fixed off document.body, outside its section's scope, so
@@ -200,7 +207,8 @@ console.log('\n[1b] The ladder rotates with the board type — three bindings, o
   ok('the card drag ghost carries its own scope (B67)',
     /ghost\.dataset\.cat = catOf\(b\)/.test(app) &&
     /\.card-drag-ghost\[data-cat="idea"\]/.test(css) &&
-    /\.card-drag-ghost\[data-cat="unsorted"\]/.test(css));
+    /\.card-drag-ghost\[data-cat="unsorted"\]/.test(css) &&
+    /\.card-drag-ghost\[data-cat="learning"\]/.test(css));
   // A section's cards draw the water's upper fall, so the two stops they read
   // must agree with the board's — one hue, not two. The drag ghost is a single
   // card with no tray, so it takes only these two.
@@ -477,6 +485,7 @@ console.log('\n[8] The scratch pair moves together: 0.62 over 0.12, both poles (
     'To-Do': { note: 4.53, top: 3.19, mid: 4.08, bot: 5.47, buriedNote: 1.28, buriedTop: 1.29 },
     'Idea':  { note: 4.51, top: 3.22, mid: 4.11, bot: 5.49, buriedNote: 1.27, buriedTop: 1.30 },
     'Note':  { note: 4.54, top: 3.20, mid: 4.12, bot: 5.50, buriedNote: 1.27, buriedTop: 1.28 },
+    'Learning': { note: 4.54, top: 3.19, mid: 4.11, bot: 5.50, buriedNote: 1.27, buriedTop: 1.28 },
   };
   for (const lname of LADDER_NAMES) {
     const lad = LADDER[lname], want = MARKS[lname];
@@ -560,8 +569,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v24 — B36 is the definition of shipped',
-    /const CACHE = 'todo-boards-v24';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v25 — B36 is the definition of shipped',
+    /const CACHE = 'todo-boards-v25';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));
