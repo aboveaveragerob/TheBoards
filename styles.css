@@ -223,14 +223,15 @@ body {
 
   /* The band's *vertical* geometry is sized by the type it holds, not by the
      sheet — B37's law, kept by B47, which retires the fixed rule: the section
-     sits ABOVE its rule, reading content, then its header sitting on the
-     rule, then the rule as the band's bottom edge (UIUX §3.1). The rule's y
-     is set in JS from the tallest zone's line count —
-     14 + max(2, lines) x 19.5 + 8 + 16.9 + 10 — 88 at the two-line floor,
-     107 at three lines (B47's formula with B54's 16.9 label term). The 88px
-     here is the floor, standing until applyLayout speaks. */
+     sits ABOVE its rule, reading content, then the rule as the band's bottom
+     edge, with each header hanging just below it as a tab (B74, UIUX §3.1).
+     The rule's y is set in JS from the tallest zone's line count —
+     14 + max(2, lines) x 19.5 + 8 — 61 at the two-line floor, 81 at three
+     lines (B74 dropped B54's + 16.9 + 10 label term, the label no longer
+     budgeting above the rule). The 61px here is the floor, standing until
+     applyLayout speaks. */
   --band-top: 14px;
-  --rule-y:   88px;
+  --rule-y:   61px;
 }
 
 /* Dither at anti-banding amplitude (UIUX §2.8): the water sections' ramps
@@ -278,11 +279,12 @@ body {
 
 /* ---- §3 The top band (B33/B38; resettled B47, UIUX §3.1) ----------------
    Drawn furniture, not a by-product of content. The section sits ABOVE the
-   rule: reading down, Components/Requirements content, then its header
-   sitting on the rule, then the rule as the band's bottom edge — the exact
-   mirror of the Parking Lot at the other end, one section closing each end
-   of the sheet with the free canvas between. Both rules run the full width
-   of the sheet (B47, superseding B35/B38's gutter inset).
+   rule: reading down, Components/Requirements content, then the rule as the
+   band's bottom edge, with each header hanging just below it as a tight tab
+   in the rule's own ink (B74, issue #111) — the exact mirror of the Parking
+   Lot at the other end, one section closing each end of the sheet with the
+   free canvas between. Both rules run the full width of the sheet (B47,
+   superseding B35/B38's gutter inset).
 
    Every edge here is derived from #board: --gutter / --card-w / --card-l
    across, --band-top / --rule-y down. Across is a fraction of the sheet
@@ -331,16 +333,26 @@ body {
   pointer-events: auto;
   font-size: 15px; font-weight: 600;
 }
-/* The header sits ON the rule — centred in its zone with 10px of clearance
-   beneath it, at the pixel the committed face pays back: 13px/600 (B54,
-   closing UIUX §13.2's question; supersedes B38's 12px letter). */
+/* The header hangs BELOW the rule as a tight tab in the rule's own ink (issue
+   #111, B74; supersedes B47/B54's "label above the rule"): its top edge lands
+   ON the rule (top:100%), so the full-width rule reads as the tab's top border
+   and line + label are one cohesive unit. Filled --frame; the node carries
+   .on-light so its ink rebinds to --ink-dark at 5.70:1 — the compartment
+   handle's own pairing (B65, UIUX §2.5). Centred in its zone, tight to the
+   type (width:max-content), at the pixel the committed face pays back:
+   13px/600 (B54, closing UIUX §13.2's question). */
 .band-label {
   position: absolute;
-  left: 0; right: 0; bottom: 10px;
+  top: 100%;                           /* the rule is the tab's top edge */
+  left: 50%; transform: translateX(-50%);
+  width: max-content;
+  padding: 2px 6px;                    /* just enough to frame the type (UIUX §3.1) */
   text-align: center;
   font-size: 13px; font-weight: 600;
-  color: var(--ink);
+  color: var(--ink);                   /* --ink-dark, rebound by .on-light on the node */
   line-height: 1.3;
+  background: var(--frame);            /* the rule's own colour — line + tab, one unit */
+  border-radius: 0 0 3px 3px;          /* only the corners that exist below the rule */
 }
 /* Written from --card-l directly rather than from the card's right edge, so
    neither column depends on the card being centred (B35). */
@@ -410,7 +422,7 @@ body {
   /* --card-bottom is the compartment's MEASURED height, set beside --rule-y in
      updateBoardGeometry so the handle follows a title that grew past the
      floor. The fallback is that floor, standing until JS speaks — exactly as
-     --rule-y's own 88px does. */
+     --rule-y's own 61px does (B74). */
   top: calc(var(--card-bottom, calc(var(--rule-y) + 22px)) - 16px);
   right: calc(100% - var(--card-l) - var(--card-w));
   height: 32px;

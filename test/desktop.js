@@ -230,10 +230,11 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       geo.titleBorderLeft === '2px', geo.titleBorderLeft);
     // B47 (supersedes B35/B38's gutter inset): both rules run the full width
     // of the sheet, and the band sizes to its tallest zone from a two-line
-    // floor — 14 + 2 x 19.5 + 8 + 16.9 + 10 = 88 on this blank board (B54's
-    // 16.9 label term).
+    // floor — 14 + 2 x 19.5 + 8 = 61 on this blank board. B74 (issue #111)
+    // dropped B54's label term (+ 16.9 + 10): the label now hangs below the
+    // rule as a tab, so it no longer budgets height above it.
     ok('band rule runs full width (B47)', geo.ruleL === '0px', geo.ruleL);
-    ok('band rule sits at the two-line floor, y=88 (B47/B54)', geo.ruleT === '88px', geo.ruleT);
+    ok('band rule sits at the two-line floor, y=61 (B47/B74)', geo.ruleT === '61px', geo.ruleT);
     // Screen space, so the 8px logical gap arrives scaled — assert the ordering.
     ok('zones clear the card on both sides',
       geo.zoneGap[0] < geo.zoneGap[1] && geo.zoneGap[2] < geo.zoneGap[3],

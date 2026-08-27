@@ -495,11 +495,12 @@ function applyNoteWidth(node, note) {
    sized by its content from a floor, whole units only, chosen here rather
    than in CSS because CSS cannot step a length by lines or rows.
 
-   The band: rule-y = 14 + max(2, lines) x 19.5 + 8 + 16.9 + 10 — band-top,
-   the tallest zone's line count at 15px/1.3, the gap, B54's 13px/1.3 label,
-   and its 10px clearance above the rule. 88 at the two-line floor, 107 at
-   three lines, rounded to the pixel sheet 9 ships. */
-const BAND_TOP = 14, BAND_LINE = 19.5, BAND_GAP = 8, BAND_LABEL = 16.9, BAND_CLEAR = 10;
+   The band: rule-y = 14 + max(2, lines) x 19.5 + 8 — band-top, the tallest
+   zone's line count at 15px/1.3, and the gap to the rule. The label no longer
+   budgets any height ABOVE the rule: since B74 (issue #111) it hangs BELOW the
+   rule as a tab, so the band closes at the content plus its gap. 61 at the
+   two-line floor, 81 at three lines. */
+const BAND_TOP = 14, BAND_LINE = 19.5, BAND_GAP = 8;
 function bandRuleY() {
   let lines = 2;                       // the two-line floor
   for (const key of ['components', 'requirements']) {
@@ -508,7 +509,7 @@ function bandRuleY() {
     // reads as whole line boxes (min-height 44 keeps the floor's answer 2).
     if (node) lines = Math.max(lines, Math.round(node.scrollHeight / BAND_LINE));
   }
-  return Math.round(BAND_TOP + lines * BAND_LINE + BAND_GAP + BAND_LABEL + BAND_CLEAR);
+  return Math.round(BAND_TOP + lines * BAND_LINE + BAND_GAP);
 }
 
 /* The Parking Lot's height follows its MEASURED contents from a two-row
@@ -2432,10 +2433,11 @@ function pdfAssemble(streams, title) {
    notes sit above every piece of furniture. */
 const EXPORT_GEO = {
   gutter: 24,
-  // B47's band formula, the same law the screen derives --rule-y from:
-  // rule-y = bandTop + max(2, lines) x headLH + bandGap + labelLH + bandClear,
+  // B47's band formula, the same law the screen derives --rule-y from, with
+  // B74's label moved below the rule so it no longer budgets above it:
+  // rule-y = bandTop + max(2, lines) x headLH + bandGap,
   // resolved per record in exportRuleY() against THIS sheet's zone widths.
-  bandTop: 14, bandGap: 8, bandClear: 10,
+  bandTop: 14, bandGap: 8,
   compL: 24, compR: 272, reqL: 628, reqR: 876,
   // The compartment starts at the sheet's own top edge (B38, kept by B47) and
   // overhangs the rule by 22; cardPadTop is its top padding (band-top + 6).
@@ -2446,6 +2448,7 @@ const EXPORT_GEO = {
   lotHead: 34, lotRow: 44, lotHeaderY: 8, lotItemsY: 34,
   headSize: 15, headLH: 19.5,          // title, anchor text, lot header
   labelSize: 13, labelLH: 16.9,        // the band's nomenclature (13 x 1.3, B54)
+  labelPadX: 6, labelPadY: 2,          // the tab that frames it below the rule (B74)
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
   noteSize: 17, noteLH: 23.8,          // 17px / 1.4
   border: 2, radius: 3, notePadX: 12, notePadY: 10,   // radius mirrors B49 by hand
@@ -2461,7 +2464,7 @@ function exportRuleY(rec) {
                    { text: rec.requirements, w: g.reqR - g.reqL }]) {
     if (z.text) lines = Math.max(lines, pdfWrap(z.text, true, g.headSize, z.w).length);
   }
-  return Math.round(g.bandTop + lines * g.headLH + g.bandGap + g.labelLH + g.bandClear);
+  return Math.round(g.bandTop + lines * g.headLH + g.bandGap);
 }
 const exportLotH = (rec) => {
   const g = EXPORT_GEO;
@@ -2527,9 +2530,9 @@ function exportBoardPage(rec) {
   p.cm(scale, 0, 0, scale, mx, my);
   p.fill(PDF_PAPER).rect(0, 0, EXPORT_W, EXPORT_H).raw('f');   // the sheet itself
 
-  // The band reads content, then its header sitting on the rule, then the
-  // rule as the band's bottom edge — full width (B47). The card draws last,
-  // on top of the rule.
+  // The band reads content, then the rule as the band's bottom edge — full
+  // width (B47) — with each header hanging just below the rule as a tab in the
+  // rule's own ink (B74). The card draws last, on top of the rule.
   const ruleY = exportRuleY(rec);
   const zones = [
     { text: rec.components, label: 'Components', l: g.compL, r: g.compR },
@@ -2544,9 +2547,15 @@ function exportBoardPage(rec) {
       p.lines(pdfWrap(z.text, true, g.headSize, w), z.l, w, g.bandTop,
               g.headSize, g.headLH, true, 'left');
     }
-    // The header sits ON the rule, centred in its zone, 10px clear (B54).
-    p.lines([z.label], z.l, w, ruleY - g.bandClear - g.labelLH,
-            g.labelSize, g.labelLH, true, 'center');
+    // The header hangs below the rule as a tight tab in the rule's own ink
+    // (B74): a filled PDF_INK box, top edge on the rule, centred in its zone.
+    // The rule is dark here (unlike the mid-light --frame on screen), so the
+    // label reverses to the paper tone rather than screen's --ink-dark.
+    const labelW = pdfTextW(z.label, true, g.labelSize) + 2 * g.labelPadX;
+    const boxX = z.l + (w - labelW) / 2;
+    p.fill(PDF_INK).rect(boxX, ruleY, labelW, g.labelLH + 2 * g.labelPadY).raw('f');
+    p.lines([z.label], boxX, labelW, ruleY + g.labelPadY,
+            g.labelSize, g.labelLH, true, 'center', PDF_PAPER);
   }
   p.fill(PDF_INK).rect(0, ruleY, EXPORT_W, 1).raw('f');
 
