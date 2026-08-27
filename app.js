@@ -91,6 +91,7 @@ const COPY = {
   // is generic on purpose: the enclosing group's aria-label disambiguates the
   // three, the same way it disambiguates the pager's twelve.
   catTodo: 'To-Do Boards', catIdea: 'Idea Boards', catUnsorted: 'Note Boards',
+  catLearning: 'Learning Boards',        // the fourth category (issue #112, B74)
   catNew: 'New board',
   pageFirst: 'First page', pagePrev: 'Previous page',
   pageNext: 'Next page', pageLast: 'Last page',
@@ -154,7 +155,8 @@ function applyMode() {
   closeMenu();
   if (g) { clearTimeout(g.longPressTimer); g = null; }
   pointers.clear();
-  if (isDesktop && listOpen) history.back();   // pops the list state → board (B9 intact)
+  if (isDesktop && listOpen) returnToBoard();  // pop the whole list nav → board (B9 intact;
+                                               // a drill is two levels deep, B74)
   applyLayout();
   if (isDesktop) renderPane();
 }
@@ -231,6 +233,7 @@ const el = {
   boardView: document.getElementById('board-view'),
   lotItems: document.getElementById('lot-items'),
   lot: document.getElementById('lot'),
+  lotMenu: document.getElementById('lot-menu'),       // mobile All-Boards grid (B74)
   listView: document.getElementById('list-view'),
   listRows: document.getElementById('list-rows'),
   menu: document.getElementById('menu'),
@@ -362,9 +365,11 @@ function applyLayout() {
   // catCap is 0 until the first render, so boot's renderBoard → applyLayout
   // chain doesn't draw the rail twice back to back. Off-desktop the same
   // check covers a rotation while the list is open (issue #74).
-  if (catCap && catPageCap(catFilled) !== catCap) {
-    if (isDesktop && el.paneCards) renderPane();
-    else if (!isDesktop && listOpen) renderList();
+  if (catCap && catPageCap(catFilled, catView ? 1 : undefined) !== catCap) {
+    // Re-paginate the surface that is showing: the open list overlay (drill or
+    // desktop picker) first, else the desktop rail behind it (issue #112 review).
+    if (listOpen) renderListSurface();
+    else if (isDesktop && el.paneCards) renderPane();
   }
   // No letterbox now: the toast sits 12px above the screen's bottom edge.
   document.documentElement.style.setProperty('--toast-bottom', '12px');
@@ -734,6 +739,10 @@ el.board.addEventListener('pointerdown', onPointerDown);
 
 function onPointerDown(e) {
   if (swallowTap) { swallowTap = false; return; }  // this press only dismissed a menu (B30)
+  // The All-Boards grid (issue #112 / B74) is drawn inside #lot, so its presses
+  // bubble here — but it is a menu, not the board: let its buttons receive their
+  // own native clicks rather than the recognizer swallowing them as lot capture.
+  if (e.target.closest('#lot-menu')) return;
   // Secondary/middle presses are inert to the recognizer (issue #55): a
   // right-click must reach the contextmenu listener with no gesture context
   // armed, or the press underneath the menu would drag/select/create. The
@@ -2753,7 +2762,15 @@ async function exportBoardPdf(board) {
 }
 
 /* --- 11. Board list + routing -------------------------------------------- */
+/* Two-level navigation since issue #112 / B74. `listOpen` is true for either
+   level; `catView` names the drilled category (level 2) or is null at the
+   picker (level 1); `lotMenuOpen` is true only on mobile, where the level-1
+   picker is the Parking Lot turned into the grid rather than a screen of its
+   own. History carries {v:'list'} for the picker and {v:'cat',cat} for a drill,
+   so the OS back gesture returns drill -> picker -> board (B9, never shadowed). */
 let listOpen = false;
+let catView = null;
+let lotMenuOpen = false;
 
 // Creation order, newest first, with an id tiebreak so equal-millisecond
 // creates can't reorder between renders (issue #14). Since issue #97 this is
@@ -2787,10 +2804,24 @@ function fillRowContent(node, b) {
    its label), so pre-#58 boards need no migration and no DB version bump.
    Since B63 every new board writes its category (+ catStamp) explicitly at
    creation — the read-site default now covers only the legacy records. */
-const BOARD_CATS = ['todo', 'idea', 'unsorted'];
-const CAT_COPY = { todo: 'catTodo', idea: 'catIdea', unsorted: 'catUnsorted' };
+/* Four categories since issue #112 / B74 — To Do, Notes, Learning, Ideas, in
+   that stacked order (the rail, the drilled list, and the All-Boards picker all
+   read it top to bottom). Learning is the one genuinely new bucket (pale pink,
+   §2.2.2 / B74); "unsorted" keeps its storage key and "Note Boards" label
+   (B63). catOf() stays a read-site default — a record whose category is none of
+   the three named buckets IS 'unsorted' (B21's idiom, unchanged). */
+const BOARD_CATS = ['todo', 'unsorted', 'learning', 'idea'];
+const CAT_COPY = { todo: 'catTodo', idea: 'catIdea', unsorted: 'catUnsorted', learning: 'catLearning' };
 const catOf = (b) =>
-  (b.category === 'todo' || b.category === 'idea') ? b.category : 'unsorted';
+  (b.category === 'todo' || b.category === 'idea' || b.category === 'learning')
+    ? b.category : 'unsorted';
+/* The mobile All-Boards grid is a 2x2 whose clockwise reading from the top-left
+   must be To Do, Notes, Learning, Ideas (issue #112). A row-major 2-col grid
+   fills TL, TR, BL, BR — so clockwise is TL, TR, BR, BL, and the DOM order that
+   lands Learning at BR and Ideas at BL is [todo, unsorted, idea, learning].
+   The stacked order (BOARD_CATS) and this grid order genuinely differ: a column
+   reads top-to-bottom, a 2x2 reads clockwise. */
+const GRID_ORDER = ['todo', 'unsorted', 'idea', 'learning'];
 /* In-category order is last touch, newest first (issue #97 / B69, superseding
    B24's immutable slot): a board you just edited comes back to the top of its
    section. Two writes are a touch and both have a claim on the first slot —
@@ -2812,29 +2843,34 @@ const catOrder = (a, b) => (touchedAt(b) - touchedAt(a)) || boardOrder(a, b);
    clamps every render, so a differing capacity heals itself. catCap is the
    budget the last render used, and catFilled the fill state it measured
    against — applyLayout compares both. */
-let catPage = { todo: 0, idea: 0, unsorted: 0 };
+let catPage = { todo: 0, idea: 0, unsorted: 0, learning: 0 };
 let catCap = 0;                        // 0 = never rendered; the capacity check waits
 let catFilled = 0;                     // populated sections the last render measured
 let dragCancel = null;                 // the live card-drag's teardown, if one is mid-flight
 
 /* The per-page card budget, measured — never a constant (B42, restated B68).
-   `filled` is how many of the three sections hold at least one board: an empty
+   `filled` is how many of the drawn sections hold at least one board: an empty
    section collapses to its head row alone (B68), so the cards and pager slots
-   it is not using come back to the sections that have something to show. */
-function catPageCap(filled) {
+   it is not using come back to the sections that have something to show.
+   `drawn` is how many sections are on the surface — BOARD_CATS.length for the
+   desktop rail (all four stacked), 1 for a single-category drill screen (issue
+   #112 / B74): the drill shows one category alone, so it must not subtract the
+   furniture of three sections that are not there. */
+function catPageCap(filled, drawn) {
   const host = isDesktop ? el.paneCards : el.listRows;
   if (!host) return 1;
+  const total = drawn || BOARD_CATS.length;
   const head = isDesktop ? PANE_CAT_HEAD : LIST_CAT_ROW;
   const pager = isDesktop ? PANE_PAGER_H : LIST_CAT_ROW;
-  const n = Math.max(1, Math.min(BOARD_CATS.length, filled | 0));
+  const n = Math.max(1, Math.min(total, filled | 0));
   // The content box, not clientHeight: the list's own bottom padding sits
   // inside clientHeight and outside the flex line, and at B68's row heights
   // that 12px is most of a card. Measure what the sections actually get.
   const cs = getComputedStyle(host);
   const avail = host.clientHeight
     - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
-    - CAT_SEC_GAP * (BOARD_CATS.length - 1)    // every section is drawn: the gaps all stand
-    - head * (BOARD_CATS.length - n);          // a collapsed section still keeps its head row
+    - CAT_SEC_GAP * (total - 1)                // every drawn section: the gaps all stand
+    - head * (total - n);                      // a collapsed section still keeps its head row
   // A populated section's share, minus its own furniture, in whole rows. Both
   // surfaces stack the head row above the cards and the pager row below (B63
   // unmerges B44's strip). The pager's slot is reserved even when a single page
@@ -2918,8 +2954,12 @@ function makeCatSection(cat, boards, cap, makeCard) {
    nearest enabled sibling) — a keyboard reader pages without re-tabbing. */
 async function goCatPage(cat, p, key) {
   catPage[cat] = p;
-  if (isDesktop) await renderPane(); else await renderList();
-  const host = isDesktop ? el.paneCards : el.listRows;
+  // Page the surface that is actually showing this category: the drilled screen
+  // (#list-rows, either platform) when the list overlay is open, else the
+  // desktop rail (#pane-cards). Paging the hidden rail behind an open drill
+  // would move focus onto an occluded button (issue #112 review).
+  if (listOpen) await renderCat(cat); else await renderPane();
+  const host = listOpen ? el.listRows : el.paneCards;
   const sec = host && host.querySelector('.board-cat[data-cat="' + cat + '"]');
   if (!sec) return;
   let b = sec.querySelector('.pager-btn[aria-label="' + COPY[key] + '"]');
@@ -2970,28 +3010,73 @@ async function dropBoardCard(b, cat) {
     const rec = await idbGet(b.id);
     if (rec) { rec.category = cat; rec.catStamp = Date.now(); await idbPut(rec); }
   }
-  if (isDesktop) renderPane(); else renderList();
+  if (isDesktop) renderPane(); else renderListSurface();
 }
 
-/* The list view is the rail's mobile twin (issue #74 / B44): same three
-   sections, same paging, same drag — it just skins them differently. The open
-   board buckets from memory, not the snapshot, for the reason renderPane
-   gives: `current` is authoritative for it. */
-async function renderList() {
+/* Since issue #112 / B74 the All-Boards menu is a category PICKER, and the
+   boards live on their own per-category screens reached by drilling into a
+   picker button. renderListSurface() draws whatever #list-rows is currently
+   showing (the picker's four category buttons, or one drilled category's
+   boards) — the single site the re-render callers (a delete, a page turn, a
+   capacity change) go through, so they don't each have to know the level. On
+   mobile the level-1 picker is not #list-rows at all: it is the Parking Lot
+   turned into the grid (openLotMenu), which is static furniture with no board
+   data to rebuild, so renderListSurface has nothing to do there. */
+async function renderListSurface() {
+  if (!listOpen) return;
+  if (catView) { await renderCat(catView); return; }
+  if (isDesktop) await renderPicker();       // mobile picker is the lot-grid; nothing to rebuild
+}
+
+/* One drilled category on its own screen (issue #112 / B74): the same section
+   the rail draws (head, New board, cards, pager), but alone, so catPageCap is
+   told exactly one section is drawn and the whole screen height is its budget.
+   The open board buckets from memory, not the snapshot, for renderPane's
+   reason: `current` is authoritative for it. */
+async function renderCat(cat) {
   const all = await idbGetAll();
-  const buckets = { todo: [], idea: [], unsorted: [] };
-  for (const b of all) {
-    const rec = (current && b.id === current.id) ? current : b;
-    buckets[catOf(rec)].push(rec);
-  }
-  catFilled = BOARD_CATS.filter(c => buckets[c].length).length;
-  catCap = catPageCap(catFilled);
+  const boards = all
+    .map(b => (current && b.id === current.id) ? current : b)
+    .filter(b => catOf(b) === cat);
+  catFilled = 1;
+  catCap = catPageCap(1, 1);                  // one section drawn: it takes the whole surface
   const focusCat = focusedCatAdd();
+  el.listView.classList.remove('picker');
+  el.listRows.setAttribute('role', 'list');   // a list of board rows (restored from the picker's menu)
   el.listRows.textContent = '';
-  for (const cat of BOARD_CATS)
-    el.listRows.appendChild(
-      makeCatSection(cat, buckets[cat].sort(catOrder), catCap, makeListRow));
+  el.listRows.appendChild(
+    makeCatSection(cat, boards.sort(catOrder), catCap, makeListRow));
   refocusCatAdd(el.listRows, focusCat);
+}
+
+/* The All-Boards picker (issue #112 / B74): four category buttons, one per
+   bucket, each a framed tinted tray in its own family (B72's idiom, now the
+   whole button). On desktop it fills #list-view; on mobile the same buttons
+   fill the Parking Lot (buildCatButtons, GRID_ORDER). A picker button navigates
+   — inert, like the pager and selection (B22) — so it drills without B18's
+   window. */
+async function renderPicker() {
+  el.listView.classList.add('picker');
+  el.listRows.setAttribute('role', 'menu');   // its children are the four category menuitems, not list rows
+  el.listRows.textContent = '';
+  buildCatButtons(el.listRows);
+}
+
+/* The four category buttons, in the 2x2 clockwise order (GRID_ORDER). Shared by
+   the desktop picker (#list-view) and the mobile lot-grid, so the two read as
+   one menu in one nomenclature — each button names its section exactly as the
+   section head does ("To-Do Boards", "Note Boards", "Learning Boards", "Idea
+   Boards"). data-cat carries the family so the tray wears the board type's hue
+   (B72/B67). */
+function buildCatButtons(host) {
+  for (const cat of GRID_ORDER) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'cat-button'; b.dataset.cat = cat;
+    b.setAttribute('role', 'menuitem');
+    b.textContent = COPY[CAT_COPY[cat]];
+    b.addEventListener('click', () => drillCat(cat));
+    host.appendChild(b);
+  }
 }
 
 function makeListRow(b) {
@@ -3003,6 +3088,21 @@ function makeListRow(b) {
   row.appendChild(card);
   attachBoardCardGestures(card, row, b,
     { container: el.listRows, onTap: () => openBoardById(b.id) });
+  // Since issue #112 / B74 the drilled category screen is a desktop surface too.
+  // Mobile summons the row menu by long-press (attachBoardCardGestures); desktop
+  // reaches the same Export/Delete menu by right-click, exactly as the rail card
+  // does (makePaneRow), so a board can be exported or deleted from the drill.
+  card.addEventListener('contextmenu', (ev) => {
+    if (!isDesktop) return;              // mobile keeps its native context menu; the hold is the path
+    ev.preventDefault();
+    let x = ev.clientX, y = ev.clientY;
+    if (!x && !y) {                      // Shift+F10 fires contextmenu at 0,0
+      const r = card.getBoundingClientRect();
+      x = r.left + r.width / 2; y = r.top + r.height / 2;
+    }
+    menuInvoker = card;                  // focus returns to the card on close
+    openBoardRowMenu(row, b, x, y);
+  });
   return row;
 }
 
@@ -3119,21 +3219,28 @@ async function deleteBoard(id, row) {
   if (row) leave(row, () => row.remove());
   const wasCurrent = current && current.id === id;
   if (wasCurrent) current = null;                      // guard invalid current on return
-  if (isDesktop) {
-    // No list screen heals a dead `current` on desktop — do it now, or the next
-    // interaction dereferences current.notes (review finding 2).
-    if (wasCurrent) await ensureCurrentValid();
+  // On desktop the board view has no list screen to heal a dead `current` on
+  // return, so heal it now, or the next interaction dereferences current.notes
+  // (review finding 2). This holds whether the delete came from the rail or the
+  // desktop drilled-category overlay.
+  if (isDesktop && wasCurrent) await ensureCurrentValid();
+  if (listOpen) {
+    // Re-paginate the visible list overlay (the drill, either platform, or the
+    // desktop picker). The row's own leave() plays first, so a delete on a full
+    // page pulls the next board up instead of leaving a hole (issue #74). The
+    // rail behind a desktop drill is hidden — rendering it here would leave the
+    // visible drill with the hole (issue #112 review).
+    setTimeout(renderListSurface, LEAVE_MS);
+  } else if (isDesktop) {
     renderPane();
-  } else if (listOpen) {
-    // The row's own leave() plays first; the re-render then re-paginates, so a
-    // delete on a full page pulls the next board up instead of leaving a hole
-    // (issue #74 — before categories the flat list could just close the gap).
-    setTimeout(renderList, LEAVE_MS);
   }
   showUndo(async () => {
     await idbPut(snapshot);
-    if (!isDesktop) { renderList(); return; }
-    if (wasCurrent) swapBoard(snapshot.id); else renderPane();
+    // Restore into the visible surface: the open list overlay (drill/picker,
+    // either platform), else the desktop rail — reopening the board there if it
+    // was the one showing (issue #112 review).
+    if (listOpen) { renderListSurface(); return; }
+    if (isDesktop) { if (wasCurrent) swapBoard(snapshot.id); else renderPane(); }
   }, 'board');
 }
 
@@ -3144,7 +3251,18 @@ async function openBoardById(id) {
   const rec = await idbGet(id);
   if (!rec) return;
   current = rec;
-  history.back();                                       // pop the list state → board
+  returnToBoard();                                      // pop the nav stack → board (B9)
+}
+
+/* Pop the list nav back to the board, however deep (issue #112 / B74). A board
+   is opened from a drilled category (level 2, {v:'cat'}), so both its own state
+   and the picker's below it come off in one go — history.go(-2) fires a single
+   popstate with the board's null state. A one-level open (a guard for the
+   picker, though it holds no boards) pops once. B9 is untouched: this is the
+   back gesture's own machinery, never a shadow of it. */
+function returnToBoard() {
+  const depth = (history.state && history.state.v === 'cat') ? 2 : 1;
+  history.go(-depth);
 }
 
 function openBoardObj(board) {
@@ -3175,7 +3293,7 @@ async function newBoardIn(cat) {
   // list no longer owns (B9 untouched; the swap's renderPane no-ops off-desktop).
   if (!listOpen) { swapBoard(board.id); return; }
   current = board;
-  history.back();                                       // page-turn back to the board (B9)
+  returnToBoard();                                      // page-turn back to the board (B9)
 }
 
 /* --- 11.5 Desktop board pane (issues #9 / #10 / #14) ---------------------- */
@@ -3216,7 +3334,7 @@ async function renderPane() {
   // would never arrive, stranding the fixed ghost on screen. Cancel it first.
   if (dragCancel) dragCancel();
   const all = await idbGetAll();
-  const buckets = { todo: [], idea: [], unsorted: [] };
+  const buckets = { todo: [], idea: [], unsorted: [], learning: [] };
   // The open board buckets from memory, not the snapshot: `current` is
   // authoritative for it (the export takes the same stance), and a drop's
   // write can still be behind the debounced persist when this getAll runs.
@@ -3304,13 +3422,53 @@ function goToList() {
   history.pushState({ v: 'list' }, '');
   showList();
 }
+/* Level 1 — the All-Boards picker (issue #112 / B74). On desktop it fills the
+   #list-view overlay; on mobile it is the Parking Lot turned into the 2x2 grid,
+   drawn over the lot at its current height (openLotMenu), leaving the board and
+   its parking-lot data untouched beneath. */
 async function showList() {
   listOpen = true;
+  catView = null;
+  if (!isDesktop) { openLotMenu(); return; }
   // Unhide FIRST: catPageCap() measures #list-rows, and a `hidden` element
   // measures 0 — rendering before the reveal would page every category to a
   // single card (issue #74).
   el.listView.hidden = false;
-  await renderList();
+  await renderPicker();
+}
+/* Drilling a picker button opens that category's own screen — level 2. It is a
+   navigation, inert like the pager (B22), so no B18 window. The mobile grid is
+   dismissed as the drill screen takes over; the board's real lot returns when
+   the whole stack pops back. */
+function drillCat(cat) {
+  history.pushState({ v: 'cat', cat }, '');
+  showCat(cat);
+}
+async function showCat(cat) {
+  listOpen = true;
+  catView = cat;
+  if (!isDesktop) closeLotMenu();     // the drill is a screen; the grid steps aside
+  el.listView.hidden = false;
+  await renderCat(cat);
+}
+/* Mobile only: the Parking Lot becomes the All-Boards menu (issue #112 / B74).
+   A transient overlay drawn over #lot at its current --lot-h — if the lot is
+   expanded, so is the grid — filled by the four category buttons. It never
+   touches current.parkingLot: the board's own lot data is only hidden, and it
+   returns intact the moment the picker is dismissed. */
+function openLotMenu() {
+  lotMenuOpen = true;
+  el.lotMenu.textContent = '';
+  buildCatButtons(el.lotMenu);
+  el.lotMenu.hidden = false;
+  el.lot.classList.add('menu-open');   // hides the lot's own rule/header/items
+}
+function closeLotMenu() {
+  if (!lotMenuOpen) return;
+  lotMenuOpen = false;
+  el.lotMenu.hidden = true;
+  el.lotMenu.textContent = '';
+  el.lot.classList.remove('menu-open');
 }
 async function ensureCurrentValid() {
   if (current) { const still = await idbGet(current.id); if (still) return; }
@@ -3326,14 +3484,23 @@ async function ensureCurrentValid() {
 }
 async function showBoardFromList() {
   listOpen = false;
+  catView = null;
+  closeLotMenu();                      // mobile: the grid steps aside, the real lot returns
   el.listView.hidden = true;
   if (!current) { await ensureCurrentValid(); }
   else { renderBoard(); }
+  if (isDesktop) renderPane();         // a board opened from the #list-view drill lights its rail card
 }
 
+/* The back gesture drives the two levels (B9, never shadowed): {v:'cat'} is a
+   drilled category, {v:'list'} the picker, no state the board. Popping from a
+   drill to the picker re-opens it on the surface the mode uses — the mobile
+   grid or the desktop screen. */
 window.addEventListener('popstate', () => {
   closeMenu();
-  if (history.state && history.state.v === 'list') { showList(); }
+  const s = history.state;
+  if (s && s.v === 'cat') { showCat(s.cat); }
+  else if (s && s.v === 'list') { catView = null; if (!isDesktop) el.listView.hidden = true; showList(); }
   else { showBoardFromList(); }
 });
 
