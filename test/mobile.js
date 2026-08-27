@@ -1042,8 +1042,8 @@ async function openCat(page, cat) {
       document.querySelector('#menu').hidden === false));
     const shape = await page.evaluate(() =>
       [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('anchor menu is Export then All boards', shape.length === 2 &&
-       /Export/.test(shape[0]) && /All boards/.test(shape[1]), JSON.stringify(shape));
+    ok('anchor menu is All boards then Export', shape.length === 2 &&
+       /All boards/.test(shape[0]) && /Export/.test(shape[1]), JSON.stringify(shape));
     ok('still on the board — no navigation yet',
        await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
 
@@ -1633,9 +1633,9 @@ async function openCat(page, cat) {
        opened.open && (await noteCount(page)) === before, JSON.stringify(opened.open));
     // Exactly the anchor menu B43 pins, unchanged: the handle is a second door
     // to one room, not a second room.
-    ok('and it is the anchor menu unchanged: Export then All boards',
-       opened.items.length === 2 && /Export/.test(opened.items[0]) &&
-       /All boards/.test(opened.items[1]), JSON.stringify(opened.items));
+    ok('and it is the anchor menu unchanged: All boards then Export',
+       opened.items.length === 2 && /All boards/.test(opened.items[0]) &&
+       /Export/.test(opened.items[1]), JSON.stringify(opened.items));
     ok('the handle reports itself expanded', opened.expanded === 'true', opened.expanded);
 
     await page.keyboard.press('Escape');
