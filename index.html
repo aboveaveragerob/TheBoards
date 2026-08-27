@@ -39,23 +39,24 @@
            long-press without fighting native focus.
 
            The top band is drawn furniture, independent of content: a section
-           ABOVE its rule (B47) — content, then its header sitting on the
-           rule, then the rule as the band's bottom edge, full width — the
-           exact mirror of the Parking Lot closing the sheet's other end. The
-           rule follows the zones in DOM order so it draws over a zone's
-           overflowing content, and the card, last, occludes the rule. -->
+           ABOVE its rule (B47) — content, then the rule as the band's bottom
+           edge, full width, with each header hanging just below it as a tight
+           tab in the rule's own ink (B76) — the exact mirror of the Parking
+           Lot closing the sheet's other end. The rule follows the zones in DOM
+           order so it draws over a zone's overflowing content, and the card,
+           last, occludes the rule. -->
       <div id="band-fill" aria-hidden="true"></div>
 
       <div class="band-zone" id="zone-components">
         <div class="anchor" id="anchor-components" data-anchor="components" tabindex="0"
              role="textbox" aria-multiline="true" aria-label="Components"></div>
-        <div class="band-label" aria-hidden="true">Components</div>
+        <div class="band-label on-light" aria-hidden="true">Components</div>
       </div>
 
       <div class="band-zone" id="zone-requirements">
         <div class="anchor" id="anchor-requirements" data-anchor="requirements" tabindex="0"
              role="textbox" aria-multiline="true" aria-label="Requirements"></div>
-        <div class="band-label" aria-hidden="true">Requirements</div>
+        <div class="band-label on-light" aria-hidden="true">Requirements</div>
       </div>
 
       <div id="band-rule" aria-hidden="true"></div>

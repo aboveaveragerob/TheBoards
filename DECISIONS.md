@@ -2769,3 +2769,55 @@ B43 and the `Export · All boards` description in B65 — the handle is still a
 second door to one room, only the room's two items now read in the app's
 uniform navigation-first order. `test/mobile.js` [16]/[21] and
 `test/desktop.js` [D21] are updated to pin `All boards` then `Export`.
+
+---
+
+### B76. The section header hangs below the rule as a tab in the rule's own ink (issue #111; supersedes B47/B54's "label above the rule" and B54's band budget; keeps B47's full-width rule and content-sizing, and B37's law)
+
+Issue #111: the two band headers — *Components* (left), *Requirements* (right) —
+floated **above** the rule as bare type on the band's dark water. The request:
+move each to sit **on / just below** its rule, keep it centred and anchored to
+that same line, and give it a **tight box filled with the rule's own colour**,
+positioned so the rule and the box's edge overlap and read as **one cohesive
+unit**.
+
+**Ruling — the header is a tab hanging off the rule, not a caption above it.**
+The label's top edge lands on the rule (`top: 100%` inside the zone, whose
+bottom edge *is* the rule) and the tab hangs down into the free canvas. It is
+filled `--frame` — the rule's exact colour (§2.5, B61) — so the 1px full-width
+rule reads as the tab's own top border and line + label are continuous. The tab
+is `width: max-content`, `padding: 2px 6px`, `border-radius: 0 0 3px 3px` (only
+the two corners that exist below the rule, mirroring the compartment's `0 0 3px
+3px` at the sheet's top). The interrogation surfaced the bridge that decided the
+species: the compartment's handle (B65) is already a `--frame`-filled box
+*bisected by an edge* carrying `--ink-dark` at 5.70:1; this tab is the same
+pairing at the band's own closing line, so the label rebinds its ink to
+`--ink-dark` via `.on-light` and clears the same 5.70:1. The header is furniture,
+quieter than the interactive handle, so the padding is half the handle's (6 vs
+12px) — the value earns its place against the tightest real zone (the mobile
+*Requirements* column) rather than being chosen to fill space.
+
+**The band budget loses the label term.** Since the label no longer occupies any
+height *above* the rule, `bandRuleY`'s `+ 16.9 + 10` (B54's label + its
+clearance) leaves the formula: `rule-y = 14 + max(2, lines) × 19.5 + 8` — **61
+at the two-line floor, 81 at three lines** (was 88 / 107). Content, then the gap,
+then the rule; the label hangs below on the canvas. The band is *shorter*, so the
+free canvas grows; the compartment's `rule-y + 22` overhang and its occlusion of
+the rule are arithmetically untouched, and the side tabs sit clear of the centred
+card by construction.
+
+**Screen and export follow one law, not one number (B34).** On screen the rule
+is the mid-light `--frame`, so the tab's ink is dark (`--ink-dark`). In the PDF
+export the rule is `PDF_INK` — dark — so the export fills the tab `PDF_INK` and
+**reverses** the label to the paper tone (`PDF_PAPER`): white-on-dark where the
+screen is dark-on-light, each reading strongly on its own ground. `EXPORT_GEO`
+drops `bandClear` from `exportRuleY` and gains `labelPadX`/`labelPadY`; the draw
+loop paints a filled `PDF_INK` box at `ruleY` and centres the label in it.
+
+**The record.** The tab's values live in UIUX §3.1 (rewritten) and its budget in
+the same section; §13.2's B54 measurement is annotated as superseded. `styles.css`
+§3 and `index.html`'s band comment restate the reading order; `app.js`'s
+`bandRuleY`/`EXPORT_GEO`/`exportBoardPage` comments restate the formula. The band
+geometry assertions move with this ruling: `test/desktop.js` [D8]'s rule-y floor
+becomes 61, and `test/mobile.js` [9c]/[11c] assert the label's top edge overlaps
+the rule (was: bottom 10px above it) and that the tab carries a `--frame` fill.
