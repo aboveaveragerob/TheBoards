@@ -41,7 +41,7 @@
            The top band is drawn furniture, independent of content: a section
            ABOVE its rule (B47) — content, then the rule as the band's bottom
            edge, full width, with each header hanging just below it as a tight
-           tab in the rule's own ink (B74) — the exact mirror of the Parking
+           tab in the rule's own ink (B75) — the exact mirror of the Parking
            Lot closing the sheet's other end. The rule follows the zones in DOM
            order so it draws over a zone's overflowing content, and the card,
            last, occludes the rule. -->
@@ -82,6 +82,12 @@
         <div id="lot-rule" aria-hidden="true"></div>
         <div id="lot-header" aria-hidden="true">Parking Lot</div>
         <div id="lot-items"></div>
+        <!-- Mobile only (issue #112 / B74): the "All Boards" menu takes over the
+             Parking Lot region as a 2x2 category grid, at the lot's current
+             height. A transient nav surface drawn OVER the lot — it never
+             replaces the board's own parking-lot data (#lot-items), which
+             returns intact when the menu is dismissed. -->
+        <div id="lot-menu" class="on-dark" role="menu" aria-label="All boards" hidden></div>
       </div>
 
       <!-- Free-canvas notes are injected here by app.js, absolutely positioned. -->

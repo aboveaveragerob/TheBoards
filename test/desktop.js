@@ -230,11 +230,11 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       geo.titleBorderLeft === '2px', geo.titleBorderLeft);
     // B47 (supersedes B35/B38's gutter inset): both rules run the full width
     // of the sheet, and the band sizes to its tallest zone from a two-line
-    // floor — 14 + 2 x 19.5 + 8 = 61 on this blank board. B74 (issue #111)
+    // floor — 14 + 2 x 19.5 + 8 = 61 on this blank board. B75 (issue #111)
     // dropped B54's label term (+ 16.9 + 10): the label now hangs below the
     // rule as a tab, so it no longer budgets height above it.
     ok('band rule runs full width (B47)', geo.ruleL === '0px', geo.ruleL);
-    ok('band rule sits at the two-line floor, y=61 (B47/B74)', geo.ruleT === '61px', geo.ruleT);
+    ok('band rule sits at the two-line floor, y=61 (B47/B75)', geo.ruleT === '61px', geo.ruleT);
     // Screen space, so the 8px logical gap arrives scaled — assert the ordering.
     ok('zones clear the card on both sides',
       geo.zoneGap[0] < geo.zoneGap[1] && geo.zoneGap[2] < geo.zoneGap[3],
@@ -613,8 +613,9 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     const { ctx, page, errors } = await newDesktopPage(browser);
     const heads = await page.evaluate(() =>
       [...document.querySelectorAll('#pane-cards .cat-head span:first-child')].map(s => s.textContent));
-    ok('three category headers in order', heads.length === 3 &&
-       heads[0] === 'To-Do Boards' && heads[1] === 'Idea Boards' && heads[2] === 'Note Boards',
+    ok('four category headers in order (issue #112: To Do, Notes, Learning, Ideas)',
+       heads.length === 4 && heads[0] === 'To-Do Boards' && heads[1] === 'Note Boards' &&
+       heads[2] === 'Learning Boards' && heads[3] === 'Idea Boards',
        JSON.stringify(heads));
 
     // B67 seeds the first-run board 'todo', so an empty database opens blue on
@@ -1237,8 +1238,9 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       !document.querySelector('#new-board') && !document.querySelector('#pane-new')));
     const heads = await page.evaluate(() =>
       [...document.querySelectorAll('#pane-cards .cat-head span')].map(s => s.textContent));
-    ok('labels read To-Do / Idea / Note Boards',
-       heads.join('|') === 'To-Do Boards|Idea Boards|Note Boards', JSON.stringify(heads));
+    ok('labels read To-Do / Note / Learning / Idea Boards (issue #112 order)',
+       heads.join('|') === 'To-Do Boards|Note Boards|Learning Boards|Idea Boards',
+       JSON.stringify(heads));
 
     const geo = await page.evaluate(() =>
       [...document.querySelectorAll('#pane-cards .board-cat')].map(sec => {
@@ -1266,7 +1268,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
           clip: cards.scrollHeight <= cards.clientHeight + 1,
         };
       }));
-    ok('one New board per section, anchored right (±1)', geo.length === 3 &&
+    ok('one New board per section, anchored right (±1)', geo.length === 4 &&
        geo.every(g => g.adds === 1 && g.addRight <= 1),
        JSON.stringify(geo.map(g => [g.adds, g.addRight])));
     ok('the head row is one box: header height = button height',
@@ -1407,6 +1409,118 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(400);
     ok('Delete on the handle does not destroy the selected note underneath',
        (await noteCount(page)) === noteBefore, String(noteBefore));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- D22. the All-Boards picker and drill on desktop (issue #112, B74) ----
+  // Desktop keeps its rail, but "All boards" opens the picker overlay over it
+  // (z 500), and drilling fills #list-rows with one category. The re-render sites
+  // (pager, delete) must target the VISIBLE overlay, not the hidden rail beneath.
+  console.log('\n[D22] The All-Boards picker + drill overlay on desktop (issue #112, B74)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    await page.evaluate(async () => {
+      for (let i = 0; i < 40; i++) {
+        const r = newBoardRecord();
+        r.title = 'Note ' + i;
+        r.category = 'unsorted';
+        r.catStamp = r.createdAt = r.updatedAt = Date.now() - (i + 2) * 100000;
+        await idbPut(r);
+      }
+    });
+    await page.reload();
+    await page.waitForTimeout(500);
+    // Open the picker.
+    await page.evaluate(() => goToList());
+    await page.waitForTimeout(300);
+    const picker = await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('#list-rows .cat-button')];
+      return {
+        shown: document.querySelector('#list-view').hidden === false,
+        role: document.querySelector('#list-rows').getAttribute('role'),
+        cats: btns.map(b => b.dataset.cat),
+        labels: btns.map(b => b.textContent),
+      };
+    });
+    ok('All boards fills #list-view with the four-button picker', picker.shown &&
+       picker.cats.join(',') === 'todo,unsorted,idea,learning', JSON.stringify(picker.cats));
+    ok('the picker host is a menu of the four categories', picker.role === 'menu' &&
+       picker.labels.join('|') === 'To-Do Boards|Note Boards|Idea Boards|Learning Boards',
+       JSON.stringify([picker.role, picker.labels]));
+
+    // Drill into Notes.
+    await page.click('#list-rows .cat-button[data-cat="unsorted"]');
+    await page.waitForSelector('#list-rows .board-cat[data-cat="unsorted"] .board-row');
+    await page.waitForTimeout(200);            // let any follow-up re-render settle
+    const drill = await page.evaluate(() => {
+      // Scope to #list-rows: the rail (#pane-cards) also holds a
+      // .board-cat[data-cat="unsorted"], but with .pane-cards, not .board-rows.
+      const secs = [...document.querySelectorAll('#list-rows .board-cat')];
+      const un = document.querySelector('#list-rows .board-cat[data-cat="unsorted"]');
+      return {
+        role: document.querySelector('#list-rows').getAttribute('role'),
+        onlyOne: secs.length === 1 && secs[0].dataset.cat === 'unsorted',
+        pagerVisible: un && !un.querySelector('.cat-pager').hidden,
+        ind: un && un.querySelector('.cat-pages').textContent,
+        firstId: un.querySelector('.board-row').dataset.id,
+      };
+    });
+    ok('drilling shows exactly the Notes section', drill.onlyOne);
+    ok('the drilled host is a list again', drill.role === 'list');
+    ok('the drill pages its overflow', drill.pagerVisible && /^1\//.test(drill.ind), drill.ind);
+
+    // Page the VISIBLE drill (not the hidden rail): the shown page changes.
+    await page.click('#list-rows .board-cat[data-cat="unsorted"] .pager-btn[aria-label="Next page"]');
+    await page.waitForTimeout(200);
+    const paged = await page.evaluate(() => {
+      const un = document.querySelector('#list-rows .board-cat[data-cat="unsorted"]');
+      return { ind: un.querySelector('.cat-pages').textContent, firstId: un.querySelector('.board-row').dataset.id };
+    });
+    ok('paging updates the visible drill screen', /^2\//.test(paged.ind) && paged.firstId !== drill.firstId,
+       JSON.stringify([paged.ind, paged.firstId, drill.firstId]));
+
+    // A drill row carries the Export/Delete menu on desktop too (right-click).
+    const delId = paged.firstId;
+    await page.evaluate((id) => {
+      const card = document.querySelector('#list-rows .board-row[data-id="' + id + '"]');
+      card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 200 }));
+    }, delId);
+    await page.waitForTimeout(150);
+    ok('right-click on a drill row opens the Export/Delete menu (B74)', await page.evaluate(() => {
+      const labels = [...document.querySelectorAll('#menu button')].map(b => b.textContent);
+      return document.querySelector('#menu').hidden === false &&
+        labels.some(l => /Export/.test(l)) && labels.some(l => /Delete/.test(l));
+    }));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+    // Deleting from the drill re-paginates the VISIBLE drill (not the hidden
+    // rail behind it) — the exact re-render routing the review flagged.
+    const beforePage2 = await page.evaluate(() =>
+      [...document.querySelectorAll('#list-rows .board-cat[data-cat="unsorted"] .board-row')].map(c => c.dataset.id));
+    await page.evaluate((id) => {
+      const wrap = document.querySelector('#list-rows .board-row[data-id="' + id + '"]').closest('.board-row-wrap');
+      deleteBoard(id, wrap);
+    }, delId);
+    await page.waitForTimeout(700);
+    ok('the deleted board is gone from the visible drill', await page.evaluate((id) =>
+      !document.querySelector('#list-rows .board-row[data-id="' + id + '"]'), delId));
+    ok('the drill re-paginated: the hole was pulled up to a full page', await page.evaluate((before) => {
+      const now = [...document.querySelectorAll('#list-rows .board-cat[data-cat="unsorted"] .board-row')].map(c => c.dataset.id);
+      return now.length === before.length && now[now.length - 1] !== before[before.length - 1];
+    }, beforePage2));
+
+    // Back returns picker <- drill, then board <- picker.
+    await page.evaluate(() => history.back());
+    await page.waitForSelector('#list-rows .cat-button');
+    ok('back returns to the picker', await page.evaluate(() =>
+      document.querySelector('#list-rows').getAttribute('role') === 'menu' &&
+      document.querySelectorAll('#list-rows .cat-button').length === 4));
+    await page.evaluate(() => history.back());
+    await page.waitForTimeout(250);
+    ok('back again returns to the board (list hidden, rail intact)', await page.evaluate(() =>
+      document.querySelector('#list-view').hidden === true &&
+      document.querySelectorAll('#pane-cards .board-cat').length === 4));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

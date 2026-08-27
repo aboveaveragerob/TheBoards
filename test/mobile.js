@@ -70,6 +70,16 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
 const activeIsNoteText = page => page.evaluate(() =>
   !!document.activeElement && document.activeElement.classList.contains('note-text'));
 
+// Since issue #112 / B74 the mobile All-Boards menu is the Parking Lot turned
+// into a 2x2 category grid (the picker), and each category's boards live on
+// their own drilled screen (#list-view). openCat opens a category's screen the
+// way a tap through the picker would — goToList raises the picker, drillCat
+// pushes the category. The two-level history means the board is two pops away.
+async function openCat(page, cat) {
+  await page.evaluate((c) => { if (!listOpen) goToList(); drillCat(c); }, cat);
+  await page.waitForTimeout(300);
+}
+
 (async () => {
   const browser = await chromium.launch({ ...launchOpts });
 
@@ -354,7 +364,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     await tap(page, p.x, p.y);
     await page.waitForTimeout(60);
     // Issue #49's board plus a clause: the card's floor (rule-y + 22 = 83 on a
-    // blank band, B74) covers a few lines, so growth needs a longer title.
+    // blank band, B75) covers a few lines, so growth needs a longer title.
     await page.keyboard.type('LinkedIn Learnings To Do Before The Quarterly Review Lands');
     await page.waitForTimeout(120);
     const g = await page.evaluate(() => {
@@ -369,12 +379,12 @@ const activeIsNoteText = page => page.evaluate(() =>
                compLabel: q('#zone-components .band-label'),
                reqLabel: q('#zone-requirements .band-label') };
     });
-    // The card's floor is rule-y + 22 = 83 on a blank band (B74), so a short
+    // The card's floor is rule-y + 22 = 83 on a blank band (B75), so a short
     // title no longer exercises growth; the law under test is B38's, unchanged
     // — a grown title grows the card, never the headers.
     ok('the title grew the card past its minimum', g.card.height > g.rule.top + 22 + 1,
       JSON.stringify([g.card.height, g.rule.top]));
-    ok('the headers hang on the rule, not chasing the grown card (B74)',
+    ok('the headers hang on the rule, not chasing the grown card (B75)',
       Math.abs(g.compLabel.top - g.rule.top) < 1 &&
       Math.abs(g.reqLabel.top - g.rule.top) < 1,
       JSON.stringify([g.compLabel.top, g.reqLabel.top, g.rule.top]));
@@ -450,7 +460,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('three-across header preserved',
       geo.comp.right <= geo.title.left && geo.title.right <= geo.req.left,
       JSON.stringify([geo.comp.right, geo.title.left, geo.title.right, geo.req.left]));
-    // B47 reads the band content → rule; B74 hangs the header just BELOW the
+    // B47 reads the band content → rule; B75 hangs the header just BELOW the
     // rule as a tab in the rule's own ink (--frame) — its top edge lands on the
     // rule and the tab hangs down, at 13px/600 (B54).
     const labels = await page.evaluate(() => {
@@ -469,10 +479,10 @@ const activeIsNoteText = page => page.evaluate(() =>
                  bg: getComputedStyle(n).backgroundColor };
       });
     });
-    ok('the tab hangs below the rule, top edge on it (B74)',
+    ok('the tab hangs below the rule, top edge on it (B75)',
       labels.every(l => Math.abs(l.top - l.ruleTop) < 1),
       JSON.stringify(labels.map(l => [l.text, l.top, l.ruleTop])));
-    ok('the tab is filled in the rule\'s own colour, --frame (B74)',
+    ok('the tab is filled in the rule\'s own colour, --frame (B75)',
       labels.every(l => l.bg === 'rgb(105, 142, 191)'),
       JSON.stringify(labels.map(l => [l.text, l.bg])));
     ok('labels clear the compartment horizontally',
@@ -505,10 +515,10 @@ const activeIsNoteText = page => page.evaluate(() =>
       Math.round(geo.lot.height) === 122, String(geo.lot.height));
     ok('lot is full-bleed to the sheet bottom (UIUX §3.2)',
       Math.round(geo.lot.bottom) === 846, String(geo.lot.bottom));
-    // B47 without B54's label term (B74 moved the label below the rule): the
+    // B47 without B54's label term (B75 moved the label below the rule): the
     // band sizes to its tallest zone from a two-line floor — 14 + 2 x 19.5 + 8
     // = 61 on a blank board.
-    ok('band rule is at the two-line floor, 61 (B47/B74)',
+    ok('band rule is at the two-line floor, 61 (B47/B75)',
       Math.abs(geo.rule.top - 61) < 1, String(geo.rule.top));
     // B38's compartment under B47's band: bounded by the sheet's own top
     // edge, overhanging the rule by 22 — 83 on a blank board.
@@ -565,13 +575,13 @@ const activeIsNoteText = page => page.evaluate(() =>
       ok(`${tag} free canvas is >=${floor * 100}% of the sheet`,
         free / g.sheetH >= floor, `${free.toFixed(1)}px of ${g.sheetH} = ${(100 * free / g.sheetH).toFixed(1)}%`);
       // The band is type-sized (B37's law through B47's formula), so it does
-      // not move when the sheet does: the two-line floor is 61 everywhere (B74).
-      ok(`${tag} band rule is still at the 61 floor (B47/B74)`,
+      // not move when the sheet does: the two-line floor is 61 everywhere (B75).
+      ok(`${tag} band rule is still at the 61 floor (B47/B75)`,
         Math.abs(g.rule.top - 61) < 1, String(g.rule.top));
       // The clearances the band could break.
       ok(`${tag} card still crosses the rule`, g.card.bottom > g.rule.top + 1,
         JSON.stringify([g.card.bottom, g.rule.top]));
-      ok(`${tag} tab hangs below the rule and clears the lot (B74)`,
+      ok(`${tag} tab hangs below the rule and clears the lot (B75)`,
         Math.abs(g.label.top - g.rule.top) < 1 && g.label.bottom <= g.lot.top,
         JSON.stringify([g.rule.top, g.label.top, g.label.bottom, g.lot.top]));
       ok(`${tag} no page errors`, errors.length === 0, errors.join(' | '));
@@ -582,7 +592,7 @@ const activeIsNoteText = page => page.evaluate(() =>
   // ---- 11c. EXPORT_GEO still draws what the board draws (B47/B54) -----------
   // The exporter cannot read computed CSS, so it restates the band a second
   // time and the two can drift. Since B47 the band is content-derived on both
-  // sides from ONE formula — bandTop + max(2, lines) x headLH + bandGap (B74
+  // sides from ONE formula — bandTop + max(2, lines) x headLH + bandGap (B75
   // dropped B54's labelLH + bandClear label term, the label now hanging below
   // the rule) — so the tripwire recomputes the formula from EXPORT_GEO's own
   // terms and requires the rendered blank board (both zones at the two-line
@@ -606,16 +616,16 @@ const activeIsNoteText = page => page.evaluate(() =>
       ['bandTop', 'bandGap', 'cardTop', 'cardOverhang',
        'headLH', 'labelSize', 'labelLH', 'radius'].map(num);
     const floorRuleY = Math.round(bandTop + 2 * headLH + bandGap);
-    ok('EXPORT_GEO formula lands the rule where the board draws it (B47/B74)',
+    ok('EXPORT_GEO formula lands the rule where the board draws it (B47/B75)',
       floorRuleY === Math.round(m.rule.top), JSON.stringify([floorRuleY, m.rule.top]));
     ok('EXPORT_GEO cardTop is where the board draws the card',
       cardTop === Math.round(m.card.top), JSON.stringify([cardTop, m.card.top]));
     ok('EXPORT_GEO card bottom is the boards card bottom (rule + overhang)',
       floorRuleY + cardOverhang === Math.round(m.card.bottom),
       JSON.stringify([floorRuleY + cardOverhang, m.card.bottom]));
-    // B74: the label hangs below the rule as a tab, its TOP edge on the rule.
+    // B75: the label hangs below the rule as a tab, its TOP edge on the rule.
     // The stylesheet says the same (.band-label's top: 100% inside the zone).
-    ok('EXPORT_GEO lands the tab top on the rule where the board draws it (B74)',
+    ok('EXPORT_GEO lands the tab top on the rule where the board draws it (B75)',
       floorRuleY === Math.round(m.label.top),
       JSON.stringify([floorRuleY, m.label.top]));
     // Zone content hangs from the band's top at bandTop (B47); the stylesheet
@@ -968,8 +978,9 @@ const activeIsNoteText = page => page.evaluate(() =>
     });
     await page.reload();
     await page.waitForTimeout(400);
-    await page.evaluate(() => goToList());
-    await page.waitForTimeout(300);
+    // newBoardRecord() seeds 'todo' (B67), so the Pocket board is a To-Do board;
+    // its row lives on the drilled To-Do screen (issue #112 / B74).
+    await openCat(page, 'todo');
 
     const row = await page.evaluate(() => {
       const r = [...document.querySelectorAll('#list-rows .board-row')]
@@ -1201,170 +1212,124 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
-  // ---- 19. the list view's categories (issue #74, B44) --------------------
-  // The mobile twin of desktop's [D16]. Everything here rides genuine touch
-  // events, never synthesized clicks (B27b): the drag IS the feature, and it
-  // is the browser's touch pipeline that has to deliver it.
-  console.log('\n[19] List categories: To-Do / Idea / Note, touch-drag between, pager (issue #74)');
+  // ---- 19. the All-Boards picker + per-category drill (issue #112, B74) -----
+  // The list is no longer one screen of stacked sections. "All boards" raises a
+  // PICKER — on mobile, the Parking Lot turned into a 2x2 category grid — and
+  // each category's boards live on their own DRILLED screen. Drag-between-
+  // categories left the mobile list with the unified view; it lives on the
+  // desktop rail now (test/desktop.js [D16]). Everything here still rides genuine
+  // touch events, never synthesized clicks (B27b).
+  console.log('\n[19] The All-Boards picker and per-category drill (issue #112, B74)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
-    // A second board, so Unsorted holds one the drag can move without it also
-    // being the open board (which takes dropBoardCard's other write path).
-    // Two genuine pre-#58 legacy records — no `category` field at all. B67 makes
-    // `newBoardRecord()` seed 'todo', so it is deleted here: this scenario is
-    // about what a record that NEVER had a category reads as, which is the half
-    // of B21's idiom B67 deliberately left alone.
+    // Two genuine pre-#58 legacy records — no `category` at all. B67 seeds
+    // newBoardRecord() 'todo', so these are stripped: this is about what a record
+    // that NEVER had a category reads as, the half of B21's idiom B67 left alone.
     await page.evaluate(async () => {
       const mk = async (title, ageMs) => {
         const r = newBoardRecord();
         r.title = title;
         delete r.category;
-        r.createdAt = r.updatedAt = Date.now() - ageMs;  // older: sorts below the open board
+        r.createdAt = r.updatedAt = Date.now() - ageMs;
         await idbPut(r);
       };
-      await mk('Draggable', 50000);
-      await mk('Stays put', 60000);
+      await mk('Legacy one', 50000);
+      await mk('Legacy two', 60000);
     });
     await page.reload();
     await page.waitForTimeout(500);
+
+    // -- the picker is the lot-grid: four category tiles, clockwise -----------
     await page.evaluate(() => goToList());
-    await page.waitForTimeout(300);
-
-    const heads = await page.evaluate(() =>
-      [...document.querySelectorAll('#list-rows .cat-head span')].map(s => s.textContent));
-    ok('three category headers in order', heads.length === 3 &&
-       heads[0] === 'To-Do Boards' && heads[1] === 'Idea Boards' && heads[2] === 'Note Boards',
-       JSON.stringify(heads));
-
-    // Category is read-site defaulted (B21 idiom): a record that never had one
-    // IS Unsorted, so nothing was written to put the two legacy records there.
-    // The third board is the first-run one, seeded 'todo' by B67.
-    ok('the legacy records start in Unsorted, the seeded board in To-Do', await page.evaluate(() =>
-      document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row').length === 2 &&
-      document.querySelectorAll('.board-cat[data-cat="todo"] .board-row').length === 1 &&
-      !document.querySelector('.board-cat[data-cat="idea"] .board-row')));
-    ok('nothing was written to file the legacy records (B21)', await page.evaluate(async () =>
-      (await idbGetAll())
-        .filter(b => b.category === undefined && b.catStamp === undefined).length === 2));
-
-    // ---- touch-drag Unsorted -> To-Do ------------------------------------
-    const beforeId = await page.evaluate(() => current.id);
-    const dragId = await page.evaluate(() =>
-      [...document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row')]
-        .find(c => c.textContent.includes('Draggable')).dataset.id);
-    const from = await page.evaluate(() => {
-      const r = [...document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row')]
-        .find(c => c.textContent.includes('Draggable')).getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-    });
-    // The section itself, not its .cat-cards: To-Do holds nothing yet, so it
-    // is collapsed to its head row (B68) and its cards box measures zero. The
-    // drop hit-test has always been the .board-cat rect — that is exactly what
-    // keeps an empty category droppable (B44's requirement, B68's obligation).
-    const to = await page.evaluate(() => {
-      const r = document.querySelector('.board-cat[data-cat="todo"]').getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-    });
-    // Press and move, all inside LONGPRESS_MS — movement past MOVE_THRESHOLD
-    // is what turns the press into a drag rather than into the board menu.
-    const c = await touchDragTo(page, from, to);
-    ok('To-Do frame highlights mid-drag', await page.evaluate(() =>
-      document.querySelector('.board-cat[data-cat="todo"]').classList.contains('drop-target')));
-    ok('drag ghost follows the finger', await page.evaluate(() =>
-      !!document.querySelector('.card-drag-ghost')));
-    ok('the hold menu never opened — movement cancelled it',
-       await page.evaluate(() => document.querySelector('#menu').hidden !== false));
-    await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await c.detach();
-    await page.waitForTimeout(300);
-
-    ok('highlight and ghost cleared on release', await page.evaluate(() =>
-      !document.querySelector('.drop-target') && !document.querySelector('.card-drag-ghost')));
-    ok('card lands first in To-Do', await page.evaluate((id) => {
-      const first = document.querySelector('.board-cat[data-cat="todo"] .board-row');
-      return !!first && first.dataset.id === id;
-    }, dragId));
-    ok('it left Unsorted', await page.evaluate(() =>
-      document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row').length === 1));
-    ok('IDB record carries category + catStamp', await page.evaluate(async (id) => {
-      const rec = await idbGet(id);
-      return !!rec && rec.category === 'todo' && typeof rec.catStamp === 'number';
-    }, dragId));
-    ok('the drag did not open the board',
-       await page.evaluate(() => document.querySelector('#list-view').hidden === false));
-    ok('and did not switch the open board', await page.evaluate(() => current.id) === beforeId);
-
-    // ---- the other two readings of the same press are untouched (B43) -----
-    const todoCard = await page.evaluate(() => {
-      const r = document.querySelector('.board-cat[data-cat="todo"] .board-row').getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-    });
-    await tap(page, todoCard.x, todoCard.y, 700);        // motionless hold
     await page.waitForTimeout(200);
-    ok('a motionless hold still opens the board menu',
-       await page.evaluate(() => document.querySelector('#menu').hidden === false));
-    const items = await page.evaluate(() =>
-      [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('and it is still Export then Delete', items.length === 2 &&
-       /Export/.test(items[0]) && /Delete/.test(items[1]), JSON.stringify(items));
-    // Dismiss on a category head: B30's inert-dismiss only covers presses that
-    // land on #board, so a dismiss onto a board card would open that board,
-    // and .cat-add / the pager buttons are controls. A .cat-head is aria-hidden
-    // furniture with no listener of its own — the press dismisses and does
-    // nothing else. (It replaces #list-title, deleted with the heading by B66.)
-    // The menu is drawn at the press point, so take a head the menu is not
-    // covering and that really is the topmost thing at that point.
-    const dismiss = await page.evaluate(() => {
-      const m = document.querySelector('#menu').getBoundingClientRect();
-      const heads = [...document.querySelectorAll('.cat-head')].map((h) => {
-        const r = h.getBoundingClientRect();
-        const p = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-        const hit = document.elementFromPoint(p.x, p.y);
-        p.clear = !(p.x >= m.left && p.x <= m.right && p.y >= m.top && p.y <= m.bottom) &&
-                  (hit === h || h.contains(hit));
-        return p;
-      });
-      // null, never a point we have not cleared: tapping a point the menu is
-      // over would hit Delete and destroy the board the rest of [19] asserts on.
-      return heads.find(p => p.clear) || null;
+    const pick = await page.evaluate(() => {
+      const menu = document.querySelector('#lot-menu');
+      const btns = [...menu.querySelectorAll('.cat-button')];
+      const boxes = btns.map(b => b.getBoundingClientRect());
+      return {
+        menuShown: !menu.hidden,
+        listHidden: document.querySelector('#list-view').hidden,
+        lotDataKept: document.querySelector('#lot-items') !== null,
+        cats: btns.map(b => b.dataset.cat),
+        labels: btns.map(b => b.textContent),
+        cols: getComputedStyle(menu).gridTemplateColumns.split(' ').filter(Boolean).length,
+        floor: Math.min(...boxes.map(r => Math.min(r.width, r.height))),
+      };
     });
-    ok('an inert category head is clear of the open menu', !!dismiss);
-    if (dismiss) await tap(page, dismiss.x, dismiss.y);
-    await page.waitForTimeout(600);                      // let any window drain
-    ok('dismissing the menu opened nothing',
-       await page.evaluate(() => document.querySelector('#list-view').hidden === false));
+    ok('All boards raises the lot-grid, not the list screen',
+       pick.menuShown && pick.listHidden);
+    ok('the board\'s own Parking Lot data is untouched beneath it (B74)', pick.lotDataKept);
+    ok('the grid is a 2x2 of four tiles', pick.cols === 2 && pick.cats.length === 4,
+       JSON.stringify(pick.cats));
+    // GRID_ORDER lays them row-major [todo, unsorted, idea, learning] so the
+    // clockwise reading from the top-left is To Do, Notes, Learning, Ideas.
+    ok('clockwise from top-left: To Do, Notes, Learning, Ideas',
+       pick.cats.join(',') === 'todo,unsorted,idea,learning', JSON.stringify(pick.cats));
+    ok('each tile names its category',
+       pick.labels.join('|') === 'To-Do Boards|Note Boards|Idea Boards|Learning Boards',
+       JSON.stringify(pick.labels));
+    ok('the tiles clear the 44px touch floor (UIUX §6)', pick.floor >= 44, String(pick.floor));
 
-    await tap(page, todoCard.x, todoCard.y);             // motionless release
-    await page.waitForTimeout(600);                      // past ACTION_DELAY
-    ok('a motionless tap still opens the board',
-       await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
-    ok('and it opened the one that was tapped',
-       await page.evaluate(() => current.id) === dragId);
+    // Tapping a tile drills into that category's own screen.
+    const tile = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#lot-menu .cat-button')].find(x => x.dataset.cat === 'unsorted');
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await tap(page, tile.x, tile.y);
+    await page.waitForTimeout(300);
+    ok('tapping Notes drills to its screen alone', await page.evaluate(() =>
+      document.querySelector('#list-view').hidden === false &&
+      document.querySelector('#lot-menu').hidden === true &&
+      document.querySelectorAll('#list-rows .board-cat').length === 1 &&
+      document.querySelector('#list-rows .board-cat').dataset.cat === 'unsorted'));
+    ok('the drilled Notes screen holds the two legacy records', await page.evaluate(() =>
+      document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row').length === 2));
 
-    // ---- overflow pages, never scrolls -----------------------------------
-    // Enough to keep Note Boards at three or more pages now that the collapse
-    // of an empty Idea Boards raises the measured budget (B68): the pager is
-    // only under test while there is something to page.
+    // Back returns picker <- drill, then board <- picker (B9, the OS back gesture).
+    await page.evaluate(() => history.back());
+    await page.waitForTimeout(250);
+    ok('back returns from the drill to the picker', await page.evaluate(() =>
+      document.querySelector('#lot-menu').hidden === false &&
+      document.querySelector('#list-view').hidden === true));
+    await page.evaluate(() => history.back());
+    await page.waitForTimeout(250);
+    ok('back again returns from the picker to the board', await page.evaluate(() =>
+      document.querySelector('#lot-menu').hidden === true &&
+      document.querySelector('#list-view').hidden === true && !listOpen));
+    ok('and the board\'s real Parking Lot is back', await page.evaluate(() =>
+      !document.querySelector('#lot').classList.contains('menu-open')));
+
+    // -- the seeded board is in To-Do; the legacy two were never written (B21) --
+    await openCat(page, 'todo');
+    ok('the seeded first-run board sits in To-Do', await page.evaluate(() =>
+      document.querySelectorAll('.board-cat[data-cat="todo"] .board-row').length === 1));
+    ok('nothing was written to file the legacy records (B21)', await page.evaluate(async () =>
+      (await idbGetAll()).filter(b => b.category === undefined && b.catStamp === undefined).length === 2));
+
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 19b. a drilled category pages its overflow, never scrolls (B44/B74) --
+  console.log('\n[19b] A drilled category pages its overflow and never scrolls');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
     await page.evaluate(async () => {
-      // 30, not 14: B70 put two cards on a row, so a page holds twice what it
-      // did and the old seed no longer reached the 3+ pages this block asserts.
-      for (let i = 0; i < 30; i++) {
+      // A drilled category takes the WHOLE screen (issue #112 / B74), so its
+      // per-page budget is several times the old stacked-section budget — seed
+      // well past it to force the 3+ pages the pager assertions below need.
+      for (let i = 0; i < 100; i++) {
         const r = newBoardRecord();
         r.title = 'Seed ' + i;
-        r.category = 'unsorted';        // written, not defaulted: B67 seeds 'todo'
+        r.category = 'unsorted';
         r.createdAt = r.updatedAt = Date.now() - (i + 2) * 100000;
         await idbPut(r);
       }
     });
     await page.reload();
     await page.waitForTimeout(500);
-    await page.evaluate(() => goToList());
-    await page.waitForTimeout(300);
-
-    ok('categorization survives the reload', await page.evaluate((id) => {
-      const first = document.querySelector('.board-cat[data-cat="todo"] .board-row');
-      return !!first && first.dataset.id === id;
-    }, dragId));
+    await openCat(page, 'unsorted');
 
     const pg = await page.evaluate(async () => {
       const un = document.querySelector('.board-cat[data-cat="unsorted"]');
@@ -1373,47 +1338,39 @@ const activeIsNoteText = page => page.evaluate(() =>
       const all = await idbGetAll();
       const cards = un.querySelector('.cat-cards');
       return {
+        onlyOne: document.querySelectorAll('#list-rows .board-cat').length === 1,
         visible: !pager.hidden,
         disabled: btns.map(b => b.disabled),
         labels: btns.map(b => b.getAttribute('aria-label')),
         ind: un.querySelector('.cat-pages').textContent,
         onPage: un.querySelectorAll('.board-row').length,
-        total: all.filter(b => b.category !== 'todo' && b.category !== 'idea').length,
+        total: all.filter(b => catOf(b) === 'unsorted').length,
         noScroll: cards.scrollHeight <= cards.clientHeight + 1,
-        listNoScroll: (() => {
-          const v = document.querySelector('#list-view');
-          return v.scrollHeight <= v.clientHeight + 1;
-        })(),
-        floor: Math.min(...btns.map(b => Math.min(b.getBoundingClientRect().width,
-                                                  b.getBoundingClientRect().height))),
+        listNoScroll: (() => { const v = document.querySelector('#list-view'); return v.scrollHeight <= v.clientHeight + 1; })(),
+        cols: getComputedStyle(cards).gridTemplateColumns.split(' ').filter(Boolean).length,
+        floor: Math.min(...btns.map(b => Math.min(b.getBoundingClientRect().width, b.getBoundingClientRect().height))),
       };
     });
-    ok('pager visible in Unsorted', pg.visible);
+    ok('the drill shows exactly its one category', pg.onlyOne);
+    ok('pager visible in Notes', pg.visible);
     ok('pager is first/prev/next/last', pg.labels.join(',') ===
        'First page,Previous page,Next page,Last page', pg.labels.join(','));
     ok('first/prev disabled on page 0; next/last enabled',
-       pg.disabled[0] && pg.disabled[1] && !pg.disabled[2] && !pg.disabled[3],
-       JSON.stringify(pg.disabled));
+       pg.disabled[0] && pg.disabled[1] && !pg.disabled[2] && !pg.disabled[3], JSON.stringify(pg.disabled));
     const pages = Math.ceil(pg.total / pg.onPage);
     ok('indicator reads 1/' + pages, pg.ind === '1/' + pages,
        pg.ind + ' (total=' + pg.total + ' onPage=' + pg.onPage + ')');
-    // The seed is sized to the measured budget, not to a constant: if a future
-    // capacity change swallowed the overflow, every pager assertion below would
-    // pass vacuously. Three pages keep first/prev/next/last distinguishable.
-    ok('the seed still overflows into 3+ pages', pages >= 3,
-       'pages=' + pages + ' (total=' + pg.total + ' onPage=' + pg.onPage + ')');
-    // The load-bearing pair: overflow PAGES. Neither the category nor the
-    // screen itself may scroll — B44 trades the scroll away for the drag.
+    ok('the seed still overflows into 3+ pages', pages >= 3, 'pages=' + pages);
+    // B70: a whole screen for one category, so a row still carries two cards.
+    ok('the cards track is two columns wide (B70)', pg.cols === 2, String(pg.cols));
     ok('the shown page does not overflow its clip', pg.noScroll);
-    ok('the list view itself does not scroll', pg.listNoScroll);
+    ok('the drill screen itself does not scroll', pg.listNoScroll);
     ok('pager buttons clear the 44px touch floor', pg.floor >= 44, String(pg.floor));
 
     // Page turns are inert navigation — instant, no 400ms window (B22).
     const tapPager = async (lbl) => {
       const b = await page.evaluate((l) => {
-        const r = document.querySelector(
-          '.board-cat[data-cat="unsorted"] .pager-btn[aria-label="' + l + '"]')
-          .getBoundingClientRect();
+        const r = document.querySelector('.board-cat[data-cat="unsorted"] .pager-btn[aria-label="' + l + '"]').getBoundingClientRect();
         return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
       }, lbl);
       await tap(page, b.x, b.y);
@@ -1422,8 +1379,7 @@ const activeIsNoteText = page => page.evaluate(() =>
     const unState = () => page.evaluate(() => {
       const un = document.querySelector('.board-cat[data-cat="unsorted"]');
       const btn = (l) => un.querySelector('.pager-btn[aria-label="' + l + '"]');
-      return { ind: un.querySelector('.cat-pages').textContent,
-               first: un.querySelector('.board-row').dataset.id,
+      return { ind: un.querySelector('.cat-pages').textContent, first: un.querySelector('.board-row').dataset.id,
                nextOff: btn('Next page').disabled, lastOff: btn('Last page').disabled };
     });
     const p0 = await unState();
@@ -1432,188 +1388,185 @@ const activeIsNoteText = page => page.evaluate(() =>
     ok('next turns to page 2', s.ind === '2/' + pages && s.first !== p0.first, s.ind);
     await tapPager('Last page');
     s = await unState();
-    ok('last jumps to the end, next/last disable', s.ind === pages + '/' + pages &&
-       s.nextOff && s.lastOff, s.ind);
+    ok('last jumps to the end, next/last disable', s.ind === pages + '/' + pages && s.nextOff && s.lastOff, s.ind);
     await tapPager('Previous page');
     s = await unState();
     ok('prev steps back', s.ind === (pages - 1) + '/' + pages, s.ind);
     await tapPager('First page');
     s = await unState();
     ok('first returns to page 1', s.ind === '1/' + pages && s.first === p0.first, s.ind);
-    ok('a page turn opened no board',
-       await page.evaluate(() => document.querySelector('#list-view').hidden === false));
+    ok('a page turn opened no board', await page.evaluate(() =>
+      document.querySelector('#list-view').hidden === false));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
 
-    // ---- most recently updated first (issue #97, B69) --------------------
-    // The order key is last touch, not creation: a board edited through the
-    // app's own save path comes back to the top of its section. The order
-    // must also be TOTAL — two builds of the same records have to slice the
-    // same page, or a card could change slots for no reason the user caused.
+  // ---- 19c. last touch orders a drilled category (issue #97, B69) ----------
+  console.log('\n[19c] A board edited through the app returns to the top of its category (B69)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(async () => {
+      for (let i = 0; i < 6; i++) {
+        const r = newBoardRecord();
+        r.title = 'Order ' + i;
+        r.category = 'unsorted';
+        r.catStamp = r.createdAt = r.updatedAt = Date.now() - (i + 2) * 100000;
+        await idbPut(r);
+      }
+    });
+    await page.reload();
+    await page.waitForTimeout(500);
+    await openCat(page, 'unsorted');
+
     const unSorted = () => page.evaluate(async () => {
       const all = await idbGetAll();
       return all.map(b => (current && b.id === current.id) ? current : b)
                 .filter(b => catOf(b) === 'unsorted').sort(catOrder).map(b => b.id);
     });
     const unShown = () => page.evaluate(() =>
-      [...document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row')]
-        .map(c => c.dataset.id));
+      [...document.querySelectorAll('.board-cat[data-cat="unsorted"] .board-row')].map(c => c.dataset.id));
     const order0 = await unSorted();
     const shown0 = await unShown();
-    await page.evaluate(() => renderList());
-    await page.waitForTimeout(200);
-    ok('two builds of the same records give the same order',
-       order0.length >= 3 && order0.join(',') === (await unSorted()).join(',') &&
-       shown0.join(',') === (await unShown()).join(','), order0.join(','));
-
-    // Open the SECOND card on page 1 — already visible, and not already first.
+    // The SECOND card on the page — visible, and not already first.
     const target = shown0[1];
     ok('a non-first card is under test', !!target && target !== order0[0], String(target));
-    if (target && target !== order0[0]) {
     const tbox = await page.evaluate((id) => {
       const r = document.querySelector('.board-row[data-id="' + id + '"]').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     }, target);
     await tap(page, tbox.x, tbox.y);
-    await page.waitForTimeout(600);                     // past ACTION_DELAY
-    ok('the second card opened its board',
-       await page.evaluate(() => current.id) === target);
-    // A genuine edit, not a poked field: capture a note and commit it — the
-    // commit's saveNow() is what stamps updatedAt.
+    await page.waitForTimeout(600);                     // past ACTION_DELAY; two pops → board
+    ok('the second card opened its board', await page.evaluate(() => current.id) === target);
+    ok('and the nav returned all the way to the board', await page.evaluate(() =>
+      !listOpen && document.querySelector('#list-view').hidden === true &&
+      document.querySelector('#lot-menu').hidden === true));
+    // A genuine edit: capture a note and commit it — the commit's saveNow() stamps updatedAt.
     await tap(page, 200, 500);
     await page.waitForTimeout(80);
     await page.keyboard.type('touched');
-    // The capture above is a genuine touch (B27b); the commit is a blur so a
-    // second tap doesn't leave a stray empty note behind.
     await page.evaluate(() => document.activeElement.blur());
     await page.waitForTimeout(400);
-    await page.evaluate(() => goToList());
-    await page.waitForTimeout(300);
+    await openCat(page, 'unsorted');
     const order1 = await unSorted();
-    ok('the edited board is now first in its section', order1[0] === target,
+    ok('the edited board is now first in its category', order1[0] === target,
        order1.join(',') + ' (edited ' + target + ')');
-    ok('and its card is first on the page',
-       (await unShown())[0] === target, (await unShown()).join(','));
+    ok('and its card is first on the page', (await unShown())[0] === target, (await unShown()).join(','));
     ok('the boards nobody touched keep their relative order',
-       order1.filter(id => id !== target).join(',') ===
-       order0.filter(id => id !== target).join(','),
+       order1.filter(id => id !== target).join(',') === order0.filter(id => id !== target).join(','),
        order1.join(',') + ' vs ' + order0.join(','));
-    }
-
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
 
-  // ---- 20. per-category creation (issue #88, B63) -------------------------
-  // Each section carries its own New board control on the head row; the pager
-  // moved below the cards, centred; the global buttons are gone. Creating
-  // rides genuine touch events like everything mobile (B27b).
-  console.log('\n[20] Per-category New board: head row, pager below, create-in-category (issue #88)');
+  // ---- 20. per-category creation on the drilled screen (issue #88 / #112) --
+  // Each category's own screen carries its New board control on the head row,
+  // the pager below the cards, centred; the global buttons are gone. Creating
+  // rides genuine touch events (B27b). Since issue #112 the control is measured
+  // on the drilled screen, one category at a time, not on a stacked list.
+  console.log('\n[20] Per-category New board on the drilled screen: head row, pager, create-in-category');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
-    // Every section holds something, so every section draws its whole grid —
-    // head, control, cards, pager — which is what this scenario measures. (An
-    // empty one collapses to its head row under B68 and is [21]'s subject.)
-    // Note Boards is seeded past the budget so the pager row is under test.
     await page.evaluate(async () => {
-      const put = async (cat, n, tag) => {
-        for (let i = 0; i < n; i++) {
-          const r = newBoardRecord();
-          r.title = tag + ' ' + i;
-          // Written, never defaulted: B67 seeds newBoardRecord() 'todo', so an
-          // omitted category would file these in To-Do, not Note Boards.
-          r.category = cat;
-          r.catStamp = Date.now() - (i + 1) * 100000;
-          r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
-          await idbPut(r);
-        }
-      };
-      await put('todo', 2, 'To-do');
-      await put('idea', 2, 'Idea');
-      await put('unsorted', 8, 'Fill');
+      // Past the full-screen single-category budget (B74) so the pager row is
+      // under test beneath the cards.
+      for (let i = 0; i < 60; i++) {
+        const r = newBoardRecord();
+        r.title = 'Fill ' + i;
+        r.category = 'unsorted';
+        r.catStamp = r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
+        await idbPut(r);
+      }
     });
     await page.reload();
     await page.waitForTimeout(500);
-    await page.evaluate(() => goToList());
-    await page.waitForTimeout(300);
+    await openCat(page, 'unsorted');
 
     ok('the global New board buttons are gone', await page.evaluate(() =>
       !document.querySelector('#new-board') && !document.querySelector('#pane-new')));
-    const heads = await page.evaluate(() =>
-      [...document.querySelectorAll('#list-rows .cat-head span')].map(s => s.textContent));
-    ok('labels read To-Do / Idea / Note Boards',
-       heads.join('|') === 'To-Do Boards|Idea Boards|Note Boards', JSON.stringify(heads));
-
-    const geo = await page.evaluate(() =>
-      [...document.querySelectorAll('#list-rows .board-cat')].map(sec => {
-        const s = sec.getBoundingClientRect();
-        const adds = sec.querySelectorAll('.cat-add');
-        const a = adds[0] && adds[0].getBoundingClientRect();
-        const h = sec.querySelector('.cat-head').getBoundingClientRect();
-        const cards = sec.querySelector('.cat-cards');
-        const pager = sec.querySelector('.cat-pager');
-        const kids = pager && !pager.hidden
-          ? [...pager.children].map(k => k.getBoundingClientRect()) : null;
-        return {
-          adds: adds.length,
-          empty: sec.classList.contains('empty'),
-          addRight: a ? Math.abs(a.right - s.right) : 99,
-          headH: h.height, addH: a ? a.height : 0, addW: a ? a.width : 0,
-          headOverflow: sec.querySelector('.cat-head span').scrollWidth >
-                        sec.querySelector('.cat-head span').clientWidth + 1,
-          pagerVisible: !!kids,
-          pagerBelow: kids
-            ? pager.getBoundingClientRect().top >= cards.getBoundingClientRect().bottom : null,
-          pagerCentre: kids
-            ? Math.abs((Math.min(...kids.map(k => k.left)) +
-                        Math.max(...kids.map(k => k.right))) / 2 - (s.left + s.width / 2))
-            : null,
-          clip: cards.scrollHeight <= cards.clientHeight + 1,
-        };
-      }));
-    ok('one New board per section, anchored right (±1)', geo.length === 3 &&
-       geo.every(g => g.adds === 1 && g.addRight <= 1),
-       JSON.stringify(geo.map(g => [g.adds, g.addRight])));
-    ok('every section is populated here, so every grid is drawn whole',
-       geo.every(g => !g.empty), JSON.stringify(geo.map(g => g.empty)));
+    const geo = await page.evaluate(() => {
+      const sec = document.querySelector('#list-rows .board-cat');
+      const s = sec.getBoundingClientRect();
+      const a = sec.querySelector('.cat-add').getBoundingClientRect();
+      const h = sec.querySelector('.cat-head').getBoundingClientRect();
+      const cards = sec.querySelector('.cat-cards');
+      const pager = sec.querySelector('.cat-pager');
+      const kids = pager && !pager.hidden ? [...pager.children].map(k => k.getBoundingClientRect()) : null;
+      const span = sec.querySelector('.cat-head span');
+      return {
+        cat: sec.dataset.cat,
+        addRight: Math.abs(a.right - s.right),
+        headH: h.height, addH: a.height, addW: a.width,
+        headOverflow: span.scrollWidth > span.clientWidth + 1,
+        pagerVisible: !!kids,
+        pagerBelow: kids ? pager.getBoundingClientRect().top >= cards.getBoundingClientRect().bottom : null,
+        pagerCentre: kids ? Math.abs((Math.min(...kids.map(k => k.left)) + Math.max(...kids.map(k => k.right))) / 2 - (s.left + s.width / 2)) : null,
+        clip: cards.scrollHeight <= cards.clientHeight + 1,
+      };
+    });
+    ok('the New board control is anchored to the section\'s right edge (±1)',
+       geo.addRight <= 1, String(geo.addRight));
     ok('the head row is one box: header height = button height',
-       geo.every(g => Math.abs(g.headH - g.addH) < 0.5),
-       JSON.stringify(geo.map(g => [g.headH, g.addH])));
-    ok('the control clears the 44px touch floor',
-       geo.every(g => g.addH >= 44 && g.addW >= 44),
-       JSON.stringify(geo.map(g => [g.addW, g.addH])));
-    ok('no header truncates beside its control', geo.every(g => !g.headOverflow),
-       JSON.stringify(geo.map(g => g.headOverflow)));
-    const paged = geo.filter(g => g.pagerVisible);
-    ok('a visible pager is under test', paged.length >= 1, String(paged.length));
-    ok('the pager sits below the cards', paged.every(g => g.pagerBelow));
-    ok('and centres on its section (±1)', paged.every(g => g.pagerCentre <= 1),
-       JSON.stringify(paged.map(g => g.pagerCentre)));
-    ok('no section overflows its clip', geo.every(g => g.clip));
-    ok('the list view itself does not scroll', await page.evaluate(() => {
+       Math.abs(geo.headH - geo.addH) < 0.5, JSON.stringify([geo.headH, geo.addH]));
+    ok('the control clears the 44px touch floor', geo.addH >= 44 && geo.addW >= 44,
+       JSON.stringify([geo.addW, geo.addH]));
+    ok('no header truncates beside its control', !geo.headOverflow, String(geo.headOverflow));
+    ok('a visible pager is under test', geo.pagerVisible);
+    ok('the pager sits below the cards', geo.pagerBelow);
+    ok('and centres on its section (±1)', geo.pagerCentre <= 1, String(geo.pagerCentre));
+    ok('the section does not overflow its clip', geo.clip);
+    ok('the drill screen itself does not scroll', await page.evaluate(() => {
       const v = document.querySelector('#list-view');
       return v.scrollHeight <= v.clientHeight + 1;
     }));
+    await ctx.close();
+  }
 
-    // Tap To-Do's own control: B18's window, then the board opens IN To-Do.
+  // The longest category name — "Learning Boards" — keeps its whole self beside
+  // the New board control on its own drilled screen (B74's head re-tune).
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(async () => {
+      const r = newBoardRecord(); r.title = 'A learning board';
+      r.category = 'learning'; r.catStamp = r.createdAt = r.updatedAt = Date.now();
+      await idbPut(r);
+    });
+    await page.reload();
+    await page.waitForTimeout(500);
+    await openCat(page, 'learning');
+    ok('"Learning Boards" head does not truncate beside its control (B74)',
+       await page.evaluate(() => {
+         const span = document.querySelector('#list-rows .board-cat[data-cat="learning"] .cat-head span');
+         return span.textContent === 'Learning Boards' && span.scrollWidth <= span.clientWidth + 1;
+       }));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // Tap the drilled category's own New board control: B18's window, then the
+  // board opens IN that category.
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.reload();
+    await page.waitForTimeout(400);
+    await openCat(page, 'todo');
     const before = await page.evaluate(() => current.id);
     const btn = await page.evaluate(() => {
-      const r = document.querySelector('.board-cat[data-cat="todo"] .cat-add')
-        .getBoundingClientRect();
+      const r = document.querySelector('.board-cat[data-cat="todo"] .cat-add').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
     await tap(page, btn.x, btn.y);
     await page.waitForTimeout(80);
-    ok('acknowledged inside the window: .cat-add.tapped, list still up (B18)',
+    ok('acknowledged inside the window: .cat-add.tapped, screen still up (B18)',
        await page.evaluate(() =>
          !!document.querySelector('.cat-add.tapped') &&
          document.querySelector('#list-view').hidden === false));
     await page.waitForTimeout(600);
     ok('the window closed onto the new board', await page.evaluate(() =>
-      document.querySelector('#list-view').hidden !== false));
+      document.querySelector('#list-view').hidden !== false && !listOpen));
     const rec = await page.evaluate(async () => {
       const all = await idbGetAll();
       const newest = all.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
-      return { cat: newest.category, stamp: typeof newest.catStamp,
-               opened: newest.id === current.id };
+      return { cat: newest.category, stamp: typeof newest.catStamp, opened: newest.id === current.id };
     });
     ok('the record is written into To-Do, stamped, and open',
        rec.cat === 'todo' && rec.stamp === 'number' && rec.opened, JSON.stringify(rec));
@@ -1712,172 +1665,97 @@ const activeIsNoteText = page => page.evaluate(() =>
     await ctx.close();
   }
 
-  // ---- 22. four cards a page: the empty category collapses (issue #97, B68) --
-  // The budget stays MEASURED (B42/B44) — nothing here pins a constant. What
-  // is pinned is the shape B68 rules: an empty section gives up its cards and
-  // pager slots but keeps its head row, so the populated sections clear four.
-  console.log('\n[22] Four cards a page: empty categories collapse to their head row (issue #97)');
+  // ---- 22. the drilled category's budget is measured, never a constant -----
+  // A category on its own screen (issue #112 / B74) takes the whole surface —
+  // catPageCap is told one section is drawn — so B42's "measured, never a
+  // constant" law and B70's two-column row still hold, now per drill. An empty
+  // category's drill keeps its head and its New board control, and never scrolls.
+  console.log('\n[22] The drilled category takes the whole screen; its budget is measured (B42/B70/B74)');
   {
-    // The fill state has to be EXACTLY what is asked for, so the first-run
-    // board goes first: B67 seeds it 'todo', and a To-Do that is never empty
-    // is a To-Do that never collapses — which is the whole subject here.
-    // Clearing also makes this scenario independent of whatever the seed's
-    // category happens to be, rather than re-encoding today's answer.
-    const seed = (page, counts) => page.evaluate(async (c) => {
-      for (const b of await idbGetAll()) await idbDelete(b.id);
-      const cats = ['todo', 'idea', 'unsorted'];
-      let n = 0;
-      for (let i = 0; i < 3; i++) {
-        for (let j = 0; j < c[i]; j++) {
-          const r = newBoardRecord();
-          r.title = cats[i].toUpperCase() + ' ' + j;
-          r.category = cats[i];
-          r.catStamp = r.createdAt = r.updatedAt = Date.now() - (++n) * 100000;
-          await idbPut(r);
-        }
-      }
-    }, counts);
-    // What every fill state must be true of, whatever the measured number is.
-    const survey = (page) => page.evaluate(() => {
-      const secs = [...document.querySelectorAll('#list-rows .board-cat')];
-      const v = document.querySelector('#list-view');
-      return {
-        sections: secs.length,
-        cats: secs.map(s => s.dataset.cat),
-        empty: secs.map(s => s.classList.contains('empty')),
-        cards: secs.map(s => s.querySelectorAll('.board-row').length),
-        secH: secs.map(s => +s.getBoundingClientRect().height.toFixed(1)),
-        // Label and control survive a collapse: it is still somewhere to
-        // create in (B63) and still somewhere to drop onto (B44).
-        labels: secs.map(s => s.querySelector('.cat-head span').textContent),
-        addBox: secs.map(s => {
-          const r = s.querySelector('.cat-add').getBoundingClientRect();
-          return [Math.round(r.width), Math.round(r.height)];
-        }),
-        cardFloor: Math.min(99, ...[...document.querySelectorAll('.board-row')]
-          .map(c => c.getBoundingClientRect().height)),
-        cols: getComputedStyle(secs[0].querySelector('.cat-cards'))
-          .gridTemplateColumns.split(' ').filter(Boolean).length,
-        clip: secs.every(s => {
-          const c = s.querySelector('.cat-cards');
-          return c.scrollHeight <= c.clientHeight + 1;
-        }),
-        listNoScroll: v.scrollHeight <= v.clientHeight + 1,
-        inds: secs.map(s => (s.querySelector('.cat-pager').hidden
-          ? null : s.querySelector('.cat-pages').textContent)),
-      };
-    });
-    const invariants = (s, where) => {
-      ok(where + ': all three sections are still drawn, in order',
-         s.sections === 3 && s.cats.join(',') === 'todo,idea,unsorted', JSON.stringify(s.cats));
-      ok(where + ': every section still names itself and offers New board',
-         s.labels.join('|') === 'To-Do Boards|Idea Boards|Note Boards' &&
-         s.addBox.every(b => b[0] >= 44 && b[1] >= 44),
-         JSON.stringify(s.labels) + ' ' + JSON.stringify(s.addBox));
-      ok(where + ': no card is under the 44px touch floor (UIUX §6)',
-         s.cardFloor >= 44, String(s.cardFloor));
-      // B70: the vertical axis is at §6's floor, so the row carries two. Pinned
-      // as the rendered track count, not the declaration — a card that spanned
-      // both columns would still pass a text check on the stylesheet.
-      ok(where + ': the cards track is two columns wide (B70)',
-         s.cols === 2, String(s.cols));
-      ok(where + ': no section overflows its clip', s.clip);
-      ok(where + ': the list view itself does not scroll', s.listNoScroll);
-    };
-
-    // -- one category populated: two collapse, and it clears four ----------
+    // -- a full category: two columns, a measured page, honest pager, no scroll
     {
       const { ctx, page, errors } = await newMobilePage(browser);
-      await seed(page, [0, 0, 8]);
+      await page.evaluate(async () => {
+        for (const b of await idbGetAll()) await idbDelete(b.id);
+        // Past the full-screen single-category budget (B74), so the pager shows.
+        for (let i = 0; i < 60; i++) {
+          const r = newBoardRecord();
+          r.title = 'Note ' + i;
+          r.category = 'unsorted';
+          r.catStamp = r.createdAt = r.updatedAt = Date.now() - (i + 1) * 100000;
+          await idbPut(r);
+        }
+      });
       await page.reload();
       await page.waitForTimeout(500);
-      await page.evaluate(() => goToList());
-      await page.waitForTimeout(300);
-      const s = await survey(page);
-      invariants(s, 'one populated');
-      ok('one populated: To-Do and Idea collapse, Note Boards does not',
-         s.empty.join(',') === 'true,true,false', JSON.stringify(s.empty));
-      ok('one populated: a collapsed section is exactly its head row (44px)',
-         s.empty.every((e, i) => !e || Math.abs(s.secH[i] - 44) < 0.5),
-         JSON.stringify(s.secH));
-      ok('one populated: six or more cards on the page (issue #97, B70)',
-         s.cards[2] >= 6, JSON.stringify(s.cards));
+      await openCat(page, 'unsorted');
+      const s = await page.evaluate(async () => {
+        const sec = document.querySelector('#list-rows .board-cat');
+        const cards = sec.querySelector('.cat-cards');
+        const v = document.querySelector('#list-view');
+        const all = await idbGetAll();
+        return {
+          only: document.querySelectorAll('#list-rows .board-cat').length,
+          cols: getComputedStyle(cards).gridTemplateColumns.split(' ').filter(Boolean).length,
+          onPage: sec.querySelectorAll('.board-row').length,
+          total: all.filter(b => catOf(b) === 'unsorted').length,
+          ind: sec.querySelector('.cat-pager').hidden ? null : sec.querySelector('.cat-pages').textContent,
+          cardFloor: Math.min(99, ...[...sec.querySelectorAll('.board-row')].map(c => c.getBoundingClientRect().height)),
+          clip: cards.scrollHeight <= cards.clientHeight + 1,
+          listNoScroll: v.scrollHeight <= v.clientHeight + 1,
+        };
+      });
+      ok('the drill draws exactly one section', s.only === 1, String(s.only));
+      ok('the cards track is two columns wide (B70)', s.cols === 2, String(s.cols));
+      ok('no card is under the 44px touch floor (UIUX §6)', s.cardFloor >= 44, String(s.cardFloor));
+      ok('a whole screen for one category clears several cards (B70)', s.onPage >= 6,
+         JSON.stringify([s.onPage, s.total]));
+      ok('the budget is measured, and the pager says so',
+         s.ind === '1/' + Math.ceil(s.total / s.onPage), s.ind + ' onPage=' + s.onPage);
+      ok('the section does not overflow its clip', s.clip);
+      ok('the screen itself does not scroll', s.listNoScroll);
+      ok('no page errors', errors.length === 0, errors.join(' | '));
+      await ctx.close();
+    }
 
-      // A collapsed category is still a place to create in — B63's control is
-      // the whole reason the head row survives the collapse.
+    // -- an empty category: head + New board survive, and nothing scrolls -----
+    {
+      const { ctx, page, errors } = await newMobilePage(browser);
+      await page.reload();
+      await page.waitForTimeout(400);
+      await openCat(page, 'learning');   // nothing seeded here: an empty drill
+      const s = await page.evaluate(() => {
+        const sec = document.querySelector('#list-rows .board-cat');
+        const v = document.querySelector('#list-view');
+        const add = sec.querySelector('.cat-add').getBoundingClientRect();
+        return {
+          cat: sec.dataset.cat,
+          label: sec.querySelector('.cat-head span').textContent,
+          cards: sec.querySelectorAll('.board-row').length,
+          addBox: [Math.round(add.width), Math.round(add.height)],
+          listNoScroll: v.scrollHeight <= v.clientHeight + 1,
+        };
+      });
+      ok('an empty category still names itself and offers New board',
+         s.cat === 'learning' && s.label === 'Learning Boards' &&
+         s.addBox[0] >= 44 && s.addBox[1] >= 44, JSON.stringify(s));
+      ok('an empty drill holds no cards and does not scroll',
+         s.cards === 0 && s.listNoScroll, JSON.stringify([s.cards, s.listNoScroll]));
+
+      // Creating in the empty drilled category still works and opens the board.
       const btn = await page.evaluate(() => {
-        const r = document.querySelector('.board-cat[data-cat="todo"] .cat-add')
-          .getBoundingClientRect();
+        const r = document.querySelector('.board-cat[data-cat="learning"] .cat-add').getBoundingClientRect();
         return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
       });
       await tap(page, btn.x, btn.y);
       await page.waitForTimeout(600);
-      ok('one populated: New board in a collapsed To-Do still creates there',
+      ok('New board in an empty Learning drill creates there and opens it',
          await page.evaluate(async () => {
            const all = await idbGetAll();
            const newest = all.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
-           return newest.category === 'todo' && newest.id === current.id;
+           return newest.category === 'learning' && newest.id === current.id &&
+             document.getElementById('board').dataset.cat === 'learning';
          }));
-      ok('no page errors', errors.length === 0, errors.join(' | '));
-      await ctx.close();
-    }
-
-    // -- two populated: one collapses, and it still clears four ------------
-    {
-      const { ctx, page, errors } = await newMobilePage(browser);
-      await seed(page, [0, 3, 8]);
-      await page.reload();
-      await page.waitForTimeout(500);
-      await page.evaluate(() => goToList());
-      await page.waitForTimeout(300);
-      const s = await survey(page);
-      invariants(s, 'two populated');
-      ok('two populated: only the empty To-Do collapses',
-         s.empty.join(',') === 'true,false,false', JSON.stringify(s.empty));
-      ok('two populated: six or more cards on the page (issue #97, B70)',
-         s.cards[2] >= 6, JSON.stringify(s.cards));
-      ok('no page errors', errors.length === 0, errors.join(' | '));
-      await ctx.close();
-    }
-
-    // -- all three populated: nothing collapses, and the pager states the
-    //    honest budget rather than a constant clipping off the bottom -------
-    {
-      const { ctx, page, errors } = await newMobilePage(browser);
-      await seed(page, [3, 3, 8]);
-      await page.reload();
-      await page.waitForTimeout(500);
-      await page.evaluate(() => goToList());
-      await page.waitForTimeout(300);
-      const s = await survey(page);
-      invariants(s, 'three populated');
-      ok('three populated: nothing collapses',
-         s.empty.join(',') === 'false,false,false', JSON.stringify(s.empty));
-      ok('three populated: the sections share the height evenly',
-         Math.max(...s.secH) - Math.min(...s.secH) < 1, JSON.stringify(s.secH));
-      // The state the issue's number is really about: nothing empty to reclaim,
-      // so the six come from the row holding two rather than from a collapse.
-      ok('three populated: six cards on the page, all three sections drawn (B70)',
-         s.cards[2] >= 6, JSON.stringify(s.cards));
-      ok('three populated: the budget is measured, and the pager says so',
-         s.cards[2] >= 3 && s.inds[2] === '1/' + Math.ceil(9 / s.cards[2]),
-         JSON.stringify(s.cards) + ' ' + JSON.stringify(s.inds));
-      ok('no page errors', errors.length === 0, errors.join(' | '));
-      await ctx.close();
-    }
-
-    // -- nothing at all: the open board is the only record ------------------
-    {
-      const { ctx, page, errors } = await newMobilePage(browser);
-      await page.evaluate(() => goToList());
-      await page.waitForTimeout(300);
-      const s = await survey(page);
-      invariants(s, 'empty app');
-      // Not seeded: this is the genuine first-run state. B67 seeds that board
-      // 'todo', so To-Do is the section held open and the other two collapse —
-      // the mirror of what this block asserted before the ladder rotated.
-      ok('empty app: the first-run board holds To-Do open, Idea and Note collapse',
-         s.empty.join(',') === 'false,true,true', JSON.stringify(s.empty));
       ok('no page errors', errors.length === 0, errors.join(' | '));
       await ctx.close();
     }
