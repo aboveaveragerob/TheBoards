@@ -1349,8 +1349,8 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(500);
     const items = await page.evaluate(() =>
       [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('it opens the anchor menu unchanged: Export then All boards',
-       items.length === 2 && /Export/.test(items[0]) && /All boards/.test(items[1]),
+    ok('it opens the anchor menu unchanged: All boards then Export',
+       items.length === 2 && /All boards/.test(items[0]) && /Export/.test(items[1]),
        JSON.stringify(items));
     ok('and created no note under it', (await noteCount(page)) === before);
     await page.keyboard.press('Escape');

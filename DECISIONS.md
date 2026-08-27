@@ -2649,3 +2649,24 @@ comment and `app.js`'s `lotH`/`EXPORT_GEO` comments restate it. `test/mobile.js`
 gains a scenario that a wrapped item grows the lot and is drawn unclipped, and
 that a pathological lot is held at the half-sheet cap; the pre-existing
 empty-floor (122) and three-row (166) assertions stand unchanged.
+
+---
+
+### B74. The anchor menu leads with navigation: `All boards · Export` (issue #113; supersedes the `Export · All boards` order recorded in B43 and B65)
+
+The title-card menu read top→bottom `Export · All boards`. That was the one
+menu in the app whose navigation item sat *last*: B43 itself moved the item
+menu to lead with **All boards** on the reasoning that a four-item menu "reads
+navigation first, then the item's own actions in rising severity", yet the
+anchor menu — reached by long-press (A1/B43), by the `Menu` handle, and by
+right-click (B65) — kept the older order. Two non-destructive items owe no
+separator and no severity ordering, but they do owe consistency: the same
+first move should open every menu. **Zero cognitive tax** is served when the
+route back to the list sits where the hand already expects it. The array in
+`openMenuFor`'s `anchor` branch now lists `COPY.boards` first and
+`COPY.export` second; the single path feeds all three entry points at once
+(B65). This supersedes the "anchor menu stays Export · All boards" clause of
+B43 and the `Export · All boards` description in B65 — the handle is still a
+second door to one room, only the room's two items now read in the app's
+uniform navigation-first order. `test/mobile.js` [16]/[21] and
+`test/desktop.js` [D21] are updated to pin `All boards` then `Export`.

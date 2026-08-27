@@ -1900,8 +1900,8 @@ function openMenuFor(target, clientX, clientY) {
     // directly rather than routing through the list. Both items are
     // non-destructive, so no separator — same rule as everywhere else.
     items = [
-      { label: COPY.export, glyph: GLYPH.export, action: () => exportBoardPdf(current) },
       { label: COPY.boards, glyph: GLYPH.boards, action: goToList },
+      { label: COPY.export, glyph: GLYPH.export, action: () => exportBoardPdf(current) },
     ];
   } else {
     const node = target.node;
