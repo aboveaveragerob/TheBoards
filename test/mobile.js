@@ -1265,10 +1265,27 @@ async function openCat(page, cat) {
     // clockwise reading from the top-left is To Do, Notes, Learning, Ideas.
     ok('clockwise from top-left: To Do, Notes, Learning, Ideas',
        pick.cats.join(',') === 'todo,unsorted,idea,learning', JSON.stringify(pick.cats));
-    ok('each tile names its category',
-       pick.labels.join('|') === 'To-Do Boards|Note Boards|Idea Boards|Learning Boards',
+    ok('each tile names its category (short names, no redundant "Boards" — B78)',
+       pick.labels.join('|') === 'To Do|Notes|Ideas|Learning',
        JSON.stringify(pick.labels));
     ok('the tiles clear the 44px touch floor (UIUX §6)', pick.floor >= 44, String(pick.floor));
+
+    // The grid lives in #lot INSIDE #board, so a tile with no rung of its own
+    // inherits the surrounding board's --frame. Force a Learning scope on the
+    // board and the To-Do tile must still resolve to its own blue, not the
+    // Learning rose (B77) — the bug this guards was pink/violet To-Do tiles.
+    const leak = await page.evaluate(() => {
+      const board = document.getElementById('board');
+      const prev = board.dataset.cat;
+      board.dataset.cat = 'learning';        // stand the grid over a Learning board
+      const todoTile = document.querySelector('#lot-menu .cat-button[data-cat="todo"]');
+      const todoFrame = getComputedStyle(todoTile).getPropertyValue('--frame').trim().toLowerCase();
+      const boardFrame = getComputedStyle(board).getPropertyValue('--frame').trim().toLowerCase();
+      board.dataset.cat = prev;              // restore
+      return { todoFrame, boardFrame };
+    });
+    ok('the To-Do tile keeps its own blue rung under a Learning board scope (B77)',
+       leak.todoFrame === '#698ebf' && leak.boardFrame === '#b57a9b', JSON.stringify(leak));
 
     // Tapping a tile drills into that category's own screen.
     const tile = await page.evaluate(() => {
@@ -1521,8 +1538,8 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
-  // The longest category name — "Learning Boards" — keeps its whole self beside
-  // the New board control on its own drilled screen (B74's head re-tune).
+  // The longest category name — "Learning" (B78 dropped the redundant "Boards")
+  // — keeps its whole self beside the New board control on its own drilled screen.
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await page.evaluate(async () => {
@@ -1533,10 +1550,10 @@ async function openCat(page, cat) {
     await page.reload();
     await page.waitForTimeout(500);
     await openCat(page, 'learning');
-    ok('"Learning Boards" head does not truncate beside its control (B74)',
+    ok('"Learning" head does not truncate beside its control (B74/B78)',
        await page.evaluate(() => {
          const span = document.querySelector('#list-rows .board-cat[data-cat="learning"] .cat-head span');
-         return span.textContent === 'Learning Boards' && span.scrollWidth <= span.clientWidth + 1;
+         return span.textContent === 'Learning' && span.scrollWidth <= span.clientWidth + 1;
        }));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
@@ -1737,7 +1754,7 @@ async function openCat(page, cat) {
         };
       });
       ok('an empty category still names itself and offers New board',
-         s.cat === 'learning' && s.label === 'Learning Boards' &&
+         s.cat === 'learning' && s.label === 'Learning' &&
          s.addBox[0] >= 44 && s.addBox[1] >= 44, JSON.stringify(s));
       ok('an empty drill holds no cards and does not scroll',
          s.cards === 0 && s.listNoScroll, JSON.stringify([s.cards, s.listNoScroll]));

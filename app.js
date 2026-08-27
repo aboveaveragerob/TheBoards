@@ -86,12 +86,15 @@ const COPY = {
   exportLossy: 'Some characters aren’t in the PDF font.',
   saveError: 'Couldn’t save — retrying.',
   untitled: 'What’s up?',
-  // The three categories (issue #58; the third renamed at the label only —
-  // its storage key stays 'unsorted', B63) and their controls' labels. catNew
-  // is generic on purpose: the enclosing group's aria-label disambiguates the
-  // three, the same way it disambiguates the pager's twelve.
-  catTodo: 'To-Do Boards', catIdea: 'Idea Boards', catUnsorted: 'Note Boards',
-  catLearning: 'Learning Boards',        // the fourth category (issue #112, B74)
+  // The four categories (issue #58; #112 added Learning). "unsorted" is renamed
+  // at the label only — its storage key stays 'unsorted' (B63). catNew is generic
+  // on purpose: the enclosing group's aria-label disambiguates the four, the same
+  // way it disambiguates the pager's twelve.
+  // The names are the owner's own quoted words with no redundant "Boards" (issue
+  // #112 / B78) — every entry in a list of board categories would end in it. One
+  // source feeds all: makeCatSection's head/aria-label and the picker/grid tiles.
+  catTodo: 'To Do', catIdea: 'Ideas', catUnsorted: 'Notes',
+  catLearning: 'Learning',               // the fourth category (issue #112, B74)
   catNew: 'New board',
   pageFirst: 'First page', pagePrev: 'Previous page',
   pageNext: 'Next page', pageLast: 'Last page',

@@ -614,12 +614,12 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     const heads = await page.evaluate(() =>
       [...document.querySelectorAll('#pane-cards .cat-head span:first-child')].map(s => s.textContent));
     ok('four category headers in order (issue #112: To Do, Notes, Learning, Ideas)',
-       heads.length === 4 && heads[0] === 'To-Do Boards' && heads[1] === 'Note Boards' &&
-       heads[2] === 'Learning Boards' && heads[3] === 'Idea Boards',
+       heads.length === 4 && heads[0] === 'To Do' && heads[1] === 'Notes' &&
+       heads[2] === 'Learning' && heads[3] === 'Ideas',
        JSON.stringify(heads));
 
     // B67 seeds the first-run board 'todo', so an empty database opens blue on
-    // the app's own kind of board instead of defaulting into Note Boards. This
+    // the app's own kind of board instead of defaulting into Notes. This
     // is the whole of To-Do at this point in the scenario.
     ok('the first-run board is seeded To-Do and wears the blue ladder (B67)',
       await page.evaluate(async () => {
@@ -639,7 +639,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(700);
     await page.click('.board-cat[data-cat="unsorted"] .cat-add');
     await page.waitForTimeout(700);
-    ok('new boards appear in Note Boards', await page.evaluate(() =>
+    ok('new boards appear in Notes', await page.evaluate(() =>
       document.querySelectorAll('.board-cat[data-cat="unsorted"] .pane-card').length === 2 &&
       document.querySelectorAll('.board-cat[data-cat="todo"] .pane-card').length === 1 &&
       !document.querySelector('.board-cat[data-cat="idea"] .pane-card')));
@@ -1238,8 +1238,8 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       !document.querySelector('#new-board') && !document.querySelector('#pane-new')));
     const heads = await page.evaluate(() =>
       [...document.querySelectorAll('#pane-cards .cat-head span')].map(s => s.textContent));
-    ok('labels read To-Do / Note / Learning / Idea Boards (issue #112 order)',
-       heads.join('|') === 'To-Do Boards|Note Boards|Learning Boards|Idea Boards',
+    ok('labels read To Do / Notes / Learning / Ideas (issue #112 order, B78 names)',
+       heads.join('|') === 'To Do|Notes|Learning|Ideas',
        JSON.stringify(heads));
 
     const geo = await page.evaluate(() =>
@@ -1446,7 +1446,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('All boards fills #list-view with the four-button picker', picker.shown &&
        picker.cats.join(',') === 'todo,unsorted,idea,learning', JSON.stringify(picker.cats));
     ok('the picker host is a menu of the four categories', picker.role === 'menu' &&
-       picker.labels.join('|') === 'To-Do Boards|Note Boards|Idea Boards|Learning Boards',
+       picker.labels.join('|') === 'To Do|Notes|Ideas|Learning',
        JSON.stringify([picker.role, picker.labels]));
 
     // Drill into Notes.

@@ -2821,3 +2821,38 @@ the same section; §13.2's B54 measurement is annotated as superseded. `styles.c
 geometry assertions move with this ruling: `test/desktop.js` [D8]'s rule-y floor
 becomes 61, and `test/mobile.js` [9c]/[11c] assert the label's top edge overlaps
 the rule (was: bottom 10px above it) and that the tab carries a `--frame` fill.
+
+---
+
+### B77. A category tile/tray re-asserts its own rung — To-Do included (issue #112 follow-up; corrects B74's picker/tray colour, which left To-Do with no block of its own)
+
+The All-Boards menu drew the To-Do tile in the *current board's* colour: pink
+while a Learning board was open, violet on a Note board, never To-Do's blue. B74
+gave `idea`/`unsorted`/`learning` their own `#board`-scope-free
+`.board-cat`/`.cat-button[data-cat=…]` rungs but, on the reasoning that "To-Do is
+:root," gave To-Do none — assuming the tile would take `:root`'s
+`--card`/`--frame`/`--water-*`. It does not: the mobile grid is `#lot-menu`
+*inside* `#board[data-cat=…]`, and CSS custom properties inherit from the nearest
+ancestor that sets them, so a To-Do tile with no block of its own inherits the
+surrounding board's rung, not `:root`'s. **Every category — To-Do included —
+re-asserts its own rung** so a tile/tray/section keeps its family's hue in any
+board's scope. To-Do's block repeats `:root`'s exact values (UIUX §2.2), so the
+unscoped desktop render is unchanged; only the leaked contexts are corrected.
+`test/mobile.js` [19] gains a guard: over a non-To-Do board, the To-Do tile's
+resolved `--frame` is To-Do blue `#698ebf`.
+
+---
+
+### B78. The board categories are named "To Do · Notes · Learning · Ideas" — no redundant "Boards" (issue #112; supersedes the "…Boards" labels of B63's "Note Boards" and B74's "Learning Boards" in the category-name context)
+
+The All-Boards menu, the mobile grid, the drilled-screen header and the desktop
+rail heads all name the four board categories. Every one of B74's labels ended in
+"Boards" — "To-Do Boards", "Note Boards", "Learning Boards", "Idea Boards" — which
+in a list of *board categories* says the noun four times over: **zero cognitive
+tax** is not served by a word every entry shares. The names become the owner's own
+quoted words: **To Do · Notes · Learning · Ideas**. One source carries them —
+`COPY[CAT_COPY[cat]]`, read by `makeCatSection` (head + aria-label) and the
+picker/grid tiles — so all four surfaces move together. The storage keys are
+untouched (`unsorted` stays `unsorted`, B63's split of key from label stands); only
+the displayed label changes. B74's head-size re-tune is kept — the shorter names
+simply clear their controls with room to spare.
