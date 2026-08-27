@@ -258,10 +258,10 @@ body {
   /* The band's *vertical* geometry is sized by the type it holds, not by the
      sheet — B37's law, kept by B47, which retires the fixed rule: the section
      sits ABOVE its rule, reading content, then the rule as the band's bottom
-     edge, with each header hanging just below it as a tab (B75, UIUX §3.1).
+     edge, with each header hanging just below it as a tab (B76, UIUX §3.1).
      The rule's y is set in JS from the tallest zone's line count —
      14 + max(2, lines) x 19.5 + 8 — 61 at the two-line floor, 81 at three
-     lines (B75 dropped B54's + 16.9 + 10 label term, the label no longer
+     lines (B76 dropped B54's + 16.9 + 10 label term, the label no longer
      budgeting above the rule). The 61px here is the floor, standing until
      applyLayout speaks. */
   --band-top: 14px;
@@ -315,7 +315,7 @@ body {
    Drawn furniture, not a by-product of content. The section sits ABOVE the
    rule: reading down, Components/Requirements content, then the rule as the
    band's bottom edge, with each header hanging just below it as a tight tab
-   in the rule's own ink (B75, issue #111) — the exact mirror of the Parking
+   in the rule's own ink (B76, issue #111) — the exact mirror of the Parking
    Lot at the other end, one section closing each end of the sheet with the
    free canvas between. Both rules run the full width of the sheet (B47,
    superseding B35/B38's gutter inset).
@@ -368,7 +368,7 @@ body {
   font-size: 15px; font-weight: 600;
 }
 /* The header hangs BELOW the rule as a tight tab in the rule's own ink (issue
-   #111, B75; supersedes B47/B54's "label above the rule"): its top edge lands
+   #111, B76; supersedes B47/B54's "label above the rule"): its top edge lands
    ON the rule (top:100%), so the full-width rule reads as the tab's top border
    and line + label are one cohesive unit. Filled --frame; the node carries
    .on-light so its ink rebinds to --ink-dark at 5.70:1 — the compartment
@@ -456,7 +456,7 @@ body {
   /* --card-bottom is the compartment's MEASURED height, set beside --rule-y in
      updateBoardGeometry so the handle follows a title that grew past the
      floor. The fallback is that floor, standing until JS speaks — exactly as
-     --rule-y's own 61px does (B75). */
+     --rule-y's own 61px does (B76). */
   top: calc(var(--card-bottom, calc(var(--rule-y) + 22px)) - 16px);
   right: calc(100% - var(--card-l) - var(--card-w));
   height: 32px;

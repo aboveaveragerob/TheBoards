@@ -364,7 +364,7 @@ async function openCat(page, cat) {
     await tap(page, p.x, p.y);
     await page.waitForTimeout(60);
     // Issue #49's board plus a clause: the card's floor (rule-y + 22 = 83 on a
-    // blank band, B75) covers a few lines, so growth needs a longer title.
+    // blank band, B76) covers a few lines, so growth needs a longer title.
     await page.keyboard.type('LinkedIn Learnings To Do Before The Quarterly Review Lands');
     await page.waitForTimeout(120);
     const g = await page.evaluate(() => {
@@ -379,12 +379,12 @@ async function openCat(page, cat) {
                compLabel: q('#zone-components .band-label'),
                reqLabel: q('#zone-requirements .band-label') };
     });
-    // The card's floor is rule-y + 22 = 83 on a blank band (B75), so a short
+    // The card's floor is rule-y + 22 = 83 on a blank band (B76), so a short
     // title no longer exercises growth; the law under test is B38's, unchanged
     // — a grown title grows the card, never the headers.
     ok('the title grew the card past its minimum', g.card.height > g.rule.top + 22 + 1,
       JSON.stringify([g.card.height, g.rule.top]));
-    ok('the headers hang on the rule, not chasing the grown card (B75)',
+    ok('the headers hang on the rule, not chasing the grown card (B76)',
       Math.abs(g.compLabel.top - g.rule.top) < 1 &&
       Math.abs(g.reqLabel.top - g.rule.top) < 1,
       JSON.stringify([g.compLabel.top, g.reqLabel.top, g.rule.top]));
@@ -460,7 +460,7 @@ async function openCat(page, cat) {
     ok('three-across header preserved',
       geo.comp.right <= geo.title.left && geo.title.right <= geo.req.left,
       JSON.stringify([geo.comp.right, geo.title.left, geo.title.right, geo.req.left]));
-    // B47 reads the band content → rule; B75 hangs the header just BELOW the
+    // B47 reads the band content → rule; B76 hangs the header just BELOW the
     // rule as a tab in the rule's own ink (--frame) — its top edge lands on the
     // rule and the tab hangs down, at 13px/600 (B54).
     const labels = await page.evaluate(() => {
@@ -479,10 +479,10 @@ async function openCat(page, cat) {
                  bg: getComputedStyle(n).backgroundColor };
       });
     });
-    ok('the tab hangs below the rule, top edge on it (B75)',
+    ok('the tab hangs below the rule, top edge on it (B76)',
       labels.every(l => Math.abs(l.top - l.ruleTop) < 1),
       JSON.stringify(labels.map(l => [l.text, l.top, l.ruleTop])));
-    ok('the tab is filled in the rule\'s own colour, --frame (B75)',
+    ok('the tab is filled in the rule\'s own colour, --frame (B76)',
       labels.every(l => l.bg === 'rgb(105, 142, 191)'),
       JSON.stringify(labels.map(l => [l.text, l.bg])));
     ok('labels clear the compartment horizontally',
@@ -515,10 +515,10 @@ async function openCat(page, cat) {
       Math.round(geo.lot.height) === 122, String(geo.lot.height));
     ok('lot is full-bleed to the sheet bottom (UIUX §3.2)',
       Math.round(geo.lot.bottom) === 846, String(geo.lot.bottom));
-    // B47 without B54's label term (B75 moved the label below the rule): the
+    // B47 without B54's label term (B76 moved the label below the rule): the
     // band sizes to its tallest zone from a two-line floor — 14 + 2 x 19.5 + 8
     // = 61 on a blank board.
-    ok('band rule is at the two-line floor, 61 (B47/B75)',
+    ok('band rule is at the two-line floor, 61 (B47/B76)',
       Math.abs(geo.rule.top - 61) < 1, String(geo.rule.top));
     // B38's compartment under B47's band: bounded by the sheet's own top
     // edge, overhanging the rule by 22 — 83 on a blank board.
@@ -575,13 +575,13 @@ async function openCat(page, cat) {
       ok(`${tag} free canvas is >=${floor * 100}% of the sheet`,
         free / g.sheetH >= floor, `${free.toFixed(1)}px of ${g.sheetH} = ${(100 * free / g.sheetH).toFixed(1)}%`);
       // The band is type-sized (B37's law through B47's formula), so it does
-      // not move when the sheet does: the two-line floor is 61 everywhere (B75).
-      ok(`${tag} band rule is still at the 61 floor (B47/B75)`,
+      // not move when the sheet does: the two-line floor is 61 everywhere (B76).
+      ok(`${tag} band rule is still at the 61 floor (B47/B76)`,
         Math.abs(g.rule.top - 61) < 1, String(g.rule.top));
       // The clearances the band could break.
       ok(`${tag} card still crosses the rule`, g.card.bottom > g.rule.top + 1,
         JSON.stringify([g.card.bottom, g.rule.top]));
-      ok(`${tag} tab hangs below the rule and clears the lot (B75)`,
+      ok(`${tag} tab hangs below the rule and clears the lot (B76)`,
         Math.abs(g.label.top - g.rule.top) < 1 && g.label.bottom <= g.lot.top,
         JSON.stringify([g.rule.top, g.label.top, g.label.bottom, g.lot.top]));
       ok(`${tag} no page errors`, errors.length === 0, errors.join(' | '));
@@ -592,7 +592,7 @@ async function openCat(page, cat) {
   // ---- 11c. EXPORT_GEO still draws what the board draws (B47/B54) -----------
   // The exporter cannot read computed CSS, so it restates the band a second
   // time and the two can drift. Since B47 the band is content-derived on both
-  // sides from ONE formula — bandTop + max(2, lines) x headLH + bandGap (B75
+  // sides from ONE formula — bandTop + max(2, lines) x headLH + bandGap (B76
   // dropped B54's labelLH + bandClear label term, the label now hanging below
   // the rule) — so the tripwire recomputes the formula from EXPORT_GEO's own
   // terms and requires the rendered blank board (both zones at the two-line
@@ -616,16 +616,16 @@ async function openCat(page, cat) {
       ['bandTop', 'bandGap', 'cardTop', 'cardOverhang',
        'headLH', 'labelSize', 'labelLH', 'radius'].map(num);
     const floorRuleY = Math.round(bandTop + 2 * headLH + bandGap);
-    ok('EXPORT_GEO formula lands the rule where the board draws it (B47/B75)',
+    ok('EXPORT_GEO formula lands the rule where the board draws it (B47/B76)',
       floorRuleY === Math.round(m.rule.top), JSON.stringify([floorRuleY, m.rule.top]));
     ok('EXPORT_GEO cardTop is where the board draws the card',
       cardTop === Math.round(m.card.top), JSON.stringify([cardTop, m.card.top]));
     ok('EXPORT_GEO card bottom is the boards card bottom (rule + overhang)',
       floorRuleY + cardOverhang === Math.round(m.card.bottom),
       JSON.stringify([floorRuleY + cardOverhang, m.card.bottom]));
-    // B75: the label hangs below the rule as a tab, its TOP edge on the rule.
+    // B76: the label hangs below the rule as a tab, its TOP edge on the rule.
     // The stylesheet says the same (.band-label's top: 100% inside the zone).
-    ok('EXPORT_GEO lands the tab top on the rule where the board draws it (B75)',
+    ok('EXPORT_GEO lands the tab top on the rule where the board draws it (B76)',
       floorRuleY === Math.round(m.label.top),
       JSON.stringify([floorRuleY, m.label.top]));
     // Zone content hangs from the band's top at bandTop (B47); the stylesheet
@@ -1048,8 +1048,8 @@ async function openCat(page, cat) {
       document.querySelector('#menu').hidden === false));
     const shape = await page.evaluate(() =>
       [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('anchor menu is Export then All boards', shape.length === 2 &&
-       /Export/.test(shape[0]) && /All boards/.test(shape[1]), JSON.stringify(shape));
+    ok('anchor menu is All boards then Export', shape.length === 2 &&
+       /All boards/.test(shape[0]) && /Export/.test(shape[1]), JSON.stringify(shape));
     ok('still on the board — no navigation yet',
        await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
 
@@ -1639,9 +1639,9 @@ async function openCat(page, cat) {
        opened.open && (await noteCount(page)) === before, JSON.stringify(opened.open));
     // Exactly the anchor menu B43 pins, unchanged: the handle is a second door
     // to one room, not a second room.
-    ok('and it is the anchor menu unchanged: Export then All boards',
-       opened.items.length === 2 && /Export/.test(opened.items[0]) &&
-       /All boards/.test(opened.items[1]), JSON.stringify(opened.items));
+    ok('and it is the anchor menu unchanged: All boards then Export',
+       opened.items.length === 2 && /All boards/.test(opened.items[0]) &&
+       /Export/.test(opened.items[1]), JSON.stringify(opened.items));
     ok('the handle reports itself expanded', opened.expanded === 'true', opened.expanded);
 
     await page.keyboard.press('Escape');

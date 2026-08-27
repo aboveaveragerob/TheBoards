@@ -502,7 +502,7 @@ function applyNoteWidth(node, note) {
 
    The band: rule-y = 14 + max(2, lines) x 19.5 + 8 — band-top, the tallest
    zone's line count at 15px/1.3, and the gap to the rule. The label no longer
-   budgets any height ABOVE the rule: since B75 (issue #111) it hangs BELOW the
+   budgets any height ABOVE the rule: since B76 (issue #111) it hangs BELOW the
    rule as a tab, so the band closes at the content plus its gap. 61 at the
    two-line floor, 81 at three lines. */
 const BAND_TOP = 14, BAND_LINE = 19.5, BAND_GAP = 8;
@@ -1910,8 +1910,8 @@ function openMenuFor(target, clientX, clientY) {
     // directly rather than routing through the list. Both items are
     // non-destructive, so no separator — same rule as everywhere else.
     items = [
-      { label: COPY.export, glyph: GLYPH.export, action: () => exportBoardPdf(current) },
       { label: COPY.boards, glyph: GLYPH.boards, action: goToList },
+      { label: COPY.export, glyph: GLYPH.export, action: () => exportBoardPdf(current) },
     ];
   } else {
     const node = target.node;
@@ -2443,7 +2443,7 @@ function pdfAssemble(streams, title) {
 const EXPORT_GEO = {
   gutter: 24,
   // B47's band formula, the same law the screen derives --rule-y from, with
-  // B75's label moved below the rule so it no longer budgets above it:
+  // B76's label moved below the rule so it no longer budgets above it:
   // rule-y = bandTop + max(2, lines) x headLH + bandGap,
   // resolved per record in exportRuleY() against THIS sheet's zone widths.
   bandTop: 14, bandGap: 8,
@@ -2457,7 +2457,7 @@ const EXPORT_GEO = {
   lotHead: 34, lotRow: 44, lotHeaderY: 8, lotItemsY: 34,
   headSize: 15, headLH: 19.5,          // title, anchor text, lot header
   labelSize: 13, labelLH: 16.9,        // the band's nomenclature (13 x 1.3, B54)
-  labelPadX: 6, labelPadY: 2,          // the tab that frames it below the rule (B75)
+  labelPadX: 6, labelPadY: 2,          // the tab that frames it below the rule (B76)
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
   noteSize: 17, noteLH: 23.8,          // 17px / 1.4
   border: 2, radius: 3, notePadX: 12, notePadY: 10,   // radius mirrors B49 by hand
@@ -2541,7 +2541,7 @@ function exportBoardPage(rec) {
 
   // The band reads content, then the rule as the band's bottom edge — full
   // width (B47) — with each header hanging just below the rule as a tab in the
-  // rule's own ink (B75). The card draws last, on top of the rule.
+  // rule's own ink (B76). The card draws last, on top of the rule.
   const ruleY = exportRuleY(rec);
   const zones = [
     { text: rec.components, label: 'Components', l: g.compL, r: g.compR },
@@ -2557,7 +2557,7 @@ function exportBoardPage(rec) {
               g.headSize, g.headLH, true, 'left');
     }
     // The header hangs below the rule as a tight tab in the rule's own ink
-    // (B75): a filled PDF_INK box, top edge on the rule, centred in its zone.
+    // (B76): a filled PDF_INK box, top edge on the rule, centred in its zone.
     // The rule is dark here (unlike the mid-light --frame on screen), so the
     // label reverses to the paper tone rather than screen's --ink-dark.
     const labelW = pdfTextW(z.label, true, g.labelSize) + 2 * g.labelPadX;

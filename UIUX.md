@@ -669,7 +669,7 @@ Reading down: **Components / Requirements content, then the rule, then the
 header hanging just below it.** The header is **centred in its zone as a tight
 tab whose top edge lands on the rule** (`top: 100%`), filled in the rule's own
 colour (`--frame`) so the line and the label read as one cohesive unit, at
-13px/600 (B75, issue #111; supersedes B47/B54's label-*above*-the-rule, closing
+13px/600 (B76, issue #111; supersedes B47/B54's label-*above*-the-rule, closing
 §13.2's question). The tab is `width: max-content` with `padding: 2px 6px` and
 `border-radius: 0 0 3px 3px` (only the corners that exist below the rule); its
 ink rebinds to `--ink-dark` via `.on-light` at **5.70:1** on the `--frame`
@@ -687,7 +687,7 @@ rule-y = 14 + max(2, lines) × 19.5 + 8
        = 61px at the floor, 81px at three lines
 ```
 
-The label term (`+ 16.9 + 10`) is gone from the budget: since B75 the header
+The label term (`+ 16.9 + 10`) is gone from the budget: since B76 the header
 hangs below the rule, so it no longer reserves height above it.
 
 A fill has to have a bottom edge and the band's content does not have a fixed
@@ -1202,7 +1202,7 @@ x-height is 0.534em and cap height 0.700em at 1000 units per em.
 > the floor, 107 at three lines (§3.1). Rendered at both sizes on proof sheet
 > 8; the ratified render is `docs/proofs/proof-9-a-well-furnished.html`.
 
-**Superseded by B75 (issue #111):** the label no longer sits above the rule, so
+**Superseded by B76 (issue #111):** the label no longer sits above the rule, so
 its `+ 16.9 + 10` term left the band budget — the band closes at **61 at the
 floor, 81 at three lines** (§3.1). The 13px measurement stands; only its place
 moved, below the rule as a tab.
