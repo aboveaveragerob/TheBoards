@@ -97,7 +97,7 @@ async function openCat(page, cat) {
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await tap(page, 200, 500);
-    await page.waitForTimeout(50);           // well under the old 400ms window
+    await page.waitForTimeout(50);           // capture is immediate — no window at all
     const n = await noteCount(page);
     ok('note exists within 50ms', n === 1, 'count=' + n);
     ok('.note-text has focus', await activeIsNoteText(page));
@@ -1559,8 +1559,8 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
-  // Tap the drilled category's own New board control: B18's window, then the
-  // board opens IN that category.
+  // Tap the drilled category's own New board control: it creates and opens the
+  // board IN that category, instantly (B81).
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await page.reload();
@@ -1573,12 +1573,10 @@ async function openCat(page, cat) {
     });
     await tap(page, btn.x, btn.y);
     await page.waitForTimeout(80);
-    ok('acknowledged inside the window: .cat-add.tapped, screen still up (B18)',
-       await page.evaluate(() =>
-         !!document.querySelector('.cat-add.tapped') &&
-         document.querySelector('#list-view').hidden === false));
+    ok('no acknowledgment fill: the beat is retired (B81)',
+       await page.evaluate(() => !document.querySelector('.cat-add.tapped')));
     await page.waitForTimeout(600);
-    ok('the window closed onto the new board', await page.evaluate(() =>
+    ok('it opened onto the new board', await page.evaluate(() =>
       document.querySelector('#list-view').hidden !== false && !listOpen));
     const rec = await page.evaluate(async () => {
       const all = await idbGetAll();
@@ -1643,10 +1641,9 @@ async function openCat(page, cat) {
     const before = await noteCount(page);
     await tap(page, geo.r.x + geo.r.w / 2, geo.r.bottom + 2 * geo.hit - 1);
     await page.waitForTimeout(80);
-    ok('acknowledged inside the window: #title-menu.tapped, menu still shut (B18)',
-       await page.evaluate(() => !!document.querySelector('#title-menu.tapped') &&
-         document.querySelector('#menu').hidden === true));
-    await page.waitForTimeout(500);
+    ok('the menu opens at once, with no acknowledgment fill (B81)',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
+         !document.querySelector('#title-menu.tapped')));
     const opened = await page.evaluate(() => ({
       open: document.querySelector('#menu').hidden === false,
       items: [...document.querySelectorAll('#menu button')].map(b => b.textContent),
@@ -1776,6 +1773,37 @@ async function openCat(page, cat) {
       ok('no page errors', errors.length === 0, errors.join(' | '));
       await ctx.close();
     }
+  }
+
+  // ---- 23. dismissing the keyboard puts the note away (issue #119, B80) -----
+  // The keyboard-proxy of test [7], carried one step further: shrink is the
+  // keyboard coming up (the sheet holds still, B28, focus kept); the grow BACK
+  // is it going down while the note still holds focus, and the note must
+  // deselect then — not sit half-live waiting for a throwaway tap.
+  console.log('\n[23] Dismissing the mobile keyboard deselects the active note');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 200, 300);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('put me away');
+    await page.setViewportSize({ width: 384, height: 450 });   // keyboard up
+    await page.waitForTimeout(200);
+    ok('editor still focused while the keyboard is up (B28)', await activeIsNoteText(page));
+    await page.setViewportSize({ width: 384, height: 846 });   // keyboard dismissed
+    await page.waitForTimeout(200);
+    ok('the note deselects on keyboard dismissal (#119)', !(await activeIsNoteText(page)));
+    ok('the note survives — blur committed, not discarded', (await noteCount(page)) === 1,
+       'count=' + await noteCount(page));
+    ok('its text is unchanged', await page.evaluate(() =>
+       document.querySelector('.note-text').textContent) === 'put me away');
+    // The first tap after dismissal is a real action, not spent dismissing.
+    await tap(page, 200, 560);
+    await page.waitForTimeout(60);
+    ok('the next tap creates a new note (no dead first tap)', (await noteCount(page)) === 2,
+       'count=' + await noteCount(page));
+    ok('the new note holds focus', await activeIsNoteText(page));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
   }
 
   await browser.close();

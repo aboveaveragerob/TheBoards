@@ -2881,3 +2881,102 @@ comment names `register()`'s per-load `update()` as the mechanism under test —
 this is the call that had been missing). Note: this cannot rescue a client already
 stranded on an `update()`-less build — that needs a one-time cache clear; it
 prevents the next stranding.
+
+---
+
+### B80. Dismissing the mobile keyboard puts the note away (issue #119)
+
+On mobile a note's selected/active state *is* its edit mode — the `.note-text`
+`contenteditable` holds focus; there is no separate `selected` on mobile (that is
+desktop's, §8.5). So finishing a thought and pressing the keyboard's own hide
+control ought to end with the note put away, the way tapping bare canvas already
+ends it (B41). It did not: the editor kept focus, so the note stayed live, and the
+next tap anywhere was spent only committing/dismissing it (`handleTap`'s
+`isEditing → blur → break`) — a dead first tap before any real action, the "requires
+a tap before any other action" in the report. **Zero cognitive tax:** the interface
+must never be thought about, and a note that will not let go until it is poked once
+is exactly a thing thought about.
+
+The fix lives where the keyboard is already seen — `onViewportResize`. B28 held the
+sheet still while the keyboard is *up* (the viewport shrinks; relayout is deferred so
+the sheet does not flap). B80 adds the other edge: while the same note holds focus,
+a viewport that grows back is the keyboard *leaving*, and the note is blurred —
+which runs the existing commit-on-blur `focusout` path (B41), committing the text,
+deselecting, and landing the deferred layout in one motion. Open vs. dismiss is told
+apart with no new event and no timer: the current edit's own floor — the smallest
+visual-viewport height seen since focus (`editVVFloor`, reset to `Infinity` on
+`focusout`) — only ever drops while the keyboard opens, so any growth past it by
+`KB_HIDE_SLOP` (120 px, comfortably above URL-bar/inset jitter and far below any real
+soft keyboard) is the retraction, and measuring against the fixed floor catches it
+even when the browser animates the return in steps. B28's deferral is untouched and
+still load-bearing; this reads the same signal for the departure B28 never handled.
+Graceful on browsers without `visualViewport` (the guard falls back to `innerHeight`,
+which a keyboard may not move, so the fix simply does not fire — same posture as B28's
+own fallback). Desktop is unaffected: the whole branch is behind `!isDesktop`, and
+desktop already deselects on Escape and click-away (§8.5, B41).
+
+---
+
+### B81. Actions commit on release, with no latency; only B18's drop-guard survives (supersedes B18's 400 ms window and its (a) fill / (b) controls-fill / (c) ghost; discharges B18's and B27's "impermanence" clauses by re-interrogating the number to zero; revises B22's and B27's "creation / swap / menu keep the window"; keeps B18(d) "first tap wins")
+
+The task: drop the 400 ms `delayAction` latency. B18's own impermanence clause
+asked for exactly this — "400 ms is a felt value, given not derived; re-interrogate
+it on the device rather than defend it, the structure holds at any duration, and
+only the number would move" — and B27's added, of mobile capture, "if it is ever
+re-interrogated to zero, this entry collapses into it and B18c's ghost goes with
+it." This is that re-interrogation, to zero, for every action at once. Zero
+cognitive tax (the interface is never thought about) is served better by a result
+that is simply *there* on release than by a 400 ms beat the user has to read as
+"I was heard."
+
+`delayAction(ackNode, fn)` — set a guard, wait `ACTION_DELAY`, then fill and run
+`fn` — is replaced by `commitAction(fn)`: run `fn` now, then hold the guard for
+`ACTION_DELAY`. The latency is gone; the acknowledgement is the instant result
+itself (the note vanishes, the toast rises, the menu opens, Copy's row drains).
+
+**(a) What the guard is for, and why it stays.** B18(d) stands: an impatient
+double-tap must not delete twice or complete-then-uncomplete, and a phantom
+compatibility event must not fire an action's evil twin. So a *consequence* —
+Complete/Restore, Copy, Delete, Undo, a menu item, board create/delete — commits
+at once and then holds `pendingAction` for `ACTION_DELAY` (400 ms, now purely a
+re-fire guard, no longer a felt beat), dropping a second tap inside it. First tap
+still wins; only the order of "act" and "wait" swapped — trailing edge to leading
+edge.
+
+**(b) Navigation and capture take no guard.** Opening a menu, swapping boards, and
+entering an editor commit a *view*, not a consequence — the same "commits nothing"
+that already put desktop selection (B22) and rail page-turns (B42) outside the
+window, so a leading-edge guard here would only clip the very next tap on the
+surface just revealed (a menu that opens instantly must not swallow the first tap
+on its own item). Capture — a note or lot line — self-heals: creating a second
+frame focuses its editor and blurs the first, which is empty, which B8 discards
+(B27's argument, now true on desktop too). So all four run raw and instant, on
+desktop as on mobile — collapsing B27a's desktop/mobile split and retiring B18c's
+`.tap-ghost` with it.
+
+**(c) The window's whole visual apparatus is retired.** With no 400 ms to fill,
+B18(a)'s "fill the window, empty is a dropped tap" and B18(b)'s content-thickens /
+controls-fill lose their subject. The `.tapped` weight on notes / anchors / lot
+lines and the fill-or-drain on the menu, toast, board rows, the primary control,
+the title handle, the selection buttons and the pane delete are all deleted, as is
+the `.tap-ghost`. The drag / pinch `.pressed` weight (§4.2) is a different signal —
+"I have this" while a gesture is live, not an action acknowledgement — and is
+untouched.
+
+**Accepted consequence, precedented by B27a.** With swap instant, a fast
+double-tap on a board card can swap *and then* drop a stray empty note on the new
+canvas; it self-heals on blur (B8), double-tapping a card is not a real gesture,
+and masking it is not worth re-adding latency — exactly B27's "one note survives,
+at the last point tapped," extended to the swap.
+
+**The record.** The behaviour and the retirement live in UIUX §5's
+"Acknowledgement" subsection (rewritten) and its token-migration table (the
+tap-ghost's low-alpha line annotated retired). `sw.js`'s `CACHE` bumps to v31.
+`styles.css`'s "Tap acknowledgment" section collapses to a one-line tombstone;
+`app.js` replaces `delayAction` / `makeTapGhost` with `commitAction` and repoints
+its call sites by the (a)/(b) split above. The tests that measured the window move
+with the ruling: `test/desktop.js` [D2]/[D18] assert instant capture with no
+ghost and the Complete / Copy cases assert the action lands at once; the menu,
+cat-add and title-handle assertions drop `.tapped`; `test/mobile.js` does the same
+for cat-add and the title handle; `test/tokens.js` drops the `.tapped` selectors
+from its accent-on-chrome whitelist and pins v31.
