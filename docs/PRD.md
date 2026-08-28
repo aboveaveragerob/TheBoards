@@ -625,7 +625,7 @@ happened once, with two merges landing with no deploy at all.
 The fastest way to answer "did my change reach anyone":
 `curl -s https://<pages-host>/sw.js | grep todo-boards-`
 
-*Current state: `sw.js` reads `todo-boards-v8`, while B38 and `TOP-BAND-PLAN.md`
+*Current state: `sw.js` reads `todo-boards-v8`, while B38 and `plans/TOP-BAND-PLAN.md`
 both record `v7` as the last documented bump. The v8 bump has no DECISIONS entry.*
 
 ### §8.2 Testing

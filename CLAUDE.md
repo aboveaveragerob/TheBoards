@@ -102,9 +102,9 @@ Key architectural facts:
 
 | File | Answers | Wins on | Cited as |
 |---|---|---|---|
-| `PRD.md` | what the app is, who it is for, why | product intent | `PRD §x` |
-| `UIUX.md` | what it renders, and in what values | **rendering** | `UIUX §x` |
-| `DECISIONS.md` | every ruling, in order, with its reason | the later ruling always wins | `B<n>` |
+| `docs/PRD.md` | what the app is, who it is for, why | product intent | `PRD §x` |
+| `docs/UIUX.md` | what it renders, and in what values | **rendering** | `UIUX §x` |
+| `docs/DECISIONS.md` | every ruling, in order, with its reason | the later ruling always wins | `B<n>` |
 
 **`UIUX.md` is the rendering authority** (`DECISIONS.md:22`, which resolved A1
 by following `UIUX §7` over `PRD §6.6`). Every design value — hexes, contrast
@@ -141,7 +141,7 @@ supersedes/overrides) rather than leaving the decision implicit in code —
 and if it is a *rendering* call, the value itself belongs in `UIUX.md`,
 with the entry recording why.
 
-`DESKTOP-MODE-PLAN.md` and `TOP-BAND-PLAN.md` are point-in-time
+`docs/plans/DESKTOP-MODE-PLAN.md` and `docs/plans/TOP-BAND-PLAN.md` are point-in-time
 implementation plans for past features (both marked `Status: implemented`
 at the top) — useful as historical context for *why* the desktop grammar
 and top-band layout look the way they do, but `DECISIONS.md` is authoritative

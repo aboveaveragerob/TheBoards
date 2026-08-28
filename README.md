@@ -31,6 +31,18 @@ lives on-device in IndexedDB; there is no backend).
 | `test/` | Four regression scripts (dev-only; see `test/README.md`) — three drive a browser; `tokens.js` recomputes the design contract with no browser at all |
 | `.github/workflows/pages.yml` | Deploy to Pages, and assert the deployed `sw.js` is this commit's |
 
+## Docs
+
+Product, design, and decision records live under `docs/`:
+
+| Doc | Holds |
+|---|---|
+| `docs/PRD.md` | what the app is, who it is for, why |
+| `docs/UIUX.md` | the rendering authority — every hex, size, radius, and threshold |
+| `docs/DECISIONS.md` | every UI/interaction ruling, numbered `B<n>`, in order |
+| `docs/plans/` | archived point-in-time implementation plans (desktop mode, top band) |
+| `docs/proofs/` | rendered design reference sheets |
+
 ## Shipping
 
 `sw.js`'s cache name is the one string that says which build is live, so it is
