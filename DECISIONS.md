@@ -2884,7 +2884,7 @@ prevents the next stranding.
 
 ---
 
-### B80. Actions commit on release, with no latency; only B18's drop-guard survives (supersedes B18's 400 ms window and its (a) fill / (b) controls-fill / (c) ghost; discharges B18's and B27's "impermanence" clauses by re-interrogating the number to zero; revises B22's and B27's "creation / swap / menu keep the window"; keeps B18(d) "first tap wins")
+### B81. Actions commit on release, with no latency; only B18's drop-guard survives (supersedes B18's 400 ms window and its (a) fill / (b) controls-fill / (c) ghost; discharges B18's and B27's "impermanence" clauses by re-interrogating the number to zero; revises B22's and B27's "creation / swap / menu keep the window"; keeps B18(d) "first tap wins")
 
 The task: drop the 400 ms `delayAction` latency. B18's own impermanence clause
 asked for exactly this — "400 ms is a felt value, given not derived; re-interrogate

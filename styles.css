@@ -1376,7 +1376,7 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 }
 .lot-actions .sel-btn { min-height: 32px; padding: 0 10px; font-size: 13px; }
 
-/* Tap acknowledgment retired (B80): actions commit instantly, so there is no
+/* Tap acknowledgment retired (B81): actions commit instantly, so there is no
    400ms window to fill — no `.tapped` weight/fill on content, furniture, or
    controls, and no `.tap-ghost` on the empty canvas. The instant result is its
    own acknowledgment. The drag/pinch "pressed" weight (§4.2) is untouched. */

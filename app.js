@@ -59,7 +59,7 @@ const SAVE_DEBOUNCE = 300;
 const UNDO_MS = 5000;
 const LEAVE_MS = 200;
 const TOAST_HIDE_MS = 210;           // just past the toast's 200ms fade before hidden lands
-const ACTION_DELAY = 400;            // re-fire drop-guard: a consequence commits now, a second tap inside is dropped (B80)
+const ACTION_DELAY = 400;            // re-fire drop-guard: a consequence commits now, a second tap inside is dropped (B81)
 
 const COPY = {
   // "All boards" (issue #60): the menu item is a destination, and "Boards"
@@ -867,7 +867,7 @@ function commitOpenEditor(node) {
   return own;
 }
 
-/* A consequence commits on release, with no latency (B80). What survives from
+/* A consequence commits on release, with no latency (B81). What survives from
    B18's window is only its drop-guard: the action runs now, and a second tap
    inside the guard is dropped, not queued — an impatient double-tap must not
    delete twice or complete-then-uncomplete. First tap wins (B18d, kept). The
@@ -939,14 +939,14 @@ function handleTap(target, x, y, shift) {
       // with a selection active a tap only dismisses; capture is only primary
       // when nothing is selected or being edited.
       if (isDesktop && selected) { clearSelection(); break; }
-      createNote(x, y);                // capture is instant on both (B27, B80)
+      createNote(x, y);                // capture is instant on both (B27, B81)
       break;
     }
     case 'lot': {
       // Same #54 law as canvas: an open editor commits and the tap is spent.
       if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
       if (isDesktop && selected) { clearSelection(); break; }   // creation surface too
-      createLotItem();                 // capture is instant on both (B27, B80)
+      createLotItem();                 // capture is instant on both (B27, B81)
       break;
     }
     case 'note': {
@@ -1012,7 +1012,7 @@ function handleTap(target, x, y, shift) {
       break;
     }
     case 'anchor':
-      editText(target.node, x, y);      // edit-entry is instant on both (B27, B80)
+      editText(target.node, x, y);      // edit-entry is instant on both (B27, B81)
       break;
     case 'title-menu':
       tapTitleMenu();
@@ -1926,7 +1926,7 @@ function openMenuFor(target, clientX, clientY) {
    to know one. The menu drops from the handle's own bottom-right corner, so
    buildMenu's viewport flip right-aligns it under the control on a phone.
 
-   Opening commits nothing, so it is instant with no guard (B80); the menu drops
+   Opening commits nothing, so it is instant with no guard (B81); the menu drops
    offset from the handle rather than under the finger, and each item carries its
    own drop-guard, so an impatient double-tap can't fall through onto an action. */
 function openTitleMenu() {
@@ -1937,7 +1937,7 @@ function openTitleMenu() {
   el.titleMenu.setAttribute('aria-expanded', 'true');
   openMenuFor({ type: 'anchor', node: anchorEls.title }, r.right, r.bottom);
 }
-const tapTitleMenu = () => openTitleMenu();   // opening a menu commits nothing — instant, no guard (B80)
+const tapTitleMenu = () => openTitleMenu();   // opening a menu commits nothing — instant, no guard (B81)
 
 /* The recognizer owns pointers, so the keyboard is the one path it cannot see.
    preventDefault stops the native click the key would otherwise synthesize, and
@@ -3183,7 +3183,7 @@ function attachBoardCardGestures(card, row, b, opts) {
     // Releasing over the section the card already lives in is a change of
     // mind, not a move: no write, no reorder-to-top, no page reset.
     if (target && target !== catOf(b)) dropBoardCard(b, target);
-    else if (!spent && opts.onTap) opts.onTap();   // swap commits a view, not a consequence — instant (B80)
+    else if (!spent && opts.onTap) opts.onTap();   // swap commits a view, not a consequence — instant (B81)
   });
   card.addEventListener('pointercancel', () => { down = false; dragging = false; clearDrag(); });
 }
@@ -3367,7 +3367,7 @@ function makePaneRow(b) {
   // Keyboard activation still arrives as a `click` with no pointer sequence
   // (detail 0) — the swap stays reachable without a mouse.
   if (!isActive) card.addEventListener('click', (ev) => {
-    if (ev.detail === 0) swapBoard(b.id);   // navigation — instant, no guard (B80)
+    if (ev.detail === 0) swapBoard(b.id);   // navigation — instant, no guard (B81)
   });
   // Deletion path (b), issue #10: right-click any card → the board menu
   // (Export, then Delete). The one summoning gesture "remove click-and-hold"

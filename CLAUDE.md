@@ -79,7 +79,7 @@ Key architectural facts:
 - **IndexedDB is the only persistence** (`boards-db` / `boards` store, see
   §2). Writes are debounced (`SAVE_DEBOUNCE`) through `scheduleSave`/`saveNow`;
   there is no server round-trip anywhere in the app.
-- **Actions commit on release, guarded against re-fire** (B18 → B80): every
+- **Actions commit on release, guarded against re-fire** (B18 → B81): every
   committing *consequence* (delete, complete, copy, undo, menu item, board
   create/delete) runs the instant it is released through `commitAction()`, which
   then briefly drops a second tap so an impatient double-tap can't double-fire.

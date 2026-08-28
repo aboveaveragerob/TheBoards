@@ -1560,7 +1560,7 @@ async function openCat(page, cat) {
   }
 
   // Tap the drilled category's own New board control: it creates and opens the
-  // board IN that category, instantly (B80).
+  // board IN that category, instantly (B81).
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await page.reload();
@@ -1573,7 +1573,7 @@ async function openCat(page, cat) {
     });
     await tap(page, btn.x, btn.y);
     await page.waitForTimeout(80);
-    ok('no acknowledgment fill: the beat is retired (B80)',
+    ok('no acknowledgment fill: the beat is retired (B81)',
        await page.evaluate(() => !document.querySelector('.cat-add.tapped')));
     await page.waitForTimeout(600);
     ok('it opened onto the new board', await page.evaluate(() =>
@@ -1641,7 +1641,7 @@ async function openCat(page, cat) {
     const before = await noteCount(page);
     await tap(page, geo.r.x + geo.r.w / 2, geo.r.bottom + 2 * geo.hit - 1);
     await page.waitForTimeout(80);
-    ok('the menu opens at once, with no acknowledgment fill (B80)',
+    ok('the menu opens at once, with no acknowledgment fill (B81)',
        await page.evaluate(() => document.querySelector('#menu').hidden === false &&
          !document.querySelector('#title-menu.tapped')));
     const opened = await page.evaluate(() => ({

@@ -31,7 +31,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D2] Canvas click captures instantly — no ghost, no window (B80)');
+  console.log('\n[D2] Canvas click captures instantly — no ghost, no window (B81)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await page.mouse.click(800, 600);
@@ -72,7 +72,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D4] Selection buttons commit instantly (B80)');
+  console.log('\n[D4] Selection buttons commit instantly (B81)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await page.mouse.click(800, 600);
@@ -96,7 +96,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     if (btn) {
       await page.mouse.click(btn.x, btn.y);
       await page.waitForTimeout(100);
-      ok('complete lands at once (B80)', await page.evaluate(() => !!document.querySelector('.note.complete')));
+      ok('complete lands at once (B81)', await page.evaluate(() => !!document.querySelector('.note.complete')));
     }
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
@@ -298,7 +298,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
 
     await openExportMenu();
     await page.waitForTimeout(150);
-    // The item commits instantly (B80): the menu closes and acts on release, so
+    // The item commits instantly (B81): the menu closes and acts on release, so
     // the download fires during the click — arm the listener before clicking.
     const dlPromise = page.waitForEvent('download');
     await clickExport();
@@ -453,7 +453,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       await page.evaluate(() => navigator.clipboard.writeText('sentinel'));
       await page.mouse.click(btn.x, btn.y);
       await page.waitForTimeout(100);
-      ok('the note text is copied at once (B80)', await page.evaluate(() =>
+      ok('the note text is copied at once (B81)', await page.evaluate(() =>
         navigator.clipboard.readText().then(t => t === 'take this text', () => false)));
       ok('Copied notice shows', await page.evaluate(() => {
         const t = document.querySelector('#toast');
@@ -1033,7 +1033,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       !document.activeElement || !document.activeElement.classList.contains('note-text')));
     ok('text persisted', await page.evaluate(() =>
       current.notes.length === 1 && current.notes[0].text === 'persist me'));
-    // The SECOND click is the creating one: a note at once, no ghost (B80).
+    // The SECOND click is the creating one: a note at once, no ghost (B81).
     await page.mouse.click(500, 300);
     await page.waitForTimeout(80);
     ok('no ghost drawn', await page.evaluate(() => !document.querySelector('.tap-ghost')));
@@ -1279,10 +1279,10 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return p.scrollHeight <= p.clientHeight + 1;
     }));
 
-    // Click To-Do's own control: it creates and opens the board instantly (B80).
+    // Click To-Do's own control: it creates and opens the board instantly (B81).
     const before = await page.evaluate(() => current.id);
     await page.click('.board-cat[data-cat="todo"] .cat-add');
-    ok('no acknowledgment fill: the beat is retired (B80)',
+    ok('no acknowledgment fill: the beat is retired (B81)',
        await page.evaluate(() => !document.querySelector('.cat-add.tapped')));
     await page.waitForTimeout(400);                      // swap crossfade (260) + margin
     const rec = await page.evaluate(async () => {
@@ -1334,7 +1334,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     const before = await noteCount(page);
     await page.mouse.click(geo.r.x + geo.r.w / 2, geo.r.y + geo.r.h / 2);
     await page.waitForTimeout(80);
-    ok('the menu opens at once, with no acknowledgment fill (B80)',
+    ok('the menu opens at once, with no acknowledgment fill (B81)',
        await page.evaluate(() => document.querySelector('#menu').hidden === false &&
          !document.querySelector('#title-menu.tapped')));
     const items = await page.evaluate(() =>
