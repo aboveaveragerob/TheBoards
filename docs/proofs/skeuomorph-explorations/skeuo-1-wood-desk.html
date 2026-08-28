@@ -1,0 +1,356 @@
+<meta charset="utf-8">
+<title>Desk & Card Index</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Marcellus&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    /* --- wood desk material world (committed single look) --- */
+    --walnut-1:#3a2416; --walnut-2:#2a190e; --walnut-3:#4a2f1c; --walnut-hi:#5c3d26;
+    --felt:#1f4032; --felt-hi:#2c5a45; --felt-lo:#16302561;
+    --manila:#e9dcbe; --manila-2:#ded0ac; --manila-edge:#c8b78d;
+    --card-rule:#b6472f; --card-line:#9db3c0;
+    --ink:#2c2013; --ink-soft:#5e4d34;
+    --brass:#c69a4c; --brass-hi:#f2d79a; --brass-lo:#8a6a2e;
+    --leather:#5a3822; --leather-hi:#7a4e2e; --leather-emboss:#caa76a;
+    --highlight:#f2d64b; --highlight-edge:#c9a92f;
+    --danger:#b23a24; --restore:#2f6d4f;
+    --page-ink:#3a2b1a;
+    --paper-shadow:rgba(20,10,2,.42);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -10%, #4a2f1c 0%, #2a190e 60%, #1c1108 100%);
+    color:var(--page-ink);
+    font-family:"Cormorant Garamond",Georgia,serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    padding:clamp(20px,4vw,56px) 20px 80px;
+    line-height:1.5;
+  }
+  /* faint sawn-timber grain over the whole desk */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+    background:
+      repeating-linear-gradient(92deg, rgba(0,0,0,.16) 0 2px, rgba(255,255,255,.018) 2px 5px, rgba(0,0,0,.05) 5px 11px),
+      repeating-linear-gradient(90deg, rgba(90,61,38,.22) 0 60px, rgba(30,18,9,.28) 60px 130px);
+    mix-blend-mode:overlay;
+  }
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+
+  /* ---- masthead ---- */
+  .plate{
+    align-self:center;text-align:center;
+    padding:16px 34px 18px;border-radius:7px;max-width:640px;
+    background:linear-gradient(160deg,#6a4327,#3f2614 70%);
+    border:1px solid #24150b;
+    box-shadow:
+      inset 0 1px 0 rgba(255,220,170,.28),
+      inset 0 -3px 8px rgba(0,0,0,.5),
+      0 10px 22px rgba(0,0,0,.45);
+  }
+  .plate .kicker{
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.34em;text-transform:uppercase;
+    color:var(--brass-hi);opacity:.85;margin-bottom:8px;
+  }
+  .plate h1{
+    font-family:"Marcellus",serif;margin:0;line-height:1.05;text-wrap:balance;
+    font-size:clamp(28px,5vw,44px);letter-spacing:.02em;
+    color:#f0d8a6;
+    text-shadow:0 1px 0 #23150a, 0 2px 1px rgba(0,0,0,.6);
+  }
+  .plate p{margin:.5em auto 0;max-width:52ch;color:#e6cfa0;font-size:16px;font-style:italic;opacity:.92}
+
+  .grid{display:grid;grid-template-columns:minmax(340px,404px) 1fr;gap:34px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;max-width:404px;margin:0 auto}}
+
+  /* ================= THE SHEET — board view on green desk-blotter ================= */
+  .desk-mat{
+    padding:20px;border-radius:6px;
+    background:
+      linear-gradient(180deg,var(--felt-hi),var(--felt) 40%,#183527);
+    border:1px solid #0f251b;
+    box-shadow:inset 0 1px 0 rgba(120,180,150,.22), inset 0 0 30px rgba(0,0,0,.35), 0 14px 30px rgba(0,0,0,.4);
+    position:relative;
+  }
+  .desk-mat::before{ /* felt fuzz */
+    content:"";position:absolute;inset:0;border-radius:6px;pointer-events:none;opacity:.5;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='f'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23f)' opacity='0.5'/></svg>");
+    mix-blend-mode:overlay;
+  }
+  .stitch{position:absolute;inset:9px;border:1.5px dashed rgba(210,225,215,.35);border-radius:4px;pointer-events:none}
+
+  .sheet{
+    position:relative;z-index:1;height:720px;border-radius:3px;overflow:hidden;
+    background:#e7d9ba;
+    box-shadow:0 6px 18px var(--paper-shadow);
+  }
+
+  /* --- top band: felt desk-blotter strip with a leather label plate --- */
+  .band{
+    position:relative;height:150px;
+    background:linear-gradient(180deg,#25503d,#1c3e2f 70%,#173324);
+    border-bottom:2px solid #0e241b;
+    box-shadow:inset 0 -6px 12px rgba(0,0,0,.3);
+  }
+  .band .zone{
+    position:absolute;top:16px;font-family:"IBM Plex Mono",monospace;
+    font-size:11px;letter-spacing:.04em;color:#d7e6d9;line-height:1.4;width:23%;
+  }
+  .band .zone.left{left:16px}
+  .band .zone.right{right:40px;text-align:right}
+  .tab{
+    position:absolute;bottom:-1px;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.16em;
+    text-transform:uppercase;color:#22160b;padding:2px 8px 3px;border-radius:3px 3px 0 0;
+    background:linear-gradient(180deg,var(--brass-hi),var(--brass));box-shadow:0 -1px 0 var(--brass-lo);
+  }
+  .tab.left{left:16px}.tab.right{right:16px}
+
+  /* leather title plate overhanging the blotter */
+  .title-plate{
+    position:absolute;left:50%;top:24px;transform:translateX(-50%);width:48%;z-index:4;
+    padding:16px 14px 14px;text-align:center;border-radius:4px;
+    background:
+      linear-gradient(155deg,#6a4225,#42281640 40%),
+      radial-gradient(120% 120% at 30% 20%, #6f4526, #3c2413 90%);
+    border:1px solid #24140a;
+    box-shadow:inset 0 1px 0 rgba(240,200,150,.3), inset 0 -3px 8px rgba(0,0,0,.5), 0 6px 14px rgba(0,0,0,.4);
+  }
+  .title-plate::before{ /* grain */
+    content:"";position:absolute;inset:0;border-radius:4px;opacity:.4;pointer-events:none;mix-blend-mode:overlay;
+    background:repeating-linear-gradient(45deg, rgba(0,0,0,.2) 0 1px, transparent 1px 4px);
+  }
+  .title-plate .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.2em;color:var(--brass-hi);text-transform:uppercase;opacity:.85}
+  .title-plate .name{
+    font-family:"Marcellus",serif;font-size:19px;letter-spacing:.03em;margin-top:3px;
+    color:var(--leather-emboss);
+    text-shadow:0 -1px 0 rgba(0,0,0,.6), 0 1px 0 rgba(220,180,120,.25);
+  }
+  .handle{
+    position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;z-index:5;
+    background:radial-gradient(circle at 35% 30%, var(--brass-hi), var(--brass) 55%, var(--brass-lo));
+    border:1px solid #5c451d;box-shadow:0 2px 3px rgba(0,0,0,.5), inset 0 1px 1px rgba(255,240,200,.6);
+    display:grid;place-items:center;
+  }
+  .handle::after{content:"";width:11px;height:11px;border-radius:50%;background:#3a2c12;box-shadow:inset 0 1px 1px rgba(0,0,0,.6)}
+
+  /* --- the deep: corkboard/desk surface where cards live --- */
+  .deep{
+    position:absolute;left:0;right:0;top:150px;bottom:132px;
+    background:
+      radial-gradient(90% 70% at 50% 30%, #efe2c6, #e2d3b0 70%, #d3c199);
+    overflow:hidden;
+  }
+  .deep::before{content:"";position:absolute;inset:0;opacity:.5;mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='3'/></filter><rect width='90' height='90' filter='url(%23p)' opacity='0.35'/></svg>");}
+
+  /* ---- INDEX CARD = the note ---- */
+  .card{
+    position:absolute;width:var(--w,150px);padding:0;border-radius:2px;
+    background:linear-gradient(180deg,var(--manila),var(--manila-2));
+    border:1px solid var(--manila-edge);
+    box-shadow:0 5px 10px rgba(60,35,10,.28), 0 1px 0 rgba(255,255,255,.5) inset;
+    transform:rotate(var(--r,0deg));
+    font-family:"Special Elite","Courier New",monospace;
+  }
+  .card .rule{height:22px;border-bottom:1px solid var(--card-rule);opacity:.55}
+  .card .body{
+    padding:8px 11px 11px;font-size:13.5px;line-height:1.5;color:var(--ink);
+    background-image:repeating-linear-gradient(180deg, transparent 0 21px, var(--card-line) 21px 22px);
+    background-position:0 -3px;
+  }
+  .card .fastener{
+    position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:14px;height:14px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, var(--brass-hi), var(--brass) 60%, var(--brass-lo));
+    border:1px solid #5c451d;box-shadow:0 2px 3px rgba(0,0,0,.4);
+  }
+  .card.hl{background:linear-gradient(180deg,#f6e075,var(--highlight));border-color:var(--highlight-edge)}
+  .card.hl .body{color:#3c2f08}
+  .card.done .body{color:#8a7b5e}
+  .card.done .strike{position:absolute;inset:20px 8px 8px;pointer-events:none;
+    background:repeating-linear-gradient(9deg, var(--danger) 0 2px, transparent 2px 7px);opacity:.5}
+
+  /* ---- parking lot: an open index-card tray drawer at the foot ---- */
+  .lot{
+    position:absolute;left:0;right:0;bottom:0;height:132px;
+    background:linear-gradient(180deg,#3f2614,#2c1a0d);
+    border-top:2px solid #6a4327;
+    box-shadow:inset 0 5px 12px rgba(0,0,0,.55);
+    padding:12px 16px;
+  }
+  .lot .lot-h{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--brass-hi);opacity:.8;margin-bottom:8px}
+  .lot .divider{display:flex;flex-direction:column;gap:0}
+  .lot .li{font-family:"Special Elite",monospace;font-size:13px;color:#e5d3ac;padding:6px 0;border-bottom:1px solid rgba(198,154,76,.22)}
+  .lot .li::before{content:"—  ";color:var(--brass)}
+
+  /* ================= critique + kit column ================= */
+  .panel{
+    background:linear-gradient(180deg,#efe3c8,#e4d4b0);
+    border:1px solid #c8b78d;border-radius:6px;padding:22px 24px;
+    box-shadow:0 10px 24px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.6);
+    color:#3a2b1a;
+  }
+  .panel h2{font-family:"Marcellus",serif;font-size:20px;margin:0 0 4px;letter-spacing:.01em}
+  .panel .lede{font-style:italic;font-size:17px;color:#5e4d34;margin:0 0 16px;max-width:52ch}
+  .trade{
+    display:flex;gap:10px;align-items:flex-start;font-size:14.5px;line-height:1.45;padding:9px 0;
+    border-top:1px solid rgba(120,90,50,.22);
+  }
+  .trade .stamp{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    color:#8a3a22;border:1px solid #b8654a;border-radius:3px;padding:2px 6px;white-space:nowrap;margin-top:2px}
+  .trade.keeps .stamp{color:#2f6d4f;border-color:#4f9070}
+
+  .kit{margin-top:22px}
+  .kit .kit-h{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:#8a6a3a;margin-bottom:12px}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .btn{
+    font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.04em;
+    padding:8px 14px;border-radius:4px;cursor:default;border:1px solid #23140a;
+    color:#2b1c0c;background:linear-gradient(180deg,var(--brass-hi),var(--brass));
+    box-shadow:0 3px 0 var(--brass-lo), 0 5px 8px rgba(0,0,0,.25);
+  }
+  .btn.danger{background:linear-gradient(180deg,#d98a72,var(--danger));color:#fff;box-shadow:0 3px 0 #7c2413,0 5px 8px rgba(0,0,0,.25)}
+  .btn.ghost{background:linear-gradient(180deg,#efe3c8,#dccaa2);color:#4a3a24;box-shadow:0 3px 0 #b09a6c}
+
+  .board-row{
+    margin-top:14px;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:4px;
+    background:linear-gradient(180deg,var(--manila),var(--manila-2));border:1px solid var(--manila-edge);
+    box-shadow:0 4px 8px rgba(60,35,10,.2);
+  }
+  .board-row .tabpip{width:26px;height:34px;border-radius:2px 2px 0 0;background:linear-gradient(180deg,var(--brass),var(--brass-lo));flex:none;box-shadow:inset 0 1px 0 rgba(255,235,190,.5)}
+  .board-row .t{flex:1;font-family:"Special Elite",monospace;font-size:15px;color:#2c2013}
+  .board-row .d{font-family:"IBM Plex Mono",monospace;font-size:11px;color:#8a6a3a}
+
+  .strip{margin-top:16px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+  .toast{
+    padding:11px 16px;border-radius:5px;background:linear-gradient(180deg,#4a2f1c,#2c1a0d);color:#eeddb6;
+    font-family:"IBM Plex Mono",monospace;font-size:12px;display:flex;gap:14px;align-items:center;
+    box-shadow:0 8px 16px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,220,170,.2);border:1px solid #1c1007;
+  }
+  .toast u{color:var(--brass-hi);text-underline-offset:3px}
+  .menu{
+    width:170px;border-radius:5px;overflow:hidden;background:linear-gradient(180deg,#efe3c8,#e0cfa8);
+    border:1px solid #c2ac7c;box-shadow:0 12px 26px rgba(0,0,0,.4);font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:#3a2b1a;
+  }
+  .menu .mi{padding:9px 13px;display:flex;gap:9px;align-items:center;border-bottom:1px solid rgba(150,120,70,.2)}
+  .menu .mi.del{color:#9a3520;border-top:1px solid #c69a4c}
+  .menu .mi .g{width:14px;height:14px;border-radius:3px;background:#c69a4c;flex:none}
+  .menu .mi.del .g{background:#b23a24}
+
+  .hues{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+  .hue{display:flex;flex-direction:column;align-items:center;gap:5px;font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.1em;color:#7a5e34;text-transform:uppercase}
+  .hue i{width:46px;height:30px;border-radius:3px;border:1px solid #23140a;box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+
+  footer{position:relative;z-index:1;text-align:center;margin-top:14px;font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.14em;color:#a58a5e;text-transform:uppercase}
+</style>
+
+<div class="wrap">
+  <header class="plate">
+    <div class="kicker">TheBoards · Skeuomorphic Overhaul · Option 1 of 4</div>
+    <h1>Desk &amp; Card Index</h1>
+    <p>The bounded page becomes a walnut desk. Every captured thought is a ruled manila index card, fastened with a brass eyelet, laid out on the green blotter and filed in the drawer below.</p>
+  </header>
+
+  <div class="grid">
+    <!-- THE BOARD, reskinned -->
+    <div class="desk-mat">
+      <div class="stitch"></div>
+      <div class="sheet">
+        <!-- top band = blotter strip + leather title plate -->
+        <div class="band">
+          <div class="zone left">the hard<br>parts</div>
+          <div class="zone right">before<br>Thursday</div>
+          <span class="tab left">Components</span>
+          <span class="tab right">Requirements</span>
+          <div class="title-plate">
+            <div class="eyebrow">To-Do Board</div>
+            <div class="name">Kitchen&nbsp;Remodel</div>
+          </div>
+          <div class="handle" title="board menu"></div>
+        </div>
+
+        <!-- the deep: cards on the blotter -->
+        <div class="deep">
+          <div class="card" style="--w:154px;left:20px;top:14px;--r:-2.2deg">
+            <span class="fastener"></span><div class="rule"></div>
+            <div class="body">Measure the run<br>from window to<br>the pantry wall</div>
+          </div>
+          <div class="card" style="--w:132px;left:196px;top:8px;--r:1.6deg">
+            <span class="fastener"></span><div class="rule"></div>
+            <div class="body">Pick the tile —<br>matte, not gloss</div>
+          </div>
+          <div class="card hl" style="--w:150px;left:150px;top:150px;--r:-1deg">
+            <span class="fastener"></span><div class="rule"></div>
+            <div class="body">DEPOSIT DUE<br>Friday — call<br>the fabricator</div>
+          </div>
+          <div class="card done" style="--w:138px;left:14px;top:198px;--r:2.4deg">
+            <span class="fastener"></span><div class="rule"></div>
+            <div class="body">Order the sink</div><div class="strike"></div>
+          </div>
+          <div class="card" style="--w:120px;left:210px;top:262px;--r:-1.8deg">
+            <span class="fastener"></span><div class="rule"></div>
+            <div class="body">Ask about<br>lead time</div>
+          </div>
+        </div>
+
+        <!-- parking lot = the card drawer -->
+        <div class="lot">
+          <div class="lot-h">Parking Lot · unfiled</div>
+          <div class="divider">
+            <div class="li">Repaint the ceiling too?</div>
+            <div class="li">Salvage the old cabinet pulls</div>
+            <div class="li">Budget check at month end</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CRITIQUE + COMPONENT KIT -->
+    <div>
+      <section class="panel">
+        <h2>What the desk buys — and what it costs</h2>
+        <p class="lede">A warm, tactile, unmistakably physical filing system. But warmth is not free against the app&rsquo;s own law.</p>
+        <div class="trade keeps"><span class="stamp">keeps</span><span><b>Structure still reads.</b> Card, fastener, drawer and blotter each carry a job — capture, place, file — so identity survives even under the costume.</span></div>
+        <div class="trade"><span class="stamp">trades</span><span><b>Shadows on every note.</b> UIUX §1 says a note is <i>on</i> the page, never floating. Here each card lifts — the metaphor demands it, the law forbids it.</span></div>
+        <div class="trade"><span class="stamp">trades</span><span><b>Costume over restraint.</b> Grain, brass and stitching are decoration that can&rsquo;t &ldquo;name its job in one sentence&rdquo; (§1). Peace-by-restraint becomes cosiness-by-detail.</span></div>
+        <div class="trade"><span class="stamp">trades</span><span><b>Legibility on manila.</b> Dark ink on warm paper drops well below the deep&rsquo;s AAA 18.33:1. Charming, but a real contrast regression.</span></div>
+      </section>
+
+      <div class="kit">
+        <div class="kit-h">Component kit</div>
+        <div class="btns">
+          <span class="btn">＋ New board</span>
+          <span class="btn ghost">Complete</span>
+          <span class="btn danger">Delete</span>
+        </div>
+
+        <div class="board-row">
+          <span class="tabpip"></span>
+          <span class="t">Weekend house projects</span>
+          <span class="d">14 Aug</span>
+        </div>
+
+        <div class="strip">
+          <div class="toast"><span>Card deleted.</span><u>Undo</u></div>
+          <div class="menu">
+            <div class="mi"><span class="g"></span>Complete</div>
+            <div class="mi"><span class="g"></span>Highlight</div>
+            <div class="mi"><span class="g"></span>Duplicate</div>
+            <div class="mi del"><span class="g"></span>Delete</div>
+          </div>
+        </div>
+
+        <div class="hues">
+          <div class="hue"><i style="background:linear-gradient(180deg,#e9dcbe,#c8b78d)"></i>To-Do</div>
+          <div class="hue"><i style="background:linear-gradient(180deg,#d8e3c4,#aec18d)"></i>Idea</div>
+          <div class="hue"><i style="background:linear-gradient(180deg,#e0d4e6,#bda9c8)"></i>Note</div>
+          <div class="hue"><i style="background:linear-gradient(180deg,#efd3d2,#cfa39f)"></i>Learn</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Speculative rendering — not the shipped design · TheBoards</footer>
+</div>

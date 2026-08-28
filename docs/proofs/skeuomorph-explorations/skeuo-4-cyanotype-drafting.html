@@ -1,0 +1,237 @@
+<meta charset="utf-8">
+<title>Cyanotype Drafting Table</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=Space+Mono:wght@400;700&family=Caveat:wght@500;600&display=swap">
+<style>
+  :root{
+    --cyan-1:#123a6b; --cyan-2:#0c2c54; --cyan-3:#081f3d; --cyan-void:#05162c;
+    --line:#e9f1fb; --line-dim:#9fc0e4; --line-faint:#4f79ab;
+    --vellum:#f3ecd6; --vellum-2:#e9dfc2; --vellum-edge:#cdbf95;
+    --graphite:#2a2c30; --graphite-soft:#55585f;
+    --brass:#cba24e; --brass-hi:#f4dc98; --brass-lo:#8a6a2a; --brass-deep:#4a3712;
+    --redline:#e2513a; --redline-deep:#a5321f;
+    --amber:#f2c94b; --amber-edge:#c39a1f;
+    --restore:#6fae8f;
+    --ink:#e4eefb; --ink-dim:#a7c2e2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -5%, #0d2f59 0%, #0a2649 45%, #071d3a 80%, #05162c 100%);
+    color:var(--ink);font-family:"Jost",system-ui,sans-serif;font-weight:300;
+    -webkit-font-smoothing:antialiased;min-height:100vh;
+    padding:clamp(20px,4vw,56px) 20px 80px;line-height:1.55;
+  }
+  /* faint drafting grid over the whole table */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+    background:
+      linear-gradient(rgba(159,192,228,.09) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, rgba(159,192,228,.09) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(rgba(159,192,228,.16) 1px, transparent 1px) 0 0/140px 140px,
+      linear-gradient(90deg, rgba(159,192,228,.16) 1px, transparent 1px) 0 0/140px 140px;
+  }
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+
+  header.mast{align-self:center;text-align:center;max-width:660px}
+  header .kicker{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--line-dim);margin-bottom:12px}
+  header h1{font-family:"Jost",sans-serif;font-weight:600;margin:0;line-height:1.04;text-wrap:balance;
+    font-size:clamp(30px,5.6vw,50px);letter-spacing:.02em;text-transform:uppercase;color:var(--line);
+    text-shadow:0 0 1px rgba(233,241,251,.5)}
+  header p{margin:14px auto 0;max-width:56ch;font-size:18px;color:var(--ink-dim);font-weight:300}
+
+  .grid{display:grid;grid-template-columns:minmax(340px,404px) 1fr;gap:34px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;max-width:404px;margin:0 auto}}
+
+  /* ============ THE SHEET — a pinned drawing on the board ============ */
+  .board{position:relative;padding:16px;border-radius:4px;
+    background:linear-gradient(180deg,#0e3160,#0a2648);
+    border:1px solid #06213f;
+    box-shadow:0 20px 46px rgba(0,0,0,.55), inset 0 1px 0 rgba(159,192,228,.14);
+  }
+  /* corner drafting tape */
+  .tape{position:absolute;width:52px;height:20px;background:rgba(243,236,214,.5);z-index:6;
+    box-shadow:0 1px 3px rgba(0,0,0,.25);border:1px solid rgba(205,191,149,.4)}
+  .tape.tl{top:6px;left:6px;transform:rotate(-38deg);transform-origin:top left}
+  .tape.tr{top:6px;right:6px;transform:rotate(38deg);transform-origin:top right}
+
+  .sheet{position:relative;height:720px;border-radius:2px;overflow:hidden;
+    background:linear-gradient(180deg,#0c2c54 0%,#0a2649 55%,#08213f 100%);
+    box-shadow:inset 0 0 0 1.5px rgba(233,241,251,.5), inset 0 0 40px rgba(0,0,0,.35)}
+  .sheet::before{content:"";position:absolute;inset:8px;border:1px solid rgba(233,241,251,.35);pointer-events:none}
+  /* the border title/scale strip along the very edge */
+
+  /* top band: the parallel rule + drawing title block */
+  .band{position:absolute;left:0;right:0;top:0;height:150px;z-index:3}
+  .band .prule{position:absolute;left:0;right:0;bottom:0;height:12px;
+    background:linear-gradient(180deg,var(--brass-hi),var(--brass) 45%,var(--brass-lo));
+    border-top:1px solid #6b5220;border-bottom:1px solid #3a2c10;
+    box-shadow:0 2px 5px rgba(0,0,0,.4)}
+  .band .prule::after{content:"";position:absolute;inset:0;opacity:.5;
+    background:repeating-linear-gradient(90deg, rgba(0,0,0,.25) 0 1px, transparent 1px 12px)}
+  .zone{position:absolute;top:16px;font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.03em;color:#cfe0f4;line-height:1.45;width:21%}
+  .zone.left{left:16px}.zone.right{right:40px;text-align:right}
+  .tab{position:absolute;bottom:14px;font-family:"Space Mono",monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    color:#08213f;padding:3px 9px;background:var(--line-dim);border-radius:2px}
+  .tab.left{left:16px}.tab.right{right:16px}
+
+  /* title block, engineering-drawing style */
+  .titleblock{position:absolute;left:50%;top:20px;transform:translateX(-50%);width:52%;z-index:4;
+    border:1.5px solid var(--line);border-radius:2px;overflow:hidden;background:rgba(12,44,84,.7)}
+  .titleblock .tb-top{padding:6px 10px;border-bottom:1px solid var(--line-faint);display:flex;justify-content:space-between;align-items:baseline}
+  .titleblock .num{font-family:"Space Mono",monospace;font-size:9px;letter-spacing:.14em;color:var(--line-dim)}
+  .titleblock .rev{font-family:"Space Mono",monospace;font-size:9px;color:var(--amber)}
+  .titleblock .name{font-family:"Jost",sans-serif;font-weight:500;font-size:18px;letter-spacing:.05em;text-transform:uppercase;color:var(--line);padding:7px 10px 8px}
+  .compass{position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;z-index:5;
+    background:radial-gradient(circle at 35% 30%,var(--brass-hi),var(--brass) 55%,var(--brass-lo));border:1px solid var(--brass-deep);
+    box-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .compass::after{content:"";position:absolute;inset:6px;border-radius:50%;background:#0a2648}
+
+  /* VELLUM TRACE NOTE = the note */
+  .trace{position:absolute;width:var(--w,150px);padding:11px 13px 12px;z-index:3;border-radius:2px;
+    background:linear-gradient(180deg, rgba(243,236,214,.94), rgba(233,223,194,.9));
+    border:1px solid var(--vellum-edge);
+    box-shadow:0 4px 12px rgba(0,0,0,.35);
+    color:var(--graphite);text-align:center;
+    font-family:"Caveat",cursive;font-weight:600;font-size:19px;line-height:1.15;
+    transform:rotate(var(--r,0deg))}
+  .trace .dot{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:12px;height:12px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,var(--brass-hi),var(--brass) 60%,var(--brass-lo));border:1px solid var(--brass-deep);
+    box-shadow:0 2px 3px rgba(0,0,0,.35)}
+  .trace .code{display:block;font-family:"Space Mono",monospace;font-size:8.5px;font-weight:400;letter-spacing:.1em;color:var(--graphite-soft);margin-top:4px;text-transform:uppercase}
+  .trace.hl{background:linear-gradient(180deg, rgba(246,224,120,.95), rgba(238,201,75,.9));border-color:var(--amber-edge)}
+  .trace.done{color:var(--graphite-soft)}
+  .trace.done .rl{position:absolute;left:8px;right:8px;top:50%;height:2px;background:var(--redline);transform:rotate(-4deg);box-shadow:0 0 3px rgba(226,81,58,.5)}
+
+  /* parking lot: the revision schedule / notes column */
+  .lot{position:absolute;left:0;right:0;bottom:0;height:132px;z-index:3;padding:14px 16px;
+    background:linear-gradient(180deg, rgba(10,38,72,.5), rgba(7,29,58,.92))}
+  .lot .rule{position:absolute;left:0;right:0;top:0;height:2px;background:var(--line-dim)}
+  .lot .lot-h{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--line-dim);margin-bottom:8px;display:flex;justify-content:space-between}
+  .lot .li{font-family:"Caveat",cursive;font-weight:600;font-size:16px;color:#d7e6f7;padding:4px 0 4px 20px;position:relative;border-bottom:1px solid rgba(159,192,228,.16)}
+  .lot .li::before{content:"△";position:absolute;left:0;top:6px;color:var(--amber);font-size:10px}
+
+  /* ============ critique + kit ============ */
+  .panel{background:linear-gradient(180deg,#0d2c55,#081f3d);border:1px solid #06213f;border-radius:4px;padding:22px 24px;
+    box-shadow:0 14px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(159,192,228,.14)}
+  .panel h2{font-family:"Jost",sans-serif;font-weight:500;font-size:21px;letter-spacing:.04em;text-transform:uppercase;margin:0 0 4px;color:var(--line)}
+  .panel .lede{font-size:17px;color:var(--ink-dim);margin:0 0 16px;max-width:52ch;font-weight:300}
+  .trade{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;line-height:1.45;padding:9px 0;border-top:1px solid rgba(159,192,228,.16);font-weight:300}
+  .trade .stamp{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--redline);border:1px solid var(--redline-deep);border-radius:2px;padding:2px 6px;white-space:nowrap;margin-top:2px}
+  .trade.keeps .stamp{color:var(--restore);border-color:#3f7a5f}
+  .trade b{color:#e4eefb;font-weight:500}
+
+  .kit{margin-top:22px}
+  .kit-h{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--line-dim);margin-bottom:12px}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .btn{font-family:"Jost",sans-serif;font-weight:500;letter-spacing:.06em;font-size:12px;text-transform:uppercase;
+    padding:9px 15px;border-radius:2px;cursor:default;color:#08213f;
+    background:linear-gradient(180deg,var(--line),var(--line-dim));border:1px solid #3a5a80;
+    box-shadow:0 2px 0 #2c476a}
+  .btn.danger{background:linear-gradient(180deg,#ec7a66,var(--redline));color:#fff;box-shadow:0 2px 0 var(--redline-deep)}
+  .btn.ghost{background:transparent;color:var(--line);border:1px solid var(--line);box-shadow:none}
+
+  .board-row{margin-top:14px;display:flex;align-items:center;gap:12px;padding:12px 15px;border-radius:2px;
+    background:rgba(12,44,84,.6);border:1px solid var(--line-faint);box-shadow:inset 0 1px 0 rgba(159,192,228,.14)}
+  .board-row .pip{color:var(--amber);font-size:12px;flex:none}
+  .board-row .t{flex:1;font-family:"Jost",sans-serif;font-weight:400;letter-spacing:.02em;font-size:15px;color:var(--line)}
+  .board-row .d{font-family:"Space Mono",monospace;font-size:11px;color:var(--ink-dim)}
+
+  .strip{margin-top:16px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+  .toast{padding:11px 16px;border-radius:2px;background:linear-gradient(180deg,#0e3160,#0a2345);color:#d7e6f7;
+    font-family:"Space Mono",monospace;font-size:12px;display:flex;gap:14px;align-items:center;
+    box-shadow:0 10px 22px rgba(0,0,0,.5);border:1px solid var(--line-faint)}
+  .toast u{color:var(--restore);text-underline-offset:3px}
+  .menu{width:176px;border-radius:2px;overflow:hidden;background:linear-gradient(180deg,#0e3160,#091f3c);
+    border:1px solid var(--line-faint);box-shadow:0 14px 30px rgba(0,0,0,.55);font-family:"Jost",sans-serif;font-weight:400;font-size:13.5px;color:#d7e6f7}
+  .menu .mi{padding:9px 13px;display:flex;gap:10px;align-items:center;border-bottom:1px solid rgba(159,192,228,.14)}
+  .menu .mi.del{color:var(--redline);border-top:1px solid var(--line-dim)}
+  .menu .mi .g{font-family:"Space Mono",monospace;font-size:11px;color:var(--line-dim);width:14px;text-align:center;flex:none}
+  .menu .mi.del .g{color:var(--redline)}
+
+  .hues{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+  .hue{display:flex;flex-direction:column;align-items:center;gap:5px;font-family:"Space Mono",monospace;font-size:9px;letter-spacing:.08em;color:var(--line-dim);text-transform:uppercase}
+  .hue i{width:46px;height:30px;border-radius:2px;border:1px solid #3a5a80}
+
+  footer{position:relative;z-index:1;text-align:center;margin-top:14px;font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.14em;color:var(--line-dim);text-transform:uppercase;opacity:.75}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="kicker">TheBoards · Skeuomorphic Overhaul · Option 4 of 4</div>
+    <h1>Cyanotype Drafting Table</h1>
+    <p>&ldquo;Capture, then assert structure by placement&rdquo; is literally what a draftsman does. The page is a cyanotype pinned to the board; notes are vellum trace scraps held by brass dots; the chrome is a parallel rule and a title block.</p>
+  </header>
+
+  <div class="grid">
+    <div class="board">
+      <span class="tape tl"></span><span class="tape tr"></span>
+      <div class="sheet">
+        <div class="band">
+          <div class="zone left">HARD<br>PARTS</div>
+          <div class="zone right">ISSUE<br>THU 09:00</div>
+          <span class="tab left">Components</span>
+          <span class="tab right">Requirements</span>
+          <div class="titleblock">
+            <div class="tb-top"><span class="num">DWG · TD-0012</span><span class="rev">REV C</span></div>
+            <div class="name">Kitchen&nbsp;Remodel</div>
+          </div>
+          <div class="compass" title="board menu"></div>
+          <div class="prule"></div>
+        </div>
+
+        <div style="position:absolute;inset:0;z-index:3">
+          <div class="trace" style="--w:152px;left:22px;top:176px;--r:-2deg"><span class="dot"></span>Measure window→pantry run<span class="code">DIM-01</span></div>
+          <div class="trace" style="--w:120px;left:216px;top:190px;--r:2deg"><span class="dot"></span>Matte tile only<span class="code">FIN-02</span></div>
+          <div class="trace hl" style="--w:150px;left:120px;top:302px;--r:-1deg"><span class="dot"></span>Deposit due Fri — call fabricator<span class="code">HOLD</span></div>
+          <div class="trace done" style="--w:124px;left:26px;top:336px;--r:2.5deg"><span class="dot"></span>Order the sink<span class="code">DONE</span><div class="rl"></div></div>
+          <div class="trace" style="--w:116px;left:224px;top:420px;--r:-1.5deg"><span class="dot"></span>Ask lead time<span class="code">RFI-03</span></div>
+        </div>
+
+        <div class="lot">
+          <div class="rule"></div>
+          <div class="lot-h"><span>Revision Schedule · unplaced</span><span>△ open</span></div>
+          <div class="li">Repaint the ceiling too?</div>
+          <div class="li">Salvage the old cabinet pulls</div>
+          <div class="li">Budget check at month end</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <section class="panel">
+        <h2>The metaphor that actually fits the workflow</h2>
+        <p class="lede">Drafting <i>is</i> capture-then-structure. Of the four, this maps closest to what the app does — its trades are about legibility, not concept.</p>
+        <div class="trade keeps"><span class="stamp">keeps</span><span><b>Placement carries meaning.</b> A trace scrap&rsquo;s position on the sheet is its assertion — exactly PRD&rsquo;s &ldquo;structure asserted after capture, by where things sit.&rdquo;</span></div>
+        <div class="trade keeps"><span class="stamp">keeps</span><span><b>Crisp, not fuzzy.</b> Hairlines and flat fills honour §1&rsquo;s &ldquo;every pixel earns its place&rdquo; better than any glow-based skin.</span></div>
+        <div class="trade"><span class="stamp">trades</span><span><b>A handwriting face for capture.</b> Caveat is charming but far slower to read than Montserrat Alternates — a real regression for glanceable notes.</span></div>
+        <div class="trade"><span class="stamp">trades</span><span><b>Shadows &amp; tape are still costume.</b> Trace scraps lift off the sheet and wear tape; §1 keeps notes flat and on the page. The metaphor demands the lift.</span></div>
+      </section>
+
+      <div class="kit">
+        <div class="kit-h">Component kit</div>
+        <div class="btns"><span class="btn">＋ New Board</span><span class="btn ghost">Complete</span><span class="btn danger">Delete</span></div>
+        <div class="board-row"><span class="pip">▤</span><span class="t">Weekend house projects</span><span class="d">14 AUG</span></div>
+        <div class="strip">
+          <div class="toast"><span>Scrap removed.</span><u>Undo</u></div>
+          <div class="menu">
+            <div class="mi"><span class="g">✓</span>Complete</div>
+            <div class="mi"><span class="g">▤</span>Highlight</div>
+            <div class="mi"><span class="g">⧉</span>Duplicate</div>
+            <div class="mi del"><span class="g">✕</span>Delete</div>
+          </div>
+        </div>
+        <div class="hues">
+          <div class="hue"><i style="background:#0c2c54"></i>To-Do</div>
+          <div class="hue"><i style="background:#0d3320"></i>Idea</div>
+          <div class="hue"><i style="background:#241238"></i>Note</div>
+          <div class="hue"><i style="background:#3a1220"></i>Learn</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Speculative rendering — not the shipped design · TheBoards</footer>
+</div>

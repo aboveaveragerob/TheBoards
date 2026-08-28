@@ -1,0 +1,264 @@
+<meta charset="utf-8">
+<title>Dive Slate & Sounding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;600&family=Spectral:ital,wght@0,400;1,400;1,500&family=Space+Mono:wght@400;700&display=swap">
+<style>
+  :root{
+    --abyss:#03121b; --deep:#061c28; --deep-2:#0a2a3a; --water:#10465a; --water-hi:#1d6a82;
+    --contour:#2f8aa0; --contour-dim:#1c5568;
+    --slate:#0d3644; --slate-2:#0a2a37; --slate-edge:#3aa6bd;
+    --etch:#8ff2f0; --etch-dim:#5cc6cf;
+    --buoy:#ffd24a; --buoy-edge:#c79a20;
+    --brass:#d0aa5a; --brass-hi:#ffe6a8; --brass-lo:#8a6a2a;
+    --danger:#ff8a5c; --danger-deep:#b24a2c;
+    --restore:#8fe6d0;
+    --ink:#dff3f7; --ink-dim:#8fb6c2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(130% 100% at 50% -20%, #0a2f40 0%, #061c28 38%, #03121b 78%, #010a10 100%);
+    color:var(--ink);
+    font-family:"Spectral",Georgia,serif;
+    -webkit-font-smoothing:antialiased;min-height:100vh;
+    padding:clamp(20px,4vw,56px) 20px 80px;line-height:1.5;
+  }
+  /* suspended particulate + faint light shafts */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+    background:
+      radial-gradient(2px 2px at 20% 30%, rgba(180,230,240,.5), transparent 60%),
+      radial-gradient(1.5px 1.5px at 70% 60%, rgba(180,230,240,.35), transparent 60%),
+      radial-gradient(1.5px 1.5px at 40% 80%, rgba(180,230,240,.3), transparent 60%),
+      radial-gradient(2px 2px at 85% 25%, rgba(180,230,240,.4), transparent 60%),
+      linear-gradient(105deg, transparent 40%, rgba(120,200,220,.05) 47%, transparent 54%);
+  }
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:34px}
+
+  header.mast{align-self:center;text-align:center;max-width:660px}
+  header .kicker{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--etch-dim);margin-bottom:12px}
+  header h1{
+    font-family:"Oswald",sans-serif;font-weight:300;margin:0;line-height:1.02;text-wrap:balance;
+    font-size:clamp(30px,6vw,52px);letter-spacing:.04em;text-transform:uppercase;
+    color:var(--etch);text-shadow:0 0 22px rgba(120,230,235,.45);
+  }
+  header h1 b{font-weight:600;color:#c9f6f5}
+  header p{margin:14px auto 0;max-width:54ch;font-style:italic;font-size:17px;color:var(--ink-dim)}
+
+  .grid{display:grid;grid-template-columns:minmax(340px,404px) 1fr;gap:34px;align-items:start}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;max-width:404px;margin:0 auto}}
+
+  /* ================= THE SHEET — a lit water column ================= */
+  .rig{
+    position:relative;padding:16px;border-radius:10px;
+    background:linear-gradient(180deg,#0a2836,#051822);
+    border:1px solid #0c3040;
+    box-shadow:0 20px 50px rgba(0,0,0,.6), inset 0 1px 0 rgba(120,200,220,.15);
+  }
+  .sheet{
+    position:relative;height:720px;border-radius:6px;overflow:hidden;
+    background:
+      radial-gradient(120% 80% at 50% 42%, #0e3546 0%, #072330 55%, #041620 100%);
+    box-shadow:inset 0 0 60px rgba(0,0,0,.6), inset 0 0 0 1px rgba(60,140,160,.18);
+  }
+  /* concentric SONAR contours filling the whole column */
+  .sonar{position:absolute;inset:0;pointer-events:none;opacity:.5}
+  .sonar circle{fill:none;stroke:var(--contour-dim);stroke-width:1}
+
+  /* --- top band: sounding header, a bright contour ring closing the top --- */
+  .band{
+    position:absolute;left:0;right:0;top:0;height:150px;z-index:2;
+    background:linear-gradient(180deg, rgba(29,106,130,.55), rgba(16,70,90,.28) 60%, transparent);
+  }
+  .band .rule{position:absolute;left:0;right:0;bottom:0;height:2px;
+    background:linear-gradient(90deg, transparent, var(--contour) 20%, var(--etch) 50%, var(--contour) 80%, transparent);
+    box-shadow:0 0 12px rgba(120,230,235,.5)}
+  .zone{position:absolute;top:16px;font-family:"Space Mono",monospace;font-size:10.5px;letter-spacing:.03em;color:#bfe6ee;line-height:1.45;width:22%;opacity:.9}
+  .zone.left{left:16px}.zone.right{right:40px;text-align:right}
+  .tab{position:absolute;bottom:-19px;font-family:"Space Mono",monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+    color:#04222c;padding:3px 9px;border-radius:0 0 3px 3px;background:var(--contour);box-shadow:0 0 8px rgba(47,138,160,.5)}
+  .tab.left{left:16px}.tab.right{right:16px}
+
+  /* depth-gauge title console overhanging the ring */
+  .console{
+    position:absolute;left:50%;top:22px;transform:translateX(-50%);width:50%;z-index:4;text-align:center;
+    padding:12px 12px 13px;border-radius:6px;
+    background:linear-gradient(180deg,#0c3341,#07222d);
+    border:1px solid var(--slate-edge);
+    box-shadow:0 0 18px rgba(58,166,189,.35), inset 0 1px 0 rgba(150,230,240,.25);
+  }
+  .console .eyebrow{font-family:"Space Mono",monospace;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--etch-dim)}
+  .console .name{font-family:"Oswald",sans-serif;font-weight:400;font-size:19px;letter-spacing:.06em;text-transform:uppercase;color:var(--etch);text-shadow:0 0 14px rgba(120,230,235,.5);margin-top:2px}
+  .console .depth{font-family:"Space Mono",monospace;font-size:10px;color:var(--brass-hi);margin-top:3px;letter-spacing:.1em}
+  .knurl{position:absolute;top:9px;right:9px;width:22px;height:22px;border-radius:50%;z-index:5;
+    background:
+      repeating-conic-gradient(from 0deg, var(--brass-hi) 0deg 8deg, var(--brass-lo) 8deg 16deg),
+      radial-gradient(circle,var(--brass) 60%,var(--brass-lo));
+    border:1px solid #4a3712;box-shadow:0 1px 3px rgba(0,0,0,.6), inset 0 0 4px rgba(0,0,0,.4)}
+  .knurl::after{content:"";position:absolute;inset:6px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#1a2a30,#06141a)}
+
+  /* --- ETCHED DIVE-SLATE = the note --- */
+  .slate{
+    position:absolute;width:var(--w,150px);padding:11px 13px;border-radius:8px;
+    background:linear-gradient(180deg, rgba(20,74,92,.62), rgba(10,42,55,.72));
+    border:1.5px solid var(--slate-edge);
+    box-shadow:0 0 0 1px rgba(0,0,0,.3), 0 6px 18px rgba(0,0,0,.45),
+      inset 0 1px 0 rgba(150,230,240,.28), inset 0 0 16px rgba(20,90,110,.4);
+    color:var(--etch);
+    font-family:"Oswald",sans-serif;font-weight:300;font-size:15px;line-height:1.35;letter-spacing:.02em;
+    text-align:center;text-transform:uppercase;
+    text-shadow:0 0 10px rgba(120,230,235,.4);
+    -webkit-backdrop-filter:blur(1px);backdrop-filter:blur(1px);
+    transform:rotate(var(--r,0deg));
+  }
+  .slate::before{content:"";position:absolute;top:6px;left:6px;right:6px;height:34%;border-radius:6px 6px 40% 40%;
+    background:linear-gradient(180deg, rgba(200,245,250,.16), transparent);pointer-events:none}
+  .slate.hl{background:linear-gradient(180deg, rgba(255,210,74,.32), rgba(200,150,20,.22));border-color:var(--buoy);color:#fff2cf;text-shadow:0 0 12px rgba(255,210,74,.6)}
+  .slate.done{color:var(--etch-dim);opacity:.72}
+  .slate.done .grease{position:absolute;inset:6px;border-radius:6px;pointer-events:none;opacity:.6;
+    background:repeating-linear-gradient(11deg, var(--danger) 0 2px, transparent 2px 8px)}
+
+  /* --- parking lot: the sounding line / sonar floor --- */
+  .lot{position:absolute;left:0;right:0;bottom:0;height:132px;z-index:2;
+    background:linear-gradient(180deg, transparent, rgba(6,28,40,.6) 30%, rgba(3,18,27,.92));padding:16px}
+  .lot .rule{position:absolute;left:0;right:0;top:0;height:2px;
+    background:linear-gradient(90deg, transparent, var(--contour) 20%, var(--etch) 50%, var(--contour) 80%, transparent);box-shadow:0 0 12px rgba(120,230,235,.4)}
+  .lot .lot-h{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--etch-dim);margin-bottom:9px}
+  .lot .li{font-family:"Spectral",serif;font-style:italic;font-size:14px;color:#bfe0e8;padding:5px 0 5px 18px;position:relative;border-bottom:1px solid rgba(47,138,160,.18)}
+  .lot .li::before{content:"";position:absolute;left:0;top:11px;width:8px;height:8px;border-radius:50%;background:var(--buoy);box-shadow:0 0 7px rgba(255,210,74,.7)}
+
+  /* ================= critique + kit ================= */
+  .panel{background:linear-gradient(180deg,#0a2a38,#061c27);border:1px solid #0e3646;border-radius:8px;padding:22px 24px;
+    box-shadow:0 14px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(120,200,220,.14)}
+  .panel h2{font-family:"Oswald",sans-serif;font-weight:400;font-size:21px;letter-spacing:.03em;text-transform:uppercase;margin:0 0 4px;color:var(--etch)}
+  .panel .lede{font-style:italic;font-size:17px;color:var(--ink-dim);margin:0 0 16px;max-width:52ch}
+  .trade{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;line-height:1.45;padding:9px 0;border-top:1px solid rgba(47,138,160,.2)}
+  .trade .stamp{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--danger);border:1px solid var(--danger-deep);border-radius:3px;padding:2px 6px;white-space:nowrap;margin-top:2px}
+  .trade.keeps .stamp{color:var(--restore);border-color:#3f8a76}
+  .trade b{color:#dff3f7}
+
+  .kit{margin-top:22px}
+  .kit-h{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--etch-dim);margin-bottom:12px}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .btn{font-family:"Oswald",sans-serif;font-weight:400;text-transform:uppercase;letter-spacing:.05em;font-size:13px;
+    padding:9px 15px;border-radius:6px;cursor:default;color:#04222c;
+    background:linear-gradient(180deg,var(--etch),var(--contour));border:1px solid #0a3a48;
+    box-shadow:0 0 14px rgba(120,230,235,.3), inset 0 1px 0 rgba(220,255,255,.5)}
+  .btn.danger{background:linear-gradient(180deg,var(--danger),var(--danger-deep));color:#fff;box-shadow:0 0 14px rgba(255,138,92,.35)}
+  .btn.ghost{background:linear-gradient(180deg,#0e3646,#0a2a37);color:var(--etch);border-color:var(--slate-edge)}
+
+  .board-row{margin-top:14px;display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:6px;
+    background:linear-gradient(180deg,rgba(29,106,130,.4),rgba(16,70,90,.5));border:1px solid var(--slate-edge);
+    box-shadow:inset 0 1px 0 rgba(150,230,240,.2)}
+  .board-row .pip{width:12px;height:12px;border-radius:50%;background:var(--buoy);box-shadow:0 0 8px rgba(255,210,74,.7);flex:none}
+  .board-row .t{flex:1;font-family:"Oswald",sans-serif;font-weight:300;text-transform:uppercase;letter-spacing:.03em;font-size:15px;color:var(--etch)}
+  .board-row .d{font-family:"Space Mono",monospace;font-size:11px;color:var(--ink-dim)}
+
+  .strip{margin-top:16px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+  .toast{padding:11px 16px;border-radius:6px;background:linear-gradient(180deg,#0c3341,#07202b);color:#cfeef4;
+    font-family:"Space Mono",monospace;font-size:12px;display:flex;gap:14px;align-items:center;
+    box-shadow:0 10px 22px rgba(0,0,0,.5);border:1px solid var(--slate-edge)}
+  .toast u{color:var(--restore);text-underline-offset:3px}
+  .menu{width:172px;border-radius:6px;overflow:hidden;background:linear-gradient(180deg,#0c3140,#081f2a);
+    border:1px solid var(--slate-edge);box-shadow:0 14px 30px rgba(0,0,0,.55);font-family:"Space Mono",monospace;font-size:12px;color:#cfeef4}
+  .menu .mi{padding:10px 13px;display:flex;gap:9px;align-items:center;border-bottom:1px solid rgba(47,138,160,.18)}
+  .menu .mi.del{color:var(--danger);border-top:1px solid var(--contour)}
+  .menu .mi .g{width:12px;height:12px;border-radius:50%;background:var(--etch);box-shadow:0 0 6px rgba(120,230,235,.5);flex:none}
+  .menu .mi.del .g{background:var(--danger);box-shadow:0 0 6px rgba(255,138,92,.5)}
+
+  .hues{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap}
+  .hue{display:flex;flex-direction:column;align-items:center;gap:5px;font-family:"Space Mono",monospace;font-size:9px;letter-spacing:.08em;color:var(--ink-dim);text-transform:uppercase}
+  .hue i{width:46px;height:30px;border-radius:4px;border:1px solid #0a3a48;box-shadow:inset 0 1px 0 rgba(150,230,240,.25)}
+
+  footer{position:relative;z-index:1;text-align:center;margin-top:14px;font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.14em;color:var(--etch-dim);text-transform:uppercase;opacity:.7}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="kicker">TheBoards · Skeuomorphic Overhaul · Option 2 of 4</div>
+    <h1>Dive Slate &amp; <b>Sounding</b></h1>
+    <p>The app already calls itself &ldquo;calm water at depth, at dusk.&rdquo; This makes that literal: the page is a lit water column, each note an etched acrylic dive-slate glowing on the deep, the bands drawn as sonar contours.</p>
+  </header>
+
+  <div class="grid">
+    <div class="rig">
+      <div class="sheet">
+        <svg class="sonar" viewBox="0 0 380 720" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <g>
+            <circle cx="190" cy="360" r="60"/><circle cx="190" cy="360" r="120"/>
+            <circle cx="190" cy="360" r="185"/><circle cx="190" cy="360" r="255"/>
+            <circle cx="190" cy="360" r="330"/><circle cx="190" cy="360" r="410"/>
+          </g>
+        </svg>
+
+        <!-- band -->
+        <div class="band">
+          <div class="zone left">the hard<br>parts</div>
+          <div class="zone right">surface<br>Thu 0900</div>
+          <span class="tab left">Components</span>
+          <span class="tab right">Requirements</span>
+          <div class="console">
+            <div class="eyebrow">To-Do · Sounding</div>
+            <div class="name">Kitchen&nbsp;Remodel</div>
+            <div class="depth">DEPTH 12 · 5 SLATES</div>
+          </div>
+          <div class="knurl" title="board menu"></div>
+        </div>
+
+        <!-- slates -->
+        <div style="position:absolute;inset:0;z-index:3">
+          <div class="slate" style="--w:150px;left:20px;top:172px;--r:-2deg">Measure window→pantry run</div>
+          <div class="slate" style="--w:128px;left:214px;top:186px;--r:2deg">Matte tile only</div>
+          <div class="slate hl" style="--w:150px;left:120px;top:300px;--r:-1deg">Deposit due Fri — call fabricator</div>
+          <div class="slate done" style="--w:126px;left:24px;top:322px;--r:2.5deg">Order the sink<div class="grease"></div></div>
+          <div class="slate" style="--w:120px;left:220px;top:410px;--r:-1.5deg">Ask lead time</div>
+        </div>
+
+        <!-- lot -->
+        <div class="lot">
+          <div class="rule"></div>
+          <div class="lot-h">Sounding Line · adrift</div>
+          <div class="li">Repaint the ceiling too?</div>
+          <div class="li">Salvage the old cabinet pulls</div>
+          <div class="li">Budget check at month end</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <section class="panel">
+        <h2>The one option that keeps the soul</h2>
+        <p class="lede">Every other skin fights the app&rsquo;s dusk-water register. This one runs <i>with</i> it — which is exactly what makes its trade-offs subtle.</p>
+        <div class="trade keeps"><span class="stamp">keeps</span><span><b>The register survives.</b> Deep water, one lit thing on the deep, dark ground — §1.1&rsquo;s calm-at-depth is intact, just rendered instead of asserted.</span></div>
+        <div class="trade keeps"><span class="stamp">keeps</span><span><b>The note is still brightest.</b> Etched slates glow at the top of the luminance ladder, the note-colour&rsquo;s job (§2.2) reprised as bioluminescence.</span></div>
+        <div class="trade"><span class="stamp">trades</span><span><b>Glow is colour doing structure&rsquo;s job.</b> §1&rsquo;s &ldquo;never colour alone&rdquo; wants geometry too; here the halo carries meaning a mono viewer can&rsquo;t read.</span></div>
+        <div class="trade"><span class="stamp">trades</span><span><b>Blur &amp; bloom aren&rsquo;t free.</b> Backdrop-filter and text-shadow soften edges the flat system keeps razor-crisp — atmosphere at the cost of §1&rsquo;s &ldquo;every pixel earns its place.&rdquo;</span></div>
+      </section>
+
+      <div class="kit">
+        <div class="kit-h">Component kit</div>
+        <div class="btns"><span class="btn">＋ New board</span><span class="btn ghost">Complete</span><span class="btn danger">Delete</span></div>
+        <div class="board-row"><span class="pip"></span><span class="t">Weekend house projects</span><span class="d">14 AUG</span></div>
+        <div class="strip">
+          <div class="toast"><span>Slate deleted.</span><u>Undo</u></div>
+          <div class="menu">
+            <div class="mi"><span class="g"></span>Complete</div>
+            <div class="mi"><span class="g"></span>Highlight</div>
+            <div class="mi"><span class="g"></span>Duplicate</div>
+            <div class="mi del"><span class="g"></span>Delete</div>
+          </div>
+        </div>
+        <div class="hues">
+          <div class="hue"><i style="background:linear-gradient(180deg,#1d6a82,#0a2a37)"></i>To-Do</div>
+          <div class="hue"><i style="background:linear-gradient(180deg,#3c8a5a,#0a3320)"></i>Idea</div>
+          <div class="hue"><i style="background:linear-gradient(180deg,#7a5aa0,#241238)"></i>Note</div>
+          <div class="hue"><i style="background:linear-gradient(180deg,#a85a72,#3a1220)"></i>Learn</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Speculative rendering — not the shipped design · TheBoards</footer>
+</div>
