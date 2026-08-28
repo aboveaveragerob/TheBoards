@@ -3541,7 +3541,24 @@ boot();
 
 // Register the service worker at top level (not inside async boot, whose IDB
 // awaits can resolve after 'load' has already fired — the listener would miss).
+//
+// Self-update (B79): a version-stamped cache only reaches an installed PWA if the
+// browser actually re-fetches sw.js — and it throttles that check hard, so an app
+// on the home screen can sit on an old build for up to a day (this stranded a real
+// device). Registration never asked for the check; now it does. reg.update() on
+// load and on every foreground (a relaunched PWA fires visibilitychange, not a
+// fresh load) pulls the new worker in; sw.js already skipWaiting()s + claim()s and
+// its stale-while-revalidate serves the new bytes on the next launch — so a deploy
+// lands within a launch or two instead of never. No forced mid-session reload: the
+// update arrives the next time the app opens, when the user expects it and never
+// mid-thought (and it keeps the update path identical to test/sw-update.js's).
 if ('serviceWorker' in navigator) {
-  if (document.readyState === 'complete') navigator.serviceWorker.register('sw.js').catch(() => {});
-  else window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const register = () => navigator.serviceWorker.register('sw.js').then((reg) => {
+    reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
+  if (document.readyState === 'complete') register();
+  else window.addEventListener('load', register);
 }

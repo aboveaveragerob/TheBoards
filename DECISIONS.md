@@ -2856,3 +2856,28 @@ picker/grid tiles — so all four surfaces move together. The storage keys are
 untouched (`unsorted` stays `unsorted`, B63's split of key from label stands); only
 the displayed label changes. B74's head-size re-tune is kept — the shorter names
 simply clear their controls with room to spare.
+
+---
+
+### B79. An installed PWA asks for its own updates — `registration.update()` on load and on every foreground (issue #111 follow-up; makes the CACHE-bump discipline actually reach installed apps)
+
+`sw.js`'s version-stamped `CACHE` is only half the contract: it decides *which*
+build is live, but a browser still has to re-fetch `sw.js` to notice — and it
+throttles that check hard, so an installed PWA can serve an old cache for up to a
+day after a deploy. A real device hit exactly this (a Z Fold 7 kept showing the
+pre-B76 band while desktop showed the current build), and the repo has shipped
+changes before that never reached installed apps (CLAUDE.md's shipping note). The
+registration used to `register('sw.js')` and stop there — it never asked for the
+update — so nothing pulled the new worker in until the browser got around to it.
+It now calls `registration.update()` on load and again on every `visibilitychange`
+to `visible` (a relaunched home-screen PWA foregrounds; it does not do a fresh
+load). That installs the new worker promptly; because `sw.js` already
+`skipWaiting()`s + `clients.claim()`s and serves stale-while-revalidate, the new
+bytes land on the **next launch** — a deploy now reaches the app within a launch
+or two instead of never. No forced mid-session reload: the update arrives when the
+app is next opened, never yanking the user mid-thought, and this keeps the app's
+update path identical to the one `test/sw-update.js` already exercises (its step-3
+comment names `register()`'s per-load `update()` as the mechanism under test —
+this is the call that had been missing). Note: this cannot rescue a client already
+stranded on an `update()`-less build — that needs a one-time cache clear; it
+prevents the next stranding.
