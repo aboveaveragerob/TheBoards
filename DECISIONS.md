@@ -2821,3 +2821,69 @@ the same section; §13.2's B54 measurement is annotated as superseded. `styles.c
 geometry assertions move with this ruling: `test/desktop.js` [D8]'s rule-y floor
 becomes 61, and `test/mobile.js` [9c]/[11c] assert the label's top edge overlaps
 the rule (was: bottom 10px above it) and that the tab carries a `--frame` fill.
+
+---
+
+### B77. Actions commit on release, with no latency; only B18's drop-guard survives (supersedes B18's 400 ms window and its (a) fill / (b) controls-fill / (c) ghost; discharges B18's and B27's "impermanence" clauses by re-interrogating the number to zero; revises B22's and B27's "creation / swap / menu keep the window"; keeps B18(d) "first tap wins")
+
+The task: drop the 400 ms `delayAction` latency. B18's own impermanence clause
+asked for exactly this — "400 ms is a felt value, given not derived; re-interrogate
+it on the device rather than defend it, the structure holds at any duration, and
+only the number would move" — and B27's added, of mobile capture, "if it is ever
+re-interrogated to zero, this entry collapses into it and B18c's ghost goes with
+it." This is that re-interrogation, to zero, for every action at once. Zero
+cognitive tax (the interface is never thought about) is served better by a result
+that is simply *there* on release than by a 400 ms beat the user has to read as
+"I was heard."
+
+`delayAction(ackNode, fn)` — set a guard, wait `ACTION_DELAY`, then fill and run
+`fn` — is replaced by `commitAction(fn)`: run `fn` now, then hold the guard for
+`ACTION_DELAY`. The latency is gone; the acknowledgement is the instant result
+itself (the note vanishes, the toast rises, the menu opens, Copy's row drains).
+
+**(a) What the guard is for, and why it stays.** B18(d) stands: an impatient
+double-tap must not delete twice or complete-then-uncomplete, and a phantom
+compatibility event must not fire an action's evil twin. So a *consequence* —
+Complete/Restore, Copy, Delete, Undo, a menu item, board create/delete — commits
+at once and then holds `pendingAction` for `ACTION_DELAY` (400 ms, now purely a
+re-fire guard, no longer a felt beat), dropping a second tap inside it. First tap
+still wins; only the order of "act" and "wait" swapped — trailing edge to leading
+edge.
+
+**(b) Navigation and capture take no guard.** Opening a menu, swapping boards, and
+entering an editor commit a *view*, not a consequence — the same "commits nothing"
+that already put desktop selection (B22) and rail page-turns (B42) outside the
+window, so a leading-edge guard here would only clip the very next tap on the
+surface just revealed (a menu that opens instantly must not swallow the first tap
+on its own item). Capture — a note or lot line — self-heals: creating a second
+frame focuses its editor and blurs the first, which is empty, which B8 discards
+(B27's argument, now true on desktop too). So all four run raw and instant, on
+desktop as on mobile — collapsing B27a's desktop/mobile split and retiring B18c's
+`.tap-ghost` with it.
+
+**(c) The window's whole visual apparatus is retired.** With no 400 ms to fill,
+B18(a)'s "fill the window, empty is a dropped tap" and B18(b)'s content-thickens /
+controls-fill lose their subject. The `.tapped` weight on notes / anchors / lot
+lines and the fill-or-drain on the menu, toast, board rows, the primary control,
+the title handle, the selection buttons and the pane delete are all deleted, as is
+the `.tap-ghost`. The drag / pinch `.pressed` weight (§4.2) is a different signal —
+"I have this" while a gesture is live, not an action acknowledgement — and is
+untouched.
+
+**Accepted consequence, precedented by B27a.** With swap instant, a fast
+double-tap on a board card can swap *and then* drop a stray empty note on the new
+canvas; it self-heals on blur (B8), double-tapping a card is not a real gesture,
+and masking it is not worth re-adding latency — exactly B27's "one note survives,
+at the last point tapped," extended to the swap.
+
+**The record.** The behaviour and the retirement live in UIUX §5's
+"Acknowledgement" subsection (rewritten) and its token-migration table (the
+tap-ghost's low-alpha line annotated retired). `sw.js`'s `CACHE` bumps to v28.
+`styles.css`'s "Tap acknowledgment" section collapses to a one-line tombstone;
+`app.js` replaces `delayAction` / `makeTapGhost` with `commitAction` and repoints
+its call sites by the (a)/(b) split above. The tests that measured the window move
+with the ruling: `test/desktop.js` [D2]/[D18] assert instant capture with no
+ghost and the Complete / Copy cases assert the action lands at once; the menu,
+cat-add and title-handle assertions drop `.tapped`; `test/mobile.js` does the same
+for cat-add and the title handle; `test/tokens.js` drops the `.tapped` selectors
+from its accent-on-chrome whitelist and pins v28.

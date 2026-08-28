@@ -59,7 +59,7 @@ const SAVE_DEBOUNCE = 300;
 const UNDO_MS = 5000;
 const LEAVE_MS = 200;
 const TOAST_HIDE_MS = 210;           // just past the toast's 200ms fade before hidden lands
-const ACTION_DELAY = 400;            // click → action; the window is acknowledged, not idle
+const ACTION_DELAY = 400;            // re-fire drop-guard: a consequence commits now, a second tap inside is dropped (B77)
 
 const COPY = {
   // "All boards" (issue #60): the menu item is a destination, and "Boards"
@@ -864,46 +864,25 @@ function commitOpenEditor(node) {
   return own;
 }
 
-/* Every click commits ACTION_DELAY after the release, never on the same frame.
-   The window is not dead time — dead time is indistinguishable from a dropped
-   tap, and this interface must never be thought about (UIUX §1). The tapped
-   thing acknowledges immediately in the language the system already speaks:
-   captured content thickens its ink (the same "I have this" a note shows on
-   drag, `.pressed`), furniture and controls fill with their own ink. The
-   acknowledgment releases as the action lands.
-
-   One action is in flight at a time, and a tap inside an open window is
-   dropped rather than queued: an impatient double-tap must not create two
-   notes or delete twice. First tap wins. */
+/* A consequence commits on release, with no latency (B77). What survives from
+   B18's window is only its drop-guard: the action runs now, and a second tap
+   inside the guard is dropped, not queued — an impatient double-tap must not
+   delete twice or complete-then-uncomplete. First tap wins (B18d, kept). The
+   instant result is its own acknowledgment; there is nothing to fill for 400ms,
+   so B18a/b's `.tapped` beat and B18c's ghost are retired. Navigation (menu
+   open, swap, edit-entry) and capture self-heal, so they take no guard at all —
+   they call their work directly. */
 let pendingAction = null;
 
-function delayAction(ackNode, fn) {
+function commitAction(fn) {
   if (pendingAction) return;
-  if (ackNode) ackNode.classList.add('tapped');
-  pendingAction = setTimeout(() => {
-    pendingAction = null;
-    if (ackNode) ackNode.classList.remove('tapped');
-    fn();
-  }, ACTION_DELAY);
+  fn();
+  pendingAction = setTimeout(() => { pendingAction = null; }, ACTION_DELAY);
 }
 
-/* Empty canvas has no element to acknowledge, so the frame the tap is about to
-   produce is drawn first, at its lightest weight — the note motif before it has
-   any content. The real note replaces it when the window closes. */
-function makeTapGhost(clientX, clientY) {
-  const pt = toLogical(clientX, clientY);
-  const ghost = document.createElement('div');
-  ghost.className = 'tap-ghost';
-  ghost.setAttribute('aria-hidden', 'true');
-  ghost.style.left = clamp(pt.x, 0, LOGICAL_W - 4) + 'px';
-  ghost.style.top = clamp(pt.y, 0, LOGICAL_H - 4) + 'px';
-  el.board.appendChild(ghost);
-  return ghost;
-}
-
-/* No blanket pendingAction guard here (issue #13): delayAction carries its own
-   drop-guard, so B18(d) holds exactly where an action fires — while inert taps
-   (select, deselect) stay live even during an open window. */
+/* No blanket pendingAction guard here (issue #13): commitAction carries its own
+   drop-guard, so B18(d) holds exactly where a consequence fires — while inert
+   taps (select, deselect) and navigation stay live regardless. */
 function handleTap(target, x, y, shift) {
   switch (target.type) {
     case 'sel-btn': {
@@ -914,7 +893,7 @@ function handleTap(target, x, y, shift) {
       const lotRow = target.node.closest('.lot-item');
       const isDel = target.node.classList.contains('sel-delete');
       const isCopy = target.node.classList.contains('sel-copy');
-      delayAction(target.node, () => {
+      commitAction(() => {
         if (lotRow) {
           const item = current.parkingLot.find(i => i.id === lotRow.dataset.id);
           if (!item) return;
@@ -938,7 +917,7 @@ function handleTap(target, x, y, shift) {
               return n ? n.text : '';
             }).join('\n'));
           }
-          else if (isDel) deleteNotes(ids);      // one B18 window → one Undo
+          else if (isDel) deleteNotes(ids);      // one commit → one Undo
           else setSelectedNotesState(note.state === 'complete');  // primary keys the direction
         }
       });
@@ -950,25 +929,21 @@ function handleTap(target, x, y, shift) {
       // guard is mode-independent and must come BEFORE the selected check:
       // while editing nothing is selected (edit paths clear selection first),
       // and the recognizer suppressed the native blur (B27), so without it a
-      // desktop click fell through to the tap-ghost and created a note on top
-      // of the dismissal. The NEXT click creates (ghost + B18 window).
+      // desktop click fell through and created a note on top of the dismissal.
+      // The NEXT click creates.
       if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
       // Creation surfaces deselect first (issue #12 desktop / #41 mobile):
       // with a selection active a tap only dismisses; capture is only primary
       // when nothing is selected or being edited.
       if (isDesktop && selected) { clearSelection(); break; }
-      if (!isDesktop) { createNote(x, y); break; }              // capture is instant (B27)
-      if (pendingAction) break;        // don't draw a ghost a dropped tap would orphan
-      const ghost = makeTapGhost(x, y);
-      delayAction(ghost, () => { ghost.remove(); createNote(x, y); });
+      createNote(x, y);                // capture is instant on both (B27, B77)
       break;
     }
     case 'lot': {
       // Same #54 law as canvas: an open editor commits and the tap is spent.
       if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
       if (isDesktop && selected) { clearSelection(); break; }   // creation surface too
-      if (!isDesktop) { createLotItem(); break; }               // B27
-      delayAction(el.lot, createLotItem);
+      createLotItem();                 // capture is instant on both (B27, B77)
       break;
     }
     case 'note': {
@@ -1034,8 +1009,7 @@ function handleTap(target, x, y, shift) {
       break;
     }
     case 'anchor':
-      if (isDesktop) delayAction(target.node, () => editText(target.node, x, y));
-      else editText(target.node, x, y);                         // B27
+      editText(target.node, x, y);      // edit-entry is instant on both (B27, B77)
       break;
     case 'title-menu':
       tapTitleMenu();
@@ -1742,7 +1716,7 @@ function deleteLot(node) {
   });
 }
 /* Bulk delete with ONE Undo (issue #55): the whole selection leaves in one
-   B18 window, one save, one toast — and the Undo re-inserts every note at its
+   commit, one save, one toast — and the Undo re-inserts every note at its
    original index and restores DOM order, so a delete-all + undo is a no-op.
    Snapshots are taken ascending so re-inserting ascending lands each index
    exactly. deleteNote is a one-id call through this same path, so single and
@@ -1823,7 +1797,7 @@ function showUndo(undoFn, scope) {
   // window, so a late Undo (≈4.6s+) can't be finalized out from under it.
   btn.addEventListener('click', () => {
     clearTimeout(undoTimer);
-    delayAction(btn, () => { hideToast(); undoFn(); });
+    commitAction(() => { hideToast(); undoFn(); });
   });
   el.toast.appendChild(msg); el.toast.appendChild(btn);
   el.toast.hidden = false;
@@ -1949,9 +1923,9 @@ function openMenuFor(target, clientX, clientY) {
    to know one. The menu drops from the handle's own bottom-right corner, so
    buildMenu's viewport flip right-aligns it under the control on a phone.
 
-   Through delayAction like every other control (B18): a menu that lands under
-   the finger must not take the second half of an impatient double-tap, and the
-   fill is the acknowledgment that the press was heard. */
+   Opening commits nothing, so it is instant with no guard (B77); the menu drops
+   offset from the handle rather than under the finger, and each item carries its
+   own drop-guard, so an impatient double-tap can't fall through onto an action. */
 function openTitleMenu() {
   // #54's law: an open editor commits before the menu acts on committed state.
   if (isEditing(document.activeElement)) document.activeElement.blur();
@@ -1960,7 +1934,7 @@ function openTitleMenu() {
   el.titleMenu.setAttribute('aria-expanded', 'true');
   openMenuFor({ type: 'anchor', node: anchorEls.title }, r.right, r.bottom);
 }
-const tapTitleMenu = () => delayAction(el.titleMenu, openTitleMenu);
+const tapTitleMenu = () => openTitleMenu();   // opening a menu commits nothing — instant, no guard (B77)
 
 /* The recognizer owns pointers, so the keyboard is the one path it cannot see.
    preventDefault stops the native click the key would otherwise synthesize, and
@@ -2054,9 +2028,9 @@ function buildMenu(items, clientX, clientY) {
     const g1 = document.createElement('span'); g1.className = 'glyph'; g1.setAttribute('aria-hidden', 'true'); g1.innerHTML = it.glyph;
     const lb = document.createElement('span'); lb.textContent = it.label;
     b.appendChild(g1); b.appendChild(lb);
-    // The menu holds open with the chosen item filled for the window, then
-    // closes and acts. One site covers every menu action, board rows included.
-    b.addEventListener('click', () => delayAction(b, () => { closeMenu(); it.action(); }));
+    // The menu closes and acts on release, with a drop-guard so a double-tap
+    // fires once. One site covers every menu action, board rows included.
+    b.addEventListener('click', () => commitAction(() => { closeMenu(); it.action(); }));
     el.menu.appendChild(b); buttons.push(b);
   }
   el.menu.hidden = false;
@@ -2929,7 +2903,7 @@ function makeCatSection(cat, boards, cap, makeCard) {
   const add = document.createElement('button');
   add.type = 'button'; add.className = 'primary-btn cat-add';
   add.textContent = COPY.catNew;
-  add.addEventListener('click', () => delayAction(add, () => newBoardIn(cat)));
+  add.addEventListener('click', () => commitAction(() => newBoardIn(cat)));
   sec.appendChild(add);
 
   const cards = document.createElement('div');
@@ -3202,12 +3176,11 @@ function attachBoardCardGestures(card, row, b, opts) {
     const spent = dragging || longed;  // a drag or a menu consumed this press
     dragging = false;
     clearDrag();
-    // A drop is a completed gesture like endDrag — saved immediately, no
-    // delayAction (B18 governs actions-from-taps, not gesture commits).
+    // A drop is a completed gesture like endDrag — saved immediately.
     // Releasing over the section the card already lives in is a change of
     // mind, not a move: no write, no reorder-to-top, no page reset.
     if (target && target !== catOf(b)) dropBoardCard(b, target);
-    else if (!spent && opts.onTap) delayAction(card, opts.onTap);
+    else if (!spent && opts.onTap) opts.onTap();   // swap commits a view, not a consequence — instant (B77)
   });
   card.addEventListener('pointercancel', () => { down = false; dragging = false; clearDrag(); });
 }
@@ -3297,8 +3270,8 @@ async function newBoardIn(cat) {
   catPage[cat] = 0;                                     // the new card's page — show it
   // The branch is the routing invariant, not the mode: history.back() is only
   // lawful while the list's pushed state is still on the stack. An OS back
-  // gesture or a mode flip inside delayAction's window clears listOpen before
-  // this fires — then the swap opens the board without popping an entry the
+  // gesture or a mode flip clears listOpen before this fires — then the swap
+  // opens the board without popping an entry the
   // list no longer owns (B9 untouched; the swap's renderPane no-ops off-desktop).
   if (!listOpen) { swapBoard(board.id); return; }
   current = board;
@@ -3306,7 +3279,7 @@ async function newBoardIn(cat) {
 }
 
 /* --- 11.5 Desktop board pane (issues #9 / #10 / #14) ---------------------- */
-let swapping = false;                // async re-entrancy guard beyond delayAction's window
+let swapping = false;                // async re-entrancy guard beyond the commit drop-guard
 
 /* A pending note/lot Undo splices into whatever board is `current` at undo
    time — switching boards would resurrect it onto the wrong board. Board
@@ -3377,12 +3350,12 @@ function makePaneRow(b) {
     del.type = 'button'; del.className = 'pane-del';
     del.setAttribute('aria-label', 'Delete board');
     del.innerHTML = GLYPH.delete;                    // drawn mark (UIUX §13.3)
-    del.addEventListener('click', () => delayAction(del, () => deleteBoard(b.id, row)));
+    del.addEventListener('click', () => commitAction(() => deleteBoard(b.id, row)));
     row.appendChild(del);
   }
   // Pointer path (issue #58): press-and-move past MOVE_THRESHOLD drags the
   // card between categories; a motionless release keeps the old click
-  // behavior (inactive → B18 window → swap). Replaces the bare `click`
+  // behavior (inactive → swap). Replaces the bare `click`
   // listener so a drag's release can't also swap boards. The active card
   // drags like any other, but has nothing to swap to.
   attachBoardCardGestures(card, row, b, {
@@ -3391,7 +3364,7 @@ function makePaneRow(b) {
   // Keyboard activation still arrives as a `click` with no pointer sequence
   // (detail 0) — the swap stays reachable without a mouse.
   if (!isActive) card.addEventListener('click', (ev) => {
-    if (ev.detail === 0) delayAction(card, () => swapBoard(b.id));
+    if (ev.detail === 0) swapBoard(b.id);   // navigation — instant, no guard (B77)
   });
   // Deletion path (b), issue #10: right-click any card → the board menu
   // (Export, then Delete). The one summoning gesture "remove click-and-hold"

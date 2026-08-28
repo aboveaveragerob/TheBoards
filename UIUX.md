@@ -870,19 +870,20 @@ desktop code path.
 (B29). `LONGPRESS_MS = 500`; any release before that with movement under
 threshold commits as a tap (B5).
 
-**Acknowledgement, not idleness.** Every committing action passes through a 400ms
-window measured from release (B18), and that window is *filled* — content
-thickens, controls fill, an empty-canvas tap raises a `.tap-ghost`. A second tap
-inside an open window is **dropped, not queued**. 400ms of nothing is
-indistinguishable from a dropped tap.
+**Instant commit, guarded against re-fire.** Every committing action lands on
+release with no latency (B77) — the instant result is its own acknowledgement.
+What survives from the retired 400ms window (B18) is only its drop-guard: a
+*consequence* (Complete/Restore, Copy, Delete, Undo, a menu item, board
+create/delete) commits at once and then holds a re-fire guard for `ACTION_DELAY`
+(400ms), so an impatient double-tap is **dropped, not doubled**. First tap wins.
 
-A note is never *filled* as acknowledgement, because a filled note is the
-completion scratch-out.
+Navigation (opening a menu, swapping boards, entering an editor) and **capture**
+(a note or lot line) commit nothing a stray second tap could duplicate — a
+double-create self-heals when the second blurs the first empty frame (B8) — so
+they take no guard at all and run raw, on desktop as on mobile.
 
-Three things sit outside the window deliberately: **mobile capture** (a browser
-raises the soft keyboard only inside user activation — B27), **desktop selection**
-(it commits nothing, and a delay would swallow every double-click — B22), and
-**rail page turns** (likewise commit nothing — B42).
+There is no window left to fill: the `.tapped` weight/fill on content and
+controls, and the empty-canvas `.tap-ghost`, are **retired**.
 
 ---
 
@@ -1444,7 +1445,7 @@ stated fate is a call site nobody knows how to edit.
 | `--paper` | 22 | **split** — as a ground → §2.2's ladder by role; as a label on a fill → `--ink-dark` (§2.3) |
 | `--ink` | 38 | **split** — `--ink-light` or `--ink-dark`, rebound at the surface (§2.3) |
 | `--ink-rgb` | 1 | **renamed** → `--ink-a`, rebound per surface (§2.3) — and corrected: v1 declared comma-separated channels and used them with slash alpha (`rgb(34, 28, 36 / 0.4)`), which CSS Color 4 rejects, so the buried-text fade (§4.3) may never have rendered. The v2 form is space-separated and valid |
-| `--ink-shadow` | 8 | **retired** — a second mid-tone has the same defect `--line` had (§2.3.2). Placeholders, dates and category heads take the ground's pole; the tap-ghost takes it at a low alpha |
+| `--ink-shadow` | 8 | **retired** — a second mid-tone has the same defect `--line` had (§2.3.2). Placeholders, dates and category heads take the ground's pole (the tap-ghost that also took it at a low alpha is itself retired, B77) |
 | `--letterbox` | 2 | **retired** — never drawn (§2.2). `html` keeps a plain black background, which is not a token |
 | `--surface-raised` | 3 | **retired** → `--chrome` — v1 raised menus *above* paper; v2 sinks them below the board (§2.2, B52) |
 | `--hairline` | 6 | **retired** → `rgb(var(--ink-a) / 0.4)` — that surface's ink at the lowest alpha clearing 3:1 on it (§2.5) |

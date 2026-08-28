@@ -355,18 +355,20 @@ and clipping the note being written.
 ### §5.6 Actions are acknowledged, not idle
 
 Every committing action — delete, complete, board create/swap/delete, note
-creation on desktop — passes through `delayAction()`, a 400ms window measured
-from release (B18). Within it:
+creation — lands the instant it is released; the result itself is the
+acknowledgment. There is no dead time to wonder about, and no filled window: the
+400ms beat that once stood between click and action (B18) is gone (B77), because
+a result that is simply *there* on release acknowledges better than a beat the
+user has to read as "heard."
 
-- the window is **filled**, never blank: content thickens, controls fill, and an
-  empty-canvas tap raises a `.tap-ghost`;
-- a note is never *filled* as acknowledgment, because a filled note is the
-  completion scratch-out;
-- a second tap inside an open window is **dropped, not queued**.
+What survives is only a re-fire guard: a *consequence* (delete, complete, copy,
+undo, a menu item, board create/delete) commits at once and then briefly ignores
+a second tap, so an impatient double-tap is **dropped, not doubled** — first tap
+wins. Navigation (opening a menu, swapping boards) and capture (a note or lot
+line) commit nothing a stray tap could duplicate, so they run with no guard.
 
-400ms of nothing is indistinguishable from a dropped tap. This is the shared
-primitive: any new interactive action goes through it rather than a bespoke
-timeout.
+This is the shared primitive: any new interactive consequence goes through
+`commitAction()` rather than a bespoke timeout.
 
 Three things are deliberately outside it. **Mobile capture** runs synchronously
 in `pointerup` (B27) — a browser raises the soft keyboard only inside user

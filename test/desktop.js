@@ -31,16 +31,13 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D2] Canvas click keeps the B18 ghost + 400ms window');
+  console.log('\n[D2] Canvas click captures instantly — no ghost, no window (B77)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await page.mouse.click(800, 600);
     await page.waitForTimeout(80);
-    ok('ghost drawn during the window', await page.evaluate(() => !!document.querySelector('.tap-ghost')));
-    ok('no note yet at 80ms', (await noteCount(page)) === 0, 'count=' + await noteCount(page));
-    await page.waitForTimeout(450);
-    ok('note lands after the window', (await noteCount(page)) === 1, 'count=' + await noteCount(page));
-    ok('ghost removed', await page.evaluate(() => !document.querySelector('.tap-ghost')));
+    ok('note lands at once', (await noteCount(page)) === 1, 'count=' + await noteCount(page));
+    ok('no ghost drawn', await page.evaluate(() => !document.querySelector('.tap-ghost')));
     ok('editor focused', await page.evaluate(() => document.activeElement.classList.contains('note-text')));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
@@ -75,7 +72,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D4] Selection buttons still honour the 400ms window');
+  console.log('\n[D4] Selection buttons commit instantly (B77)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await page.mouse.click(800, 600);
@@ -99,9 +96,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     if (btn) {
       await page.mouse.click(btn.x, btn.y);
       await page.waitForTimeout(100);
-      ok('not complete yet at 100ms', await page.evaluate(() => !document.querySelector('.note.complete')));
-      await page.waitForTimeout(450);
-      ok('complete lands after the window', await page.evaluate(() => !!document.querySelector('.note.complete')));
+      ok('complete lands at once (B77)', await page.evaluate(() => !!document.querySelector('.note.complete')));
     }
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
@@ -303,15 +298,17 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
 
     await openExportMenu();
     await page.waitForTimeout(150);
-    // B18 governs this item like every other: the window is acknowledged first.
+    // The item commits instantly (B77): the menu closes and acts on release, so
+    // the download fires during the click — arm the listener before clicking.
+    const dlPromise = page.waitForEvent('download');
     await clickExport();
-    await page.waitForTimeout(150);
-    ok('menu holds open through the 400ms window',
-       await page.evaluate(() => document.querySelector('#menu').hidden === false));
-    ok('the chosen item is filled',
-       await page.evaluate(() => !!document.querySelector('#menu button.tapped')));
+    await page.waitForTimeout(50);
+    ok('menu closes at once on the chosen item — no 400ms window',
+       await page.evaluate(() => document.querySelector('#menu').hidden === true));
+    ok('no acknowledgment fill left behind',
+       await page.evaluate(() => !document.querySelector('#menu button.tapped')));
 
-    const dl = await page.waitForEvent('download');
+    const dl = await dlPromise;
     const buf = fs.readFileSync(await dl.path());
     const s = buf.toString('latin1');
 
@@ -452,16 +449,11 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     });
     ok('the Copy button is hittable', !!btn);
     if (btn) {
-      // A sentinel proves the B18 window really is empty of side effects.
+      // A sentinel proves the clipboard really changed, and does so at once.
       await page.evaluate(() => navigator.clipboard.writeText('sentinel'));
       await page.mouse.click(btn.x, btn.y);
       await page.waitForTimeout(100);
-      ok('nothing copied at 100ms (B18)', await page.evaluate(() =>
-        navigator.clipboard.readText().then(t => t === 'sentinel', () => false)));
-      ok('no notice yet at 100ms', await page.evaluate(() =>
-        !document.querySelector('#toast').classList.contains('show')));
-      await page.waitForTimeout(450);
-      ok('the note text lands after the window', await page.evaluate(() =>
+      ok('the note text is copied at once (B77)', await page.evaluate(() =>
         navigator.clipboard.readText().then(t => t === 'take this text', () => false)));
       ok('Copied notice shows', await page.evaluate(() => {
         const t = document.querySelector('#toast');
@@ -851,7 +843,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('a non-first, non-open card is under test', !!target, String(target));
     if (target) {
     await page.click('.pane-card[data-id="' + target + '"]');
-    await page.waitForTimeout(800);                     // delayAction 400 + swap 260
+    await page.waitForTimeout(400);                     // swap crossfade (260) + margin
     ok('the card opened its board', await page.evaluate(() => current.id) === target);
     ok('the swap did not stamp the board it left — leaving is not updating',
        (await stampOf(leaving)) === leftStamp,
@@ -1032,7 +1024,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(500);
     await page.keyboard.type('persist me');
     // Click far empty canvas while the editor is open: commit + dismiss only —
-    // no ghost, no note, even after the window a buggy path would have used.
+    // the dismissing click makes no note.
     await page.mouse.click(500, 300);
     await page.waitForTimeout(600);
     ok('no note created by the dismissing click', (await noteCount(page)) === 1,
@@ -1041,13 +1033,11 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       !document.activeElement || !document.activeElement.classList.contains('note-text')));
     ok('text persisted', await page.evaluate(() =>
       current.notes.length === 1 && current.notes[0].text === 'persist me'));
-    // The SECOND click is the creating one: ghost, then a note after the window.
+    // The SECOND click is the creating one: a note at once, no ghost (B77).
     await page.mouse.click(500, 300);
     await page.waitForTimeout(80);
-    ok('second click draws the ghost', await page.evaluate(() => !!document.querySelector('.tap-ghost')));
-    ok('still one note at 80ms', (await noteCount(page)) === 1, 'count=' + await noteCount(page));
-    await page.waitForTimeout(450);
-    ok('second click created the note', (await noteCount(page)) === 2, 'count=' + await noteCount(page));
+    ok('no ghost drawn', await page.evaluate(() => !document.querySelector('.tap-ghost')));
+    ok('second click created the note at once', (await noteCount(page)) === 2, 'count=' + await noteCount(page));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
@@ -1289,14 +1279,12 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return p.scrollHeight <= p.clientHeight + 1;
     }));
 
-    // Click To-Do's own control: B18's window, then the swap opens it IN To-Do.
+    // Click To-Do's own control: it creates and opens the board instantly (B77).
     const before = await page.evaluate(() => current.id);
     await page.click('.board-cat[data-cat="todo"] .cat-add');
-    await page.waitForTimeout(80);
-    ok('acknowledged inside the window: .cat-add.tapped, no swap yet (B18)',
-       await page.evaluate((id) =>
-         !!document.querySelector('.cat-add.tapped') && current.id === id, before));
-    await page.waitForTimeout(700);                      // delayAction 400 + swap 260
+    ok('no acknowledgment fill: the beat is retired (B77)',
+       await page.evaluate(() => !document.querySelector('.cat-add.tapped')));
+    await page.waitForTimeout(400);                      // swap crossfade (260) + margin
     const rec = await page.evaluate(async () => {
       const all = await idbGetAll();
       const newest = all.reduce((a, b) => (b.createdAt > a.createdAt ? b : a));
@@ -1346,10 +1334,9 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     const before = await noteCount(page);
     await page.mouse.click(geo.r.x + geo.r.w / 2, geo.r.y + geo.r.h / 2);
     await page.waitForTimeout(80);
-    ok('acknowledged inside the window: #title-menu.tapped, menu still shut (B18)',
-       await page.evaluate(() => !!document.querySelector('#title-menu.tapped') &&
-         document.querySelector('#menu').hidden === true));
-    await page.waitForTimeout(500);
+    ok('the menu opens at once, with no acknowledgment fill (B77)',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
+         !document.querySelector('#title-menu.tapped')));
     const items = await page.evaluate(() =>
       [...document.querySelectorAll('#menu button')].map(b => b.textContent));
     ok('it opens the anchor menu unchanged: All boards then Export',

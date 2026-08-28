@@ -376,7 +376,7 @@ console.log('\n[5] Accents — values, worst-extreme ratios, and the placement r
   for (const m of cssBody.matchAll(/([^{}]+){[^}]*color:\s*var\((--danger|--accent-restore|--accent-page)\)[^}]*}/g)) {
     accentText.push(m[1].trim().replace(/\s+/g, ' '));
   }
-  const chromeGrounded = /^(#menu|#toast|\.pane-del|\.sel-btn\.[\w-]+\.tapped|\.primary-btn\.tapped)/;
+  const chromeGrounded = /^(#menu|#toast|\.pane-del)/;
   for (const sel of accentText) {
     ok(`accent as text only on a near-black ground: "${sel}"`,
       sel.split(',').every(s => chromeGrounded.test(s.trim())), sel);
@@ -569,8 +569,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v27 — B36 is the definition of shipped',
-    /const CACHE = 'todo-boards-v27';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v28 — B36 is the definition of shipped',
+    /const CACHE = 'todo-boards-v28';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));
