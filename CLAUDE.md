@@ -79,10 +79,13 @@ Key architectural facts:
 - **IndexedDB is the only persistence** (`boards-db` / `boards` store, see
   §2). Writes are debounced (`SAVE_DEBOUNCE`) through `scheduleSave`/`saveNow`;
   there is no server round-trip anywhere in the app.
-- **Actions are acknowledged, not idle** (B18): every committing action
-  (delete, complete, board swap, note creation) goes through `delayAction()`,
-  a 400ms window that drops a second tap rather than double-firing. Any new
-  interactive action needs to go through this same primitive, not a bespoke
+- **Actions commit on release, guarded against re-fire** (B18 → B81): every
+  committing *consequence* (delete, complete, copy, undo, menu item, board
+  create/delete) runs the instant it is released through `commitAction()`, which
+  then briefly drops a second tap so an impatient double-tap can't double-fire.
+  Navigation (menu open, board swap, edit-entry) and capture (note/lot creation)
+  commit nothing a stray tap could duplicate, so they run raw. Any new
+  interactive consequence needs to go through `commitAction()`, not a bespoke
   timeout.
 - **Undo is a 5s toast** (`showUndo`/`UNDO_MS`) that restores exact prior
   state; a new destructive action finalizes/cancels the prior undo.

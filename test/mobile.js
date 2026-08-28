@@ -97,7 +97,7 @@ async function openCat(page, cat) {
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await tap(page, 200, 500);
-    await page.waitForTimeout(50);           // well under the old 400ms window
+    await page.waitForTimeout(50);           // capture is immediate — no window at all
     const n = await noteCount(page);
     ok('note exists within 50ms', n === 1, 'count=' + n);
     ok('.note-text has focus', await activeIsNoteText(page));
@@ -1559,8 +1559,8 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
-  // Tap the drilled category's own New board control: B18's window, then the
-  // board opens IN that category.
+  // Tap the drilled category's own New board control: it creates and opens the
+  // board IN that category, instantly (B81).
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await page.reload();
@@ -1573,12 +1573,10 @@ async function openCat(page, cat) {
     });
     await tap(page, btn.x, btn.y);
     await page.waitForTimeout(80);
-    ok('acknowledged inside the window: .cat-add.tapped, screen still up (B18)',
-       await page.evaluate(() =>
-         !!document.querySelector('.cat-add.tapped') &&
-         document.querySelector('#list-view').hidden === false));
+    ok('no acknowledgment fill: the beat is retired (B81)',
+       await page.evaluate(() => !document.querySelector('.cat-add.tapped')));
     await page.waitForTimeout(600);
-    ok('the window closed onto the new board', await page.evaluate(() =>
+    ok('it opened onto the new board', await page.evaluate(() =>
       document.querySelector('#list-view').hidden !== false && !listOpen));
     const rec = await page.evaluate(async () => {
       const all = await idbGetAll();
@@ -1643,10 +1641,9 @@ async function openCat(page, cat) {
     const before = await noteCount(page);
     await tap(page, geo.r.x + geo.r.w / 2, geo.r.bottom + 2 * geo.hit - 1);
     await page.waitForTimeout(80);
-    ok('acknowledged inside the window: #title-menu.tapped, menu still shut (B18)',
-       await page.evaluate(() => !!document.querySelector('#title-menu.tapped') &&
-         document.querySelector('#menu').hidden === true));
-    await page.waitForTimeout(500);
+    ok('the menu opens at once, with no acknowledgment fill (B81)',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
+         !document.querySelector('#title-menu.tapped')));
     const opened = await page.evaluate(() => ({
       open: document.querySelector('#menu').hidden === false,
       items: [...document.querySelectorAll('#menu button')].map(b => b.textContent),

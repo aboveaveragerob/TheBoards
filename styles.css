@@ -687,11 +687,9 @@ body {
   box-shadow: 0 0 0 4px var(--ink-dark);
 }
 
-/* Pressed (drag/pinch engaged) and tapped (the action window is open): border
-   thickens to 3px, padding compensates so nothing reflows — the "picked up" /
-   "I have this" confirmation (§4.2). One state, two moments. */
-.note.pressed .note-text,
-.note.tapped .note-text {
+/* Pressed (drag/pinch engaged): border thickens to 3px, padding compensates so
+   nothing reflows — the "picked up" / "I have this" confirmation (§4.2). */
+.note.pressed .note-text {
   border-color: var(--ink);
   border-width: 3px;
   padding: 9px 11px;
@@ -731,7 +729,7 @@ body {
   padding: 6px 0;
   background: var(--chrome);           /* summoned over the page, on the room's own ground (B52) */
   border-radius: 8px;
-  overflow: hidden;                    /* a tapped item's fill clips to the radius */
+  overflow: hidden;                    /* clip the item rows to the rounded corners */
   box-shadow: var(--elevation);
   opacity: 0;
 }
@@ -1250,9 +1248,6 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
 }
 .pane-card .row-title.untitled { color: var(--ink); }
 .pane-card .row-date { flex: 0 0 auto; font-size: 12px; color: var(--ink); }
-.pane-card.tapped { background: var(--ink); color: var(--ink-dark); }
-.pane-card.tapped .row-title.untitled,
-.pane-card.tapped .row-date { color: var(--ink-dark); }
 /* Deletion path (a): permanent on the active card only — A1's menu grammar
    compressed to the card's right edge. A sibling, never nested. Bare on
    chrome with --danger for its mark: an accent as text on a near-black
@@ -1381,68 +1376,10 @@ html.desktop .lot-item.selected { outline: 2px solid var(--ink); outline-offset:
 }
 .lot-actions .sel-btn { min-height: 32px; padding: 0 10px; font-size: 13px; }
 
-/* ============================================================================
-   Tap acknowledgment — the 400ms window between click and action
-   The delay only earns its place if the interface fills it. Captured content
-   (notes, anchors, lot lines) thickens its ink, reusing the §4.2 "pressed"
-   weight — a resting note carries a fill now (B46), but it still never fills
-   AS acknowledgment: that would be indistinguishable from the completion
-   mark. Furniture and controls fill with their own ink and drain their label
-   to the opposite pole. Instant, like everything outside the UIUX §8 set.
-   ========================================================================== */
-
-/* Content: weight. (.note is handled with .pressed at §4.2 above.) Each anchor
-   thickens in its own idiom now that the band rule is shared furniture (B33):
-   the side anchors grow a baseline, the card thickens its frame like a pressed
-   note. Both padding-compensated, so nothing reflows. The band rule itself does
-   NOT thicken — it belongs to both side zones at once, so it could not say which
-   one was tapped. (#lot-rule can, because it belongs to one zone.) */
-.band-zone .anchor.tapped {
-  border-bottom: 3px solid var(--ink); /* absolute box, nothing measures it: no reflow */
-}
-#anchor-title.tapped {
-  border-width: 0 3px 3px;             /* the top stays undrawn (B38, issue #52) */
-  padding: calc(var(--band-top) + 6px) 11px 11px;   /* 3 + 11 = the base 2 + 12; no reflow */
-}
-.lot-item.tapped .lot-text {
-  border-bottom: 2px solid var(--ink);
-  padding-bottom: 0;                   /* 2px border + 0 = the original 2px; no reflow */
-}
-#lot.tapped #lot-rule { height: 3px; } /* absolutely positioned: thickens in place */
-
-/* Controls: fill. A fill pairs the surface's ink with the opposite pole, so
-   every acknowledgment stays ≥AA by the crossover's own arithmetic (UIUX §2.3.1). */
-#menu button.tapped         { background: var(--ink); color: var(--ink-dark); }
-#menu button.danger.tapped  { background: var(--danger); color: var(--ink-dark); }
-#toast button.tapped        { background: var(--accent-restore); color: var(--ink-dark); }
-.board-row.tapped           { background: var(--ink); color: var(--ink-dark); }
-.board-row.tapped .row-title.untitled,
-.board-row.tapped .row-date { color: var(--ink-dark); }
-/* Already filled, so it acknowledges by draining instead of filling — the
-   accent as text on a near-black ground, exactly UIUX §2.6's placement. */
-.primary-btn.tapped         { background: var(--ink-dark); color: var(--accent-page); }
-/* The compartment's handle drains the same way (B65): --frame as text on the
-   near-black it drains to, 5.70:1 — the same pair inverted. */
-#title-menu.tapped          { background: var(--ink-dark); color: var(--frame); }
-/* Selection action buttons rest in their fills; same drain on tap. */
-.sel-btn.sel-complete.tapped { background: var(--ink-dark); color: var(--accent-restore); }
-.sel-btn.sel-copy.tapped     { background: var(--ink-light); color: var(--ink-dark); }
-.sel-btn.sel-delete.tapped   { background: var(--ink-dark); color: var(--danger); }
-.pane-del.tapped             { background: var(--danger); color: var(--ink-dark); }
-
-/* Empty canvas has nothing to acknowledge, so the frame the tap will produce is
-   drawn first at its lightest weight — the note motif before it has content,
-   sized to the 44px hit floor. Replaced by the real note when the window closes. */
-.tap-ghost {
-  position: absolute;
-  z-index: 2;
-  width: 44px; height: 44px;
-  /* The ground's own ink at a low alpha (UIUX §16.2, the --ink-shadow row) —
-     the 0.40 weight is UIUX §2.5's, the one low alpha the system already keeps. */
-  border: 2px solid rgb(var(--ink-a) / 0.4);
-  border-radius: 3px;                  /* the note motif it will become (B49) */
-  pointer-events: none;
-}
+/* Tap acknowledgment retired (B81): actions commit instantly, so there is no
+   400ms window to fill — no `.tapped` weight/fill on content, furniture, or
+   controls, and no `.tap-ghost` on the empty canvas. The instant result is its
+   own acknowledgment. The drag/pinch "pressed" weight (§4.2) is untouched. */
 
 [hidden] { display: none !important; }
 
