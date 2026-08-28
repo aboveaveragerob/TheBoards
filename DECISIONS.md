@@ -2824,7 +2824,67 @@ the rule (was: bottom 10px above it) and that the tab carries a `--frame` fill.
 
 ---
 
-### B77. Actions commit on release, with no latency; only B18's drop-guard survives (supersedes B18's 400 ms window and its (a) fill / (b) controls-fill / (c) ghost; discharges B18's and B27's "impermanence" clauses by re-interrogating the number to zero; revises B22's and B27's "creation / swap / menu keep the window"; keeps B18(d) "first tap wins")
+### B77. A category tile/tray re-asserts its own rung — To-Do included (issue #112 follow-up; corrects B74's picker/tray colour, which left To-Do with no block of its own)
+
+The All-Boards menu drew the To-Do tile in the *current board's* colour: pink
+while a Learning board was open, violet on a Note board, never To-Do's blue. B74
+gave `idea`/`unsorted`/`learning` their own `#board`-scope-free
+`.board-cat`/`.cat-button[data-cat=…]` rungs but, on the reasoning that "To-Do is
+:root," gave To-Do none — assuming the tile would take `:root`'s
+`--card`/`--frame`/`--water-*`. It does not: the mobile grid is `#lot-menu`
+*inside* `#board[data-cat=…]`, and CSS custom properties inherit from the nearest
+ancestor that sets them, so a To-Do tile with no block of its own inherits the
+surrounding board's rung, not `:root`'s. **Every category — To-Do included —
+re-asserts its own rung** so a tile/tray/section keeps its family's hue in any
+board's scope. To-Do's block repeats `:root`'s exact values (UIUX §2.2), so the
+unscoped desktop render is unchanged; only the leaked contexts are corrected.
+`test/mobile.js` [19] gains a guard: over a non-To-Do board, the To-Do tile's
+resolved `--frame` is To-Do blue `#698ebf`.
+
+---
+
+### B78. The board categories are named "To Do · Notes · Learning · Ideas" — no redundant "Boards" (issue #112; supersedes the "…Boards" labels of B63's "Note Boards" and B74's "Learning Boards" in the category-name context)
+
+The All-Boards menu, the mobile grid, the drilled-screen header and the desktop
+rail heads all name the four board categories. Every one of B74's labels ended in
+"Boards" — "To-Do Boards", "Note Boards", "Learning Boards", "Idea Boards" — which
+in a list of *board categories* says the noun four times over: **zero cognitive
+tax** is not served by a word every entry shares. The names become the owner's own
+quoted words: **To Do · Notes · Learning · Ideas**. One source carries them —
+`COPY[CAT_COPY[cat]]`, read by `makeCatSection` (head + aria-label) and the
+picker/grid tiles — so all four surfaces move together. The storage keys are
+untouched (`unsorted` stays `unsorted`, B63's split of key from label stands); only
+the displayed label changes. B74's head-size re-tune is kept — the shorter names
+simply clear their controls with room to spare.
+
+---
+
+### B79. An installed PWA asks for its own updates — `registration.update()` on load and on every foreground (issue #111 follow-up; makes the CACHE-bump discipline actually reach installed apps)
+
+`sw.js`'s version-stamped `CACHE` is only half the contract: it decides *which*
+build is live, but a browser still has to re-fetch `sw.js` to notice — and it
+throttles that check hard, so an installed PWA can serve an old cache for up to a
+day after a deploy. A real device hit exactly this (a Z Fold 7 kept showing the
+pre-B76 band while desktop showed the current build), and the repo has shipped
+changes before that never reached installed apps (CLAUDE.md's shipping note). The
+registration used to `register('sw.js')` and stop there — it never asked for the
+update — so nothing pulled the new worker in until the browser got around to it.
+It now calls `registration.update()` on load and again on every `visibilitychange`
+to `visible` (a relaunched home-screen PWA foregrounds; it does not do a fresh
+load). That installs the new worker promptly; because `sw.js` already
+`skipWaiting()`s + `clients.claim()`s and serves stale-while-revalidate, the new
+bytes land on the **next launch** — a deploy now reaches the app within a launch
+or two instead of never. No forced mid-session reload: the update arrives when the
+app is next opened, never yanking the user mid-thought, and this keeps the app's
+update path identical to the one `test/sw-update.js` already exercises (its step-3
+comment names `register()`'s per-load `update()` as the mechanism under test —
+this is the call that had been missing). Note: this cannot rescue a client already
+stranded on an `update()`-less build — that needs a one-time cache clear; it
+prevents the next stranding.
+
+---
+
+### B80. Actions commit on release, with no latency; only B18's drop-guard survives (supersedes B18's 400 ms window and its (a) fill / (b) controls-fill / (c) ghost; discharges B18's and B27's "impermanence" clauses by re-interrogating the number to zero; revises B22's and B27's "creation / swap / menu keep the window"; keeps B18(d) "first tap wins")
 
 The task: drop the 400 ms `delayAction` latency. B18's own impermanence clause
 asked for exactly this — "400 ms is a felt value, given not derived; re-interrogate
@@ -2878,7 +2938,7 @@ at the last point tapped," extended to the swap.
 
 **The record.** The behaviour and the retirement live in UIUX §5's
 "Acknowledgement" subsection (rewritten) and its token-migration table (the
-tap-ghost's low-alpha line annotated retired). `sw.js`'s `CACHE` bumps to v28.
+tap-ghost's low-alpha line annotated retired). `sw.js`'s `CACHE` bumps to v30.
 `styles.css`'s "Tap acknowledgment" section collapses to a one-line tombstone;
 `app.js` replaces `delayAction` / `makeTapGhost` with `commitAction` and repoints
 its call sites by the (a)/(b) split above. The tests that measured the window move
@@ -2886,4 +2946,4 @@ with the ruling: `test/desktop.js` [D2]/[D18] assert instant capture with no
 ghost and the Complete / Copy cases assert the action lands at once; the menu,
 cat-add and title-handle assertions drop `.tapped`; `test/mobile.js` does the same
 for cat-add and the title handle; `test/tokens.js` drops the `.tapped` selectors
-from its accent-on-chrome whitelist and pins v28.
+from its accent-on-chrome whitelist and pins v30.

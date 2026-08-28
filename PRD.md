@@ -357,7 +357,7 @@ and clipping the note being written.
 Every committing action — delete, complete, board create/swap/delete, note
 creation — lands the instant it is released; the result itself is the
 acknowledgment. There is no dead time to wonder about, and no filled window: the
-400ms beat that once stood between click and action (B18) is gone (B77), because
+400ms beat that once stood between click and action (B18) is gone (B80), because
 a result that is simply *there* on release acknowledges better than a beat the
 user has to read as "heard."
 

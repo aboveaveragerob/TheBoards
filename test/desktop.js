@@ -31,7 +31,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D2] Canvas click captures instantly — no ghost, no window (B77)');
+  console.log('\n[D2] Canvas click captures instantly — no ghost, no window (B80)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await page.mouse.click(800, 600);
@@ -72,7 +72,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D4] Selection buttons commit instantly (B77)');
+  console.log('\n[D4] Selection buttons commit instantly (B80)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await page.mouse.click(800, 600);
@@ -96,7 +96,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     if (btn) {
       await page.mouse.click(btn.x, btn.y);
       await page.waitForTimeout(100);
-      ok('complete lands at once (B77)', await page.evaluate(() => !!document.querySelector('.note.complete')));
+      ok('complete lands at once (B80)', await page.evaluate(() => !!document.querySelector('.note.complete')));
     }
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
@@ -298,7 +298,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
 
     await openExportMenu();
     await page.waitForTimeout(150);
-    // The item commits instantly (B77): the menu closes and acts on release, so
+    // The item commits instantly (B80): the menu closes and acts on release, so
     // the download fires during the click — arm the listener before clicking.
     const dlPromise = page.waitForEvent('download');
     await clickExport();
@@ -453,7 +453,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       await page.evaluate(() => navigator.clipboard.writeText('sentinel'));
       await page.mouse.click(btn.x, btn.y);
       await page.waitForTimeout(100);
-      ok('the note text is copied at once (B77)', await page.evaluate(() =>
+      ok('the note text is copied at once (B80)', await page.evaluate(() =>
         navigator.clipboard.readText().then(t => t === 'take this text', () => false)));
       ok('Copied notice shows', await page.evaluate(() => {
         const t = document.querySelector('#toast');
@@ -606,12 +606,12 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     const heads = await page.evaluate(() =>
       [...document.querySelectorAll('#pane-cards .cat-head span:first-child')].map(s => s.textContent));
     ok('four category headers in order (issue #112: To Do, Notes, Learning, Ideas)',
-       heads.length === 4 && heads[0] === 'To-Do Boards' && heads[1] === 'Note Boards' &&
-       heads[2] === 'Learning Boards' && heads[3] === 'Idea Boards',
+       heads.length === 4 && heads[0] === 'To Do' && heads[1] === 'Notes' &&
+       heads[2] === 'Learning' && heads[3] === 'Ideas',
        JSON.stringify(heads));
 
     // B67 seeds the first-run board 'todo', so an empty database opens blue on
-    // the app's own kind of board instead of defaulting into Note Boards. This
+    // the app's own kind of board instead of defaulting into Notes. This
     // is the whole of To-Do at this point in the scenario.
     ok('the first-run board is seeded To-Do and wears the blue ladder (B67)',
       await page.evaluate(async () => {
@@ -631,7 +631,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(700);
     await page.click('.board-cat[data-cat="unsorted"] .cat-add');
     await page.waitForTimeout(700);
-    ok('new boards appear in Note Boards', await page.evaluate(() =>
+    ok('new boards appear in Notes', await page.evaluate(() =>
       document.querySelectorAll('.board-cat[data-cat="unsorted"] .pane-card').length === 2 &&
       document.querySelectorAll('.board-cat[data-cat="todo"] .pane-card').length === 1 &&
       !document.querySelector('.board-cat[data-cat="idea"] .pane-card')));
@@ -1033,7 +1033,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       !document.activeElement || !document.activeElement.classList.contains('note-text')));
     ok('text persisted', await page.evaluate(() =>
       current.notes.length === 1 && current.notes[0].text === 'persist me'));
-    // The SECOND click is the creating one: a note at once, no ghost (B77).
+    // The SECOND click is the creating one: a note at once, no ghost (B80).
     await page.mouse.click(500, 300);
     await page.waitForTimeout(80);
     ok('no ghost drawn', await page.evaluate(() => !document.querySelector('.tap-ghost')));
@@ -1228,8 +1228,8 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       !document.querySelector('#new-board') && !document.querySelector('#pane-new')));
     const heads = await page.evaluate(() =>
       [...document.querySelectorAll('#pane-cards .cat-head span')].map(s => s.textContent));
-    ok('labels read To-Do / Note / Learning / Idea Boards (issue #112 order)',
-       heads.join('|') === 'To-Do Boards|Note Boards|Learning Boards|Idea Boards',
+    ok('labels read To Do / Notes / Learning / Ideas (issue #112 order, B78 names)',
+       heads.join('|') === 'To Do|Notes|Learning|Ideas',
        JSON.stringify(heads));
 
     const geo = await page.evaluate(() =>
@@ -1279,10 +1279,10 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return p.scrollHeight <= p.clientHeight + 1;
     }));
 
-    // Click To-Do's own control: it creates and opens the board instantly (B77).
+    // Click To-Do's own control: it creates and opens the board instantly (B80).
     const before = await page.evaluate(() => current.id);
     await page.click('.board-cat[data-cat="todo"] .cat-add');
-    ok('no acknowledgment fill: the beat is retired (B77)',
+    ok('no acknowledgment fill: the beat is retired (B80)',
        await page.evaluate(() => !document.querySelector('.cat-add.tapped')));
     await page.waitForTimeout(400);                      // swap crossfade (260) + margin
     const rec = await page.evaluate(async () => {
@@ -1334,7 +1334,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     const before = await noteCount(page);
     await page.mouse.click(geo.r.x + geo.r.w / 2, geo.r.y + geo.r.h / 2);
     await page.waitForTimeout(80);
-    ok('the menu opens at once, with no acknowledgment fill (B77)',
+    ok('the menu opens at once, with no acknowledgment fill (B80)',
        await page.evaluate(() => document.querySelector('#menu').hidden === false &&
          !document.querySelector('#title-menu.tapped')));
     const items = await page.evaluate(() =>
@@ -1433,7 +1433,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('All boards fills #list-view with the four-button picker', picker.shown &&
        picker.cats.join(',') === 'todo,unsorted,idea,learning', JSON.stringify(picker.cats));
     ok('the picker host is a menu of the four categories', picker.role === 'menu' &&
-       picker.labels.join('|') === 'To-Do Boards|Note Boards|Idea Boards|Learning Boards',
+       picker.labels.join('|') === 'To Do|Notes|Ideas|Learning',
        JSON.stringify([picker.role, picker.labels]));
 
     // Drill into Notes.

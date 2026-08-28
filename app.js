@@ -59,7 +59,7 @@ const SAVE_DEBOUNCE = 300;
 const UNDO_MS = 5000;
 const LEAVE_MS = 200;
 const TOAST_HIDE_MS = 210;           // just past the toast's 200ms fade before hidden lands
-const ACTION_DELAY = 400;            // re-fire drop-guard: a consequence commits now, a second tap inside is dropped (B77)
+const ACTION_DELAY = 400;            // re-fire drop-guard: a consequence commits now, a second tap inside is dropped (B80)
 
 const COPY = {
   // "All boards" (issue #60): the menu item is a destination, and "Boards"
@@ -86,12 +86,15 @@ const COPY = {
   exportLossy: 'Some characters aren’t in the PDF font.',
   saveError: 'Couldn’t save — retrying.',
   untitled: 'What’s up?',
-  // The three categories (issue #58; the third renamed at the label only —
-  // its storage key stays 'unsorted', B63) and their controls' labels. catNew
-  // is generic on purpose: the enclosing group's aria-label disambiguates the
-  // three, the same way it disambiguates the pager's twelve.
-  catTodo: 'To-Do Boards', catIdea: 'Idea Boards', catUnsorted: 'Note Boards',
-  catLearning: 'Learning Boards',        // the fourth category (issue #112, B74)
+  // The four categories (issue #58; #112 added Learning). "unsorted" is renamed
+  // at the label only — its storage key stays 'unsorted' (B63). catNew is generic
+  // on purpose: the enclosing group's aria-label disambiguates the four, the same
+  // way it disambiguates the pager's twelve.
+  // The names are the owner's own quoted words with no redundant "Boards" (issue
+  // #112 / B78) — every entry in a list of board categories would end in it. One
+  // source feeds all: makeCatSection's head/aria-label and the picker/grid tiles.
+  catTodo: 'To Do', catIdea: 'Ideas', catUnsorted: 'Notes',
+  catLearning: 'Learning',               // the fourth category (issue #112, B74)
   catNew: 'New board',
   pageFirst: 'First page', pagePrev: 'Previous page',
   pageNext: 'Next page', pageLast: 'Last page',
@@ -864,7 +867,7 @@ function commitOpenEditor(node) {
   return own;
 }
 
-/* A consequence commits on release, with no latency (B77). What survives from
+/* A consequence commits on release, with no latency (B80). What survives from
    B18's window is only its drop-guard: the action runs now, and a second tap
    inside the guard is dropped, not queued — an impatient double-tap must not
    delete twice or complete-then-uncomplete. First tap wins (B18d, kept). The
@@ -936,14 +939,14 @@ function handleTap(target, x, y, shift) {
       // with a selection active a tap only dismisses; capture is only primary
       // when nothing is selected or being edited.
       if (isDesktop && selected) { clearSelection(); break; }
-      createNote(x, y);                // capture is instant on both (B27, B77)
+      createNote(x, y);                // capture is instant on both (B27, B80)
       break;
     }
     case 'lot': {
       // Same #54 law as canvas: an open editor commits and the tap is spent.
       if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
       if (isDesktop && selected) { clearSelection(); break; }   // creation surface too
-      createLotItem();                 // capture is instant on both (B27, B77)
+      createLotItem();                 // capture is instant on both (B27, B80)
       break;
     }
     case 'note': {
@@ -1009,7 +1012,7 @@ function handleTap(target, x, y, shift) {
       break;
     }
     case 'anchor':
-      editText(target.node, x, y);      // edit-entry is instant on both (B27, B77)
+      editText(target.node, x, y);      // edit-entry is instant on both (B27, B80)
       break;
     case 'title-menu':
       tapTitleMenu();
@@ -1923,7 +1926,7 @@ function openMenuFor(target, clientX, clientY) {
    to know one. The menu drops from the handle's own bottom-right corner, so
    buildMenu's viewport flip right-aligns it under the control on a phone.
 
-   Opening commits nothing, so it is instant with no guard (B77); the menu drops
+   Opening commits nothing, so it is instant with no guard (B80); the menu drops
    offset from the handle rather than under the finger, and each item carries its
    own drop-guard, so an impatient double-tap can't fall through onto an action. */
 function openTitleMenu() {
@@ -1934,7 +1937,7 @@ function openTitleMenu() {
   el.titleMenu.setAttribute('aria-expanded', 'true');
   openMenuFor({ type: 'anchor', node: anchorEls.title }, r.right, r.bottom);
 }
-const tapTitleMenu = () => openTitleMenu();   // opening a menu commits nothing — instant, no guard (B77)
+const tapTitleMenu = () => openTitleMenu();   // opening a menu commits nothing — instant, no guard (B80)
 
 /* The recognizer owns pointers, so the keyboard is the one path it cannot see.
    preventDefault stops the native click the key would otherwise synthesize, and
@@ -3180,7 +3183,7 @@ function attachBoardCardGestures(card, row, b, opts) {
     // Releasing over the section the card already lives in is a change of
     // mind, not a move: no write, no reorder-to-top, no page reset.
     if (target && target !== catOf(b)) dropBoardCard(b, target);
-    else if (!spent && opts.onTap) opts.onTap();   // swap commits a view, not a consequence — instant (B77)
+    else if (!spent && opts.onTap) opts.onTap();   // swap commits a view, not a consequence — instant (B80)
   });
   card.addEventListener('pointercancel', () => { down = false; dragging = false; clearDrag(); });
 }
@@ -3364,7 +3367,7 @@ function makePaneRow(b) {
   // Keyboard activation still arrives as a `click` with no pointer sequence
   // (detail 0) — the swap stays reachable without a mouse.
   if (!isActive) card.addEventListener('click', (ev) => {
-    if (ev.detail === 0) swapBoard(b.id);   // navigation — instant, no guard (B77)
+    if (ev.detail === 0) swapBoard(b.id);   // navigation — instant, no guard (B80)
   });
   // Deletion path (b), issue #10: right-click any card → the board menu
   // (Export, then Delete). The one summoning gesture "remove click-and-hold"
@@ -3511,7 +3514,24 @@ boot();
 
 // Register the service worker at top level (not inside async boot, whose IDB
 // awaits can resolve after 'load' has already fired — the listener would miss).
+//
+// Self-update (B79): a version-stamped cache only reaches an installed PWA if the
+// browser actually re-fetches sw.js — and it throttles that check hard, so an app
+// on the home screen can sit on an old build for up to a day (this stranded a real
+// device). Registration never asked for the check; now it does. reg.update() on
+// load and on every foreground (a relaunched PWA fires visibilitychange, not a
+// fresh load) pulls the new worker in; sw.js already skipWaiting()s + claim()s and
+// its stale-while-revalidate serves the new bytes on the next launch — so a deploy
+// lands within a launch or two instead of never. No forced mid-session reload: the
+// update arrives the next time the app opens, when the user expects it and never
+// mid-thought (and it keeps the update path identical to test/sw-update.js's).
 if ('serviceWorker' in navigator) {
-  if (document.readyState === 'complete') navigator.serviceWorker.register('sw.js').catch(() => {});
-  else window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  const register = () => navigator.serviceWorker.register('sw.js').then((reg) => {
+    reg.update().catch(() => {});
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
+  if (document.readyState === 'complete') register();
+  else window.addEventListener('load', register);
 }
