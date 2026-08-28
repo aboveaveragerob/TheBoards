@@ -1325,7 +1325,7 @@ and plausibly in a Latin subset; six fall back.
 
 The palette was not argued into place; it was rendered into place. Seven proof-sheet
 rounds ran outside the repo — full-board specimens against the live geometry — and the
-final one is committed at `docs/proofs/proof-7-a-well-swapped.html`, carrying its own
+final one is committed at `proofs/proof-7-a-well-swapped.html`, carrying its own
 verification table. Round 1's teal ladder, which PRs #76–#80 spent a day documenting
 against each other, was "wrong in almost every value" by round 7. The settled system is
 `UIUX §2.2`: **the band `#020812` is the deepest surface on the page** — sheet 7's one
@@ -1416,7 +1416,7 @@ consolidated shape: **`PRD.md`** restores the reconstruction and holds positions
 once; **this file** stays the record. A value with two homes has no home — the v2
 attempt proved it by desynchronising `PRD.md` and `UIUX.md` inside a single PR. The
 four overlapping v2 PRs collapse into one, and the proof sheets gain a committed
-reference (`docs/proofs/`) so the next session reads the render rather than
+reference (`proofs/`) so the next session reads the render rather than
 re-deriving the design from rival documents.
 
 ### B52. The room joins the water: chrome takes the band's value, and the accents re-derive into the settled families (supersedes the round-1 chrome and accent values; discharges `UIUX §16.1`'s "largest open gap")
@@ -1471,7 +1471,7 @@ question, not an accent value.
 candidates, the rejections and the maths, and was ruled **not committed** —
 its derivations live in this entry and in `UIUX.md`'s restated tables. Proof
 sheet 9, "A Well, Furnished", renders the ratified system whole, with nothing
-beside it, and is committed at `docs/proofs/proof-9-a-well-furnished.html` as
+beside it, and is committed at `proofs/proof-9-a-well-furnished.html` as
 the rendered reference alongside sheet 7.
 
 ### B53. The strike and its burial are one decision: 0.62 over 0.12 (supersedes `UIUX §4.3`'s 0.97/0.40 letter; keeps its law)
@@ -1589,7 +1589,7 @@ the water — and ruled on the render: **this is the one.** The scene
 reads water closing each end of the sheet, the deep between, and the
 note as the one lit thing on the deep. Ruled the way every scene
 decision before it was ruled: from a render, not prose; the ratified
-reference is `docs/proofs/proof-10-the-second-swap.html`.
+reference is `proofs/proof-10-the-second-swap.html`.
 
 **No value moved; every surface did.** The palette is unchanged — the
 swap trades grounds, and the token names follow the surfaces so they do
@@ -2226,7 +2226,7 @@ reads stylesheet text, and only a real browser can say the cascade
 reaches the page — it asserts the computed fill, rule, card, band and
 lot of an open Note board, its rail card's preview, the drag ghost
 mid-flight, and that a swap to a To-Do board repaints the page blue and
-the return swap repaints it violet. `docs/proofs/proof-10-the-second-swap.html`
+the return swap repaints it violet. `proofs/proof-10-the-second-swap.html`
 renders all three scenes side by side; nothing tests that file, so it
 was updated in the same commit.
 
