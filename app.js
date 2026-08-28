@@ -28,6 +28,8 @@ const NOTE_MIN_W = 60;               // narrowest useful note column: ~3 chars a
                                      // + 28px box chrome (issue #53) — see noteMaxW
 const MIN_SCALE = 0.5, MAX_SCALE = 2.0;
 const MOVE_THRESHOLD = 16;           // px before a drag begins / long-press cancels (B29)
+const KB_HIDE_SLOP = 120;            // visual-viewport growth (px) that reads as the soft
+                                     // keyboard retracting, not URL-bar/inset jitter (B80, issue #119)
 const LONGPRESS_MS = 500;
 const HIT_FLOOR = 44;                // px physical (PRD §5.3, UIUX §6) — mobile
 const HIT_FLOOR_DESKTOP = 24;        // WCAG 2.5.8 AA; a 44px collar swallows dismiss clicks (issue #12)
@@ -398,14 +400,29 @@ function applyLayout() {
    only thing standing between the soft keyboard and all of that. Do not
    weaken it. */
 let layoutDeferred = false;
+let editVVFloor = Infinity;          // smallest visual-viewport height seen this edit (keyboard fully up)
 
 function editingInBoard() {
   const a = document.activeElement;
   return !!(a && a.hasAttribute && a.hasAttribute('contenteditable') && el.board.contains(a));
 }
 
+/* The keyboard's arrival is deferred so the sheet holds still (B28); its
+   departure PUTS THE NOTE AWAY (B80, issue #119). The visual viewport shrinks
+   as the keyboard opens and grows back as it retracts, so the same edit's own
+   floor — the smallest height seen since focus — tells the two apart: any
+   growth past it by KB_HIDE_SLOP is the keyboard leaving while the note still
+   holds focus, and blur() runs the commit-on-blur path (focusout) that commits,
+   deselects, and lands the deferred layout. editVVFloor only ever drops within
+   an edit (reset to Infinity on focusout), so retraction measured against it
+   crosses the threshold even when the browser animates the return in steps. */
 function onViewportResize() {
-  if (!isDesktop && editingInBoard()) { layoutDeferred = true; return; }
+  const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  if (!isDesktop && editingInBoard()) {
+    if (h <= editVVFloor) { editVVFloor = h; layoutDeferred = true; return; }
+    if (h > editVVFloor + KB_HIDE_SLOP) { document.activeElement.blur(); return; }
+    layoutDeferred = true; return;   // sub-threshold jitter: keep holding
+  }
   applyLayout();
 }
 
@@ -1104,6 +1121,7 @@ document.addEventListener('focusout', (e) => {
   if (t.classList.contains('note-text')) commitNote(t.closest('.note'));
   else if (t.classList.contains('lot-text')) commitLot(t.closest('.lot-item'));
   else if (t.classList.contains('anchor')) commitAnchor(t);
+  editVVFloor = Infinity;   // next edit measures its own keyboard-up floor (B80)
   // A viewport change held back during the edit lands now that nothing is at
   // stake — the keyboard's own retraction resize would repeat it, but a
   // rotation or fold has no such second chance.
