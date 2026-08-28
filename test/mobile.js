@@ -1775,6 +1775,37 @@ async function openCat(page, cat) {
     }
   }
 
+  // ---- 23. dismissing the keyboard puts the note away (issue #119, B80) -----
+  // The keyboard-proxy of test [7], carried one step further: shrink is the
+  // keyboard coming up (the sheet holds still, B28, focus kept); the grow BACK
+  // is it going down while the note still holds focus, and the note must
+  // deselect then — not sit half-live waiting for a throwaway tap.
+  console.log('\n[23] Dismissing the mobile keyboard deselects the active note');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await tap(page, 200, 300);
+    await page.waitForTimeout(60);
+    await page.keyboard.type('put me away');
+    await page.setViewportSize({ width: 384, height: 450 });   // keyboard up
+    await page.waitForTimeout(200);
+    ok('editor still focused while the keyboard is up (B28)', await activeIsNoteText(page));
+    await page.setViewportSize({ width: 384, height: 846 });   // keyboard dismissed
+    await page.waitForTimeout(200);
+    ok('the note deselects on keyboard dismissal (#119)', !(await activeIsNoteText(page)));
+    ok('the note survives — blur committed, not discarded', (await noteCount(page)) === 1,
+       'count=' + await noteCount(page));
+    ok('its text is unchanged', await page.evaluate(() =>
+       document.querySelector('.note-text').textContent) === 'put me away');
+    // The first tap after dismissal is a real action, not spent dismissing.
+    await tap(page, 200, 560);
+    await page.waitForTimeout(60);
+    ok('the next tap creates a new note (no dead first tap)', (await noteCount(page)) === 2,
+       'count=' + await noteCount(page));
+    ok('the new note holds focus', await activeIsNoteText(page));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== mobile: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);
