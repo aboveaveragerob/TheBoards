@@ -2881,3 +2881,34 @@ comment names `register()`'s per-load `update()` as the mechanism under test —
 this is the call that had been missing). Note: this cannot rescue a client already
 stranded on an `update()`-less build — that needs a one-time cache clear; it
 prevents the next stranding.
+
+### B80. Dismissing the mobile keyboard puts the note away (issue #119)
+
+On mobile a note's selected/active state *is* its edit mode — the `.note-text`
+`contenteditable` holds focus; there is no separate `selected` on mobile (that is
+desktop's, §8.5). So finishing a thought and pressing the keyboard's own hide
+control ought to end with the note put away, the way tapping bare canvas already
+ends it (B41). It did not: the editor kept focus, so the note stayed live, and the
+next tap anywhere was spent only committing/dismissing it (`handleTap`'s
+`isEditing → blur → break`) — a dead first tap before any real action, the "requires
+a tap before any other action" in the report. **Zero cognitive tax:** the interface
+must never be thought about, and a note that will not let go until it is poked once
+is exactly a thing thought about.
+
+The fix lives where the keyboard is already seen — `onViewportResize`. B28 held the
+sheet still while the keyboard is *up* (the viewport shrinks; relayout is deferred so
+the sheet does not flap). B80 adds the other edge: while the same note holds focus,
+a viewport that grows back is the keyboard *leaving*, and the note is blurred —
+which runs the existing commit-on-blur `focusout` path (B41), committing the text,
+deselecting, and landing the deferred layout in one motion. Open vs. dismiss is told
+apart with no new event and no timer: the current edit's own floor — the smallest
+visual-viewport height seen since focus (`editVVFloor`, reset to `Infinity` on
+`focusout`) — only ever drops while the keyboard opens, so any growth past it by
+`KB_HIDE_SLOP` (120 px, comfortably above URL-bar/inset jitter and far below any real
+soft keyboard) is the retraction, and measuring against the fixed floor catches it
+even when the browser animates the return in steps. B28's deferral is untouched and
+still load-bearing; this reads the same signal for the departure B28 never handled.
+Graceful on browsers without `visualViewport` (the guard falls back to `innerHeight`,
+which a keyboard may not move, so the fix simply does not fire — same posture as B28's
+own fallback). Desktop is unaffected: the whole branch is behind `!isDesktop`, and
+desktop already deselects on Escape and click-away (§8.5, B41).
