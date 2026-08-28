@@ -155,8 +155,18 @@
    ghost is a single card with no tray, so it takes only the two water stops. */
 /* The All-Boards picker button (issue #112 / B74) is a category made into a
    framed tinted tray, the same idiom the section tray uses (B72) — so it rebinds
-   the same two rungs per family. To-Do is :root, so .cat-button[data-cat="todo"]
-   takes :root's --card/--frame with no block of its own. */
+   the same two rungs per family. To-Do must re-assert its OWN rung too (B77): a
+   tray/tile renders INSIDE a board's data-cat scope — the mobile grid lives in
+   #lot inside #board[data-cat=…], and the picker/sections sit under a board's
+   scope on desktop — so a To-Do tile with no block of its own inherits the
+   surrounding board's --card/--frame/--water-*, not :root's, and shows pink on a
+   Learning board, purple on a Note board. These values equal :root's, so the
+   unscoped desktop render is unchanged; only the leaked contexts are corrected. */
+.board-cat[data-cat="todo"],
+.cat-button[data-cat="todo"] {
+  --frame:       #698ebf;
+  --card:        #08152c;
+}
 .board-cat[data-cat="idea"],
 .cat-button[data-cat="idea"] {
   --frame:       #52997f;
@@ -171,6 +181,11 @@
 .cat-button[data-cat="learning"] {
   --frame:       #b57a9b;
   --card:        #260e12;
+}
+.board-cat[data-cat="todo"],
+.card-drag-ghost[data-cat="todo"] {
+  --water-top:   #34697f;
+  --water-mid:   #255265;
 }
 .board-cat[data-cat="idea"],
 .card-drag-ghost[data-cat="idea"] {

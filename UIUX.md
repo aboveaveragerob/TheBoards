@@ -1172,8 +1172,10 @@ label.
 
 Size scale is retained: 11 · 12 · 13 · 14 · 15 · 16 · 17 · 18px; line-heights
 1.3 / 1.4 / 1.45 — and one display step above it: **21px** (the mobile category
-header, B63's step re-tuned down by B74 so "Learning Boards" fits beside the
-control; the rail's header takes the scale's own **15**, likewise down from 18).
+header, B63's step re-tuned down by B74; the rail's header takes the scale's own
+**15**, likewise down from 18). The category names are short (B78 — "To Do",
+"Notes", "Learning", "Ideas"), so the header clears its control with room to
+spare; the re-tuned sizes are kept.
 
 ### §13.2 The band measurement gate
 
