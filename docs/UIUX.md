@@ -673,7 +673,8 @@ colour (`--frame`) so the line and the label read as one cohesive unit, at
 §13.2's question). The tab is `width: max-content` with `padding: 2px 6px` and
 `border-radius: 0 0 3px 3px` (only the corners that exist below the rule); its
 ink rebinds to `--ink-dark` via `.on-light` at **5.70:1** on the `--frame`
-fill — the compartment handle's own pairing (§2.5, B65). In the PDF export the
+fill — the same pairing the board-action tab wears at the sheet's other end
+(§2.5, §3.3/B83; it was the compartment handle's, B65, until B83 retired it). In the PDF export the
 rule is dark (`PDF_INK`, not the mid-light screen `--frame`), so the tab fills
 `PDF_INK` and its label reverses to the paper tone (`PDF_PAPER`).
 
@@ -725,6 +726,50 @@ A **ceiling of half the sheet** survives so a runaway lot cannot swallow the
 canvas; content past it is clipped (`#lot-items { overflow: hidden }`). **This
 supersedes B37's whole-row budget and B47/B57's row-count ceiling** (B73),
 which sized the lot by item *count* at a fixed 44px each and cut wrapped lines.
+
+### §3.3 The board-action row (B83)
+
+The board's two board-level actions — **All boards** and **Export** — are
+declared as a row of flat tabs **hovering just above the Parking Lot**, the
+mirror at the sheet's other end of the band's header tabs. This replaces the
+`Menu` handle of B65, whose only route was still a control the reader had to
+notice; the actions now name themselves, in place, on both platforms.
+
+**Placement.** `#board-actions` is `left: 0; right: 0`, a centred flex cluster
+(`gap: 8px`) at `bottom: calc(var(--lot-h) + 8px)` — **8px clear of the lot's
+top edge**, so the tabs read free-standing (all four corners round) rather than
+merging with a rule the way the band tab does. It tracks `--lot-h`, riding up as
+the lot grows. `z-index: 1` (the furniture plane; notes at `z-2` stay above).
+The container is `pointer-events: none` — a positioning frame exactly like a
+`.band-zone` — so a press on bare canvas beside the tabs still reaches the
+recognizer and captures a note; only the tabs are live.
+
+**The tab.** The band label's own box, **not** §14's tactile signature (§14):
+
+```css
+.board-action {
+  padding: 2px 6px;                 /* the band label's box (§3.1) */
+  border: none; border-radius: 3px; /* symmetric — it hangs beneath no rule */
+  background: var(--frame);         /* the band tab's fill (B76) — rotates per #board[data-cat] */
+  color: var(--ink);               /* --ink-dark at 5.70:1, rebound by .on-light */
+  font-size: 13px; font-weight: 600; line-height: 1.3;
+  gap: 6px;                        /* the drawn mark to its label; mark at 14px */
+}
+```
+
+**The hit collar.** The flat tab is well under §6's floor, so it carries the
+note's decoupled `--hit` collar (B7) — set on `#board-actions` in
+`updateBoardGeometry`, measured off the row (its width spans the sheet, so only
+the height term binds), sized so `(tab-height + 2 × hit) × renderScale` clears
+**44px on touch and 24px on desktop**. The collar is **asymmetric — spent
+entirely upward**, onto the canvas, because downward is the Parking Lot's own
+furniture; where a note (`z-2`) overlaps it the note wins, and a bare-canvas tap
+into it fires the tab (the same reading B65's collar had). Interactive states
+are visible without the tactile shadow: a transient `filter: brightness` on
+hover/press on §8's curve (the kill-switch drops it to instant), and §2.7's
+two-tone ring on focus. State is never colour (§1) — the **All boards ⇄ This
+board** toggle states its act in its label (B43/B71's grammar), so no
+`aria-pressed` rides alongside.
 
 ---
 
@@ -948,25 +993,27 @@ On desktop the floor is 24px (WCAG 2.5.8 AA, pointer-appropriate) — a 44px col
 swallows dismiss clicks (B23). The 44px floor stands on touch.
 
 **A collar is not obliged to be symmetric.** The note's is, because a note is
-surrounded by paper on all sides. The title compartment's handle (§14, B65)
-spends its whole collar downward, onto the deep, because upward is the title's
-own words — the direction a collar grows in is part of the decision, not a
+surrounded by paper on all sides. The board-action row (§3.3, B83) spends its
+whole collar *upward*, onto the canvas, because downward is the Parking Lot's
+own furniture — the direction a collar grows in is part of the decision, not a
 consequence of `inset`.
 
 ---
 
 ## §7 The menu
 
-Long-press (mobile) or right-click (desktop) — **and, for the anchor menu, the
-`Menu` handle on the title compartment** (§14, B65). The handle is a second door
-to the same room: it opens the anchor menu exactly as listed below, and it
-replaces neither gesture. On desktop it is that menu's *only* door, since no
-long-press is armed there (B19/issue #4) and `contextmenu` routes notes alone.
+Long-press (mobile) or right-click (desktop). The anchor menu's two items —
+**All boards** and **Export** — are *also* the **board-action row** (§3.3, B83):
+two flat tabs above the Parking Lot that invoke them directly, on both
+platforms. That row replaces the `Menu` handle of B65, and is why removing the
+handle costs desktop nothing — no long-press is armed there (B19/issue #4) and
+`contextmenu` routes notes alone, so the row is desktop's route to these two
+actions. The mobile anchor long-press still opens the menu below.
 
 | Menu | Items |
 |---|---|
 | Item | All boards · Complete/Restore · Highlight/Remove highlight · Copy · Delete |
-| Anchor | Export · All boards |
+| Anchor | All boards · Export |
 | Board row / rail card | Export · Delete |
 | Desktop selection | Complete/Restore · Highlight/Remove highlight · Delete |
 
@@ -1054,16 +1101,25 @@ shadowed or disabled.
 turned into a 2×2 grid** of the four category buttons, drawn over the lot at its
 current height (expanded with it) and dismissed back to the lot without ever
 touching the board's parking-lot data (B74). The grid reads clockwise from the
-top-left: To Do, Notes, Learning, Ideas. A drilled category is then a
-full-screen list on `--chrome`, most recently updated first, opening straight
-onto that one section — **there is no page heading** (B66): the category head
-says where you are.
+top-left: To Do, Notes, Learning, Ideas. A drilled category is then a **panel
+that rises from the Parking Lot to a third of the viewport** (B82, issue #125),
+most recently updated first, opening straight onto that one section — the board
+stays visible above it, where a full-screen list once replaced it. **There is no
+page heading** (B66): the category head says where you are. The panel's height is
+`⌊viewport / 3⌋`, measured in JS off `window.innerHeight` and published as
+`--list-panel-h` — never a CSS `vh`, so the soft keyboard (which moves only the
+visual viewport, B28) does not drag it. The rise is the toast's `translateY`
+idiom on §8's one 200ms curve, degrading to instant under reduced-motion; its
+top edge is the Parking Lot's own `--frame` rule, rounded and on `--elevation`
+as the transient surface it is (§2.4).
 
 **Desktop:** an always-visible 300px rail (B24) — **sunken, not floating** (§2.4),
 sitting outside `#board` so the recognizer never sees its events, listing all
 four categories at once. Cards are the water's upper fall on `--chrome`, compact.
 "All boards" on desktop fills `#list-view` with the same four-button picker; the
-drill screen is the same as mobile's.
+drill stays the **full-screen overlay** there (B82 keeps the desktop overlay:
+the always-on rail already leaves the board reachable, so only the phone's drill
+becomes the third-height panel).
 
 **Both surfaces order a section by last touch, newest first** (B69, superseding
 B24's immutable slot): the key is the later of `updatedAt` (written on every
@@ -1110,7 +1166,21 @@ and **opens the new board at once**.
 `§6`'s touch floor and stops there: a card is a tap target, and what makes it
 read as a discrete object with its own edge is the hairline and the water
 fill, never the height. **4px** separates card from card inside a section;
-**8px** separates section from section.
+**8px** separates section from section. This is the height on the **rail and the
+desktop drill**; the **mobile drilled-list card** stands taller — **76px** — for
+the two extra things B82 puts on it (below).
+
+**The mobile drilled-list card carries a two-line title and a Last Updated
+stamp** (B82, issue #125). In the third-height slide-up panel the card gives up
+the sheet's width — **three to a row** (below) — so the title **clamps to two
+lines** and then indicates truncation with `…`, and a **`Last Updated:
+MM/DD/YY`** line sits **bottom-right** of every card (zero-padded month and day,
+two-digit year). The stamp is the record's own `updatedAt` — already written on
+every committing action (B69) — so nothing new persists. The rail and the
+desktop drill keep the single-line 44px card, with the same `Last Updated` line
+laid **inline** at the card's right; only the phone's panel restacks it under a
+two-line title. The card is `76px` (`LIST_CARD_H`) and `catPageCap` budgets the
+panel against it, the rail against its own 44px.
 
 **Each section is a framed, tinted tray in its own family** (B72, issue #107).
 The 8px gap alone left the categories reading as one run of buttons, so a
@@ -1143,19 +1213,22 @@ drawn, even when a single page hides the pager, so the budget cannot flap
 between one- and many-page states.
 
 **The per-page budget is measured, never a constant** (B42, restated B68,
-B74): the surface's real content height, less every *drawn* section's
-furniture, in whole rows — **times the cards a row holds** (B70). The list
-puts **two** to a row; the rail keeps one, because `PANE_W` is 300 and two
-would be narrower than the titles they name. Since B74 a mobile drill shows
-**one** category, so `catPageCap` is told one section is drawn and that
-category takes the whole screen — roughly **thirty** cards on a 384×846 phone,
-several times the old stacked-list share. The desktop rail still stacks all
-four categories, splitting the height and reclaiming a collapsed section's
-rows for the ones with boards. Where the measurement falls short of what is
-asked for, the pager states it — a number that clipped off the bottom of a
-short phone would be a lie about the height.
+B74, B82): the surface's real content height, less every *drawn* section's
+furniture, in whole rows — **times the cards a row holds**. The mobile list
+puts **three** to a row (B82 took it from B70's two); the rail keeps one,
+because `PANE_W` is 300 and two would be narrower than the titles they name.
+Since B74 a mobile drill shows **one** category; since B82 it shows it in a
+panel a third of the viewport tall, so `catPageCap` is told one section is drawn
+and measures the panel's real height — roughly **six** cards on a 384×846 phone
+(three across, two rows), the density the shorter panel trades for keeping the
+board in view. The desktop rail still stacks all four categories, splitting the
+height and reclaiming a collapsed section's rows for the ones with boards. Where
+the measurement falls short of what is asked for, the pager states it — a number
+that clipped off the bottom of a short phone would be a lie about the height.
 
-**Truncation is always indicated** — `text-overflow: ellipsis`, never a hard cut.
+**Truncation is always indicated** — `text-overflow: ellipsis` on the single-line
+card, a **two-line `-webkit-line-clamp`** on the mobile drilled card (B82), never
+a hard cut.
 
 A rail board swap is a 260ms crossfade (§8) with **no history push** — B9 is
 bypassed, not touched.
@@ -1371,42 +1444,30 @@ when disabled.
 **Menu rows and the toast's Undo** carry no fill: rows are bare on `--chrome` and
 fill on tap; Undo is underlined text (§9).
 
-**The compartment's handle** (`#title-menu` — the `Menu` control on the title
-card, B65): `--frame` fill, `--ink-dark` label at **5.70:1**, on a fill that
-clears **5.39:1 on the card** (§2.5's published pair — it is the card's own
-border colour, filled). It is the fifth species and it keeps §14's signature
-whole; only the fill is new, and the fill is not a new token. Deliberately
-**not** `--accent-page`: B59 gave that to the controls that *make* a board, and
-on desktop this handle and the rail's `New board` share a screen.
+**The board-action row** (`.board-action` — the `All boards` and `Export` tabs
+above the Parking Lot, B83, §3.3): the one control that **does not** wear §14's
+tactile signature. It is the band label's flat box — `--frame` fill, `--ink-dark`
+label at **5.70:1** (rebound by `.on-light`), `13px/600`, `padding: 2px 6px`,
+symmetric `border-radius: 3px` — because **All boards** navigates and **Export**
+leaves the device; neither acts on a note, so they belong to the sheet's own
+furniture, not to the family of controls that say "I have your content."
 
 ```css
-#title-menu {
-  top: calc(var(--card-bottom) - 16px);          /* bisected by the card's bottom edge */
-  right: calc(100% - var(--card-l) - var(--card-w));   /* flush with its right one */
-  height: 32px; padding: 0 12px;
-  font-size: 13px; font-weight: 800;        /* the band's own furniture size, B54 */
-  background: var(--frame); color: var(--ink-dark);
-  border: 2px solid var(--ink-dark); border-radius: 0.4em;
-  box-shadow: 0.1em 0.1em var(--ink-dark);
+.board-action {
+  padding: 2px 6px; border: none; border-radius: 3px;
+  background: var(--frame); color: var(--ink);   /* --ink-dark via .on-light */
+  font-size: 13px; font-weight: 600; line-height: 1.3;
 }
 ```
 
-`--card-bottom` is the compartment's **measured** height, set beside `--rule-y` in
-`updateBoardGeometry`, so the handle follows a title that grew past the floor (and
-`document.fonts.ready` re-runs that measure once, since the faces swap in after
-boot — §13.1). The 32px frame is under §6's floor on purpose: the handle carries
-the note's own decoupled collar (`--hit`, B7), sized in JS so
-`(32 + 2 × hit) × renderScale` clears **44px on touch and 24px on desktop**.
-Unlike the note's, this collar is **asymmetric** — `top: 0`, the whole
-`2 × hit` spent downward onto the deep — because upward is the title's own
-words. Inside the compartment it could not go — at
-B32's 384px floor the card is 145×110 and a two-line title already fills it — so
-it sits on the joint where the card's two drawn sides meet (B38: only three are
-drawn). Half on `--card`, half on `--deep`, which are 1.10:1 apart: the ground
-under it is one value either way.
-
-It **adds** a door to the anchor menu (§7); long-press and right-click are
-unchanged.
+Its interactive feedback is a transient `filter: brightness` on hover/press
+(§8's curve, dropped to instant by the kill-switch) and §2.7's two-tone ring on
+focus; the offset shadow and press-translate are deliberately absent. Placement,
+the decoupled `--hit` collar and the **All boards ⇄ This board** toggle live in
+§3.3. This **supersedes the compartment's handle** (`#title-menu`, B65): the
+fifth species is retired with the handle it dressed, and no control on the sheet
+now wears `--frame` as a tactile chip — the fill returns to being purely the
+band tab's (B76).
 
 ---
 
@@ -1529,11 +1590,11 @@ Per surface, what would actually fail if the words above were violated today:
 |---|---|
 | §2 — every token, every ratio | `test/tokens.js` (`PRD §9.6`): every table here recomputed from the shipped hexes, each range at its worst extreme, plus the sync points, the accent placement rule, self-hosting and B53's pair |
 | §2.2.2 — four ladders, one axis | `test/tokens.js` [1b] parses the palette **per scope** (`:root`, `#board[data-cat="idea"]`, `#board[data-cat="unsorted"]`, `#board[data-cat="learning"]`), asserts each rung's luminance against the shared column, asserts the two spellings of the darkest stop agree (`--water-bot` / `--water-bot-a`), and asserts `--chrome`, the ink poles and the accents are *not* rebound. §2.3/§2.5/§2.7's tables are then run against all four ladders with one expected number each |
-| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines); `test/mobile.js` [21] and `test/desktop.js` [D21] pin the handle to the compartment's corner and prove it does not grow the box (B65) |
+| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines); `test/mobile.js` [21] and `test/desktop.js` [D21] pin the board-action row above the lot, prove its tabs clear the touch/pointer floor, open the list and export a PDF, and confirm the `#title-menu` handle is gone (B83) |
 | §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
 | §4 — wrap, similarity render, centred text | `test/mobile.js` (B39 scenarios; [12c] pins B64's fold/rotate similarity — shape held, size uniform, storage untouched, round trip exact; [18b] computes the alignment, editing and at rest) and `test/desktop.js` [D13] (the silent cross-frame grab folds k) and [D17b] — the computed style, plus the centring inset parsed out of page 1's content stream (B62) |
 | §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |
-| §7 — menu contents and order | `test/mobile.js` [8]; the handle's door onto the anchor menu by `test/mobile.js` [21] and `test/desktop.js` [D21], which assert the two items unchanged (B65) |
+| §7 — menu contents and order | `test/mobile.js` [8]; the board-action row's two tabs (All boards · Export) by `test/mobile.js` [21] and `test/desktop.js` [D21], the anchor long-press menu still by `test/mobile.js` [16] (B83) |
 | §8 motion, §12 accessibility beyond floors | **nothing** |
 | §13.2 — the band under the new face | measured from `hmtx` here; the live gate is `test/mobile.js`'s geometry, now running against the shipped face |
 | §16 — that shipped CSS reaches an installed PWA | `test/sw-update.js` (B36) — its marker moved with the band: `--card-h` died with B47, so the regex now reads `--band-top: 14px` literally out of `styles.css`, and `test/tokens.js` asserts the marker matches the shipped stylesheet |

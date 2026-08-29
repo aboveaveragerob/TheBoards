@@ -2981,6 +2981,172 @@ cat-add and title-handle assertions drop `.tapped`; `test/mobile.js` does the sa
 for cat-add and the title handle; `test/tokens.js` drops the `.tapped` selectors
 from its accent-on-chrome whitelist and pins v31.
 
+---
+
+### B82. The drilled category is a panel that rises to a third of the viewport, three cards across, each a two-line title over a "Last Updated" stamp (issue #125; refines B74's full-screen mobile drill to a slide-up panel; supersedes B70's two-across for the mobile list, and B68's 44px height for the mobile drilled card only; keeps B42/B68/B74's measured budget, B9's back gesture, B28/B32's keyboard-safe layout, B24's setTimeout-sequenced teardown, the rail's own card untouched)
+
+The task, issue #125: drilling "All boards → a category" should not replace the
+board. Four changes, one panel.
+
+**The panel.** B74 made the mobile drill a full-screen list on `--chrome`; it
+hid the board whole. That reads against *work performed stays visible* (PRD §1):
+the boards you are choosing between are siblings of the one you were just on, and
+losing it to browse them is a cost. So the drilled category now **rises from the
+Parking Lot to a third of the viewport** — the board stays visible above it,
+the panel closing the sheet's bottom the way the Lot it rose from does. Its
+height is `⌊window.innerHeight / 3⌋`, computed in JS and published as
+`--list-panel-h` (the Lot's own `--lot-h` pattern), **never a CSS `vh`** — B28/B32
+hold the mobile layout still under the soft keyboard by measuring
+`window.innerHeight`, and a `vh` here would reintroduce exactly the viewport
+coupling those rulings removed. The rise is the `#toast` `translateY` idiom
+(parked at `translateY(100%)`, shown at `translateY(0)`) on §8's one
+`cubic-bezier(0.22,0.61,0.36,1)` at 200ms; the global reduced-motion kill-switch
+lands it instant, and the teardown is **setTimeout-sequenced, never
+`transitionend`** (B24) — a re-open before the timer fires re-adds `.show` and
+the guard leaves the panel up. Its top edge is the Lot's own `--frame` rule
+(B61), rounded and on `--elevation` as the transient surface it is (§2.4).
+**Desktop keeps the full-screen overlay** (B74's `#list-view`, `inset:0`): the
+always-on rail already leaves the board reachable there, so the panel is the
+phone's alone. The value lives in `UIUX §10`.
+
+**Three across.** The shorter panel would show fewer boards than B74's full
+screen, so the horizontal axis buys the density back: B70 halved the card to
+two-across when §6's floor closed the vertical; B82 takes it to **three**, on
+the same reasoning — a card names a board and does not need the sheet's width.
+`LIST_CARD_COLS` = 3, `.cat-cards` three columns, mobile only (the rail stays
+one — `PANE_W` is 300). Roughly six cards a page on a 384×846 phone (three
+across, two rows) — the density traded for keeping the board in view.
+
+**Two-line title.** At a third the width a one-line ellipsis cuts most titles at
+a word or two, so the mobile card's title **clamps to two lines**
+(`-webkit-line-clamp: 2`) and then indicates truncation with `…` — the first
+place this app wraps a card title. `UIUX §10`'s "truncation always indicated"
+is unbroken; the mark is the clamp's, not `text-overflow`'s.
+
+**Last Updated.** Every card now carries a **`Last Updated: MM/DD/YY`** line
+(zero-padded month and day, two-digit year — `formatMDY`, a second formatter
+beside the PDF export's long `formatDate`), bottom-right under the title on the
+mobile card and inline on the rail. The date is the record's own `updatedAt`,
+which B69 already stamps on every committing action — so **nothing new
+persists**, no DB version moves; where B74's card showed a bare creation date on
+untitled boards alone, the stamp is now on every card, titled included. This
+makes the card taller than §6's floor (`LIST_CARD_H` = 76px), so `catPageCap`
+budgets the mobile panel against that height and the rail against its own 44px —
+the one shared row-height constant splits in two. State is never colour alone
+(§1): the title is the fill's own pole, the date its quieter sibling.
+
+**The record.** The values live in `UIUX §10` (the third-viewport fraction, the
+three-across count, the two-line clamp, the `MM/DD/YY` format, the 76px card).
+`sw.js`'s `CACHE` bumps to **v32** (and `test/tokens.js` pins it). `app.js` gains
+`LIST_CARD_H` / `LIST_PANEL_FRAC` / `listPanelH()` / `formatMDY()`, sets
+`--list-panel-h` in `applyLayout`, splits `catPageCap`'s row height by surface,
+puts the stamp on every card in `fillRowContent`, and slides the panel in
+`showCat` / out through a new `hideListView` (used by `showBoardFromList` and the
+drill→picker `popstate`). `styles.css` adds the mobile `#list-view` panel and its
+`.show`, restacks the mobile `.board-row`, and takes `.cat-cards` to three
+columns. `test/mobile.js` [19b]/[22] move to three-across and assert the panel's
+third-height geometry, the board visible above it, and the `Last Updated` line;
+the desktop drill and its tests are untouched.
+
+## AB. The board's actions come out of hiding (issue #126)
+
+### B83. All boards and Export become a flat-tab row above the Parking Lot (supersedes B65's `Menu` handle; re-homes the anchor menu's entry points onto declared controls; keeps the mobile anchor long-press and B75's item order)
+
+**The principle: a declared control beats a hidden gesture, and a control that
+names its act beats one that names a mechanism.** B65 already made half this
+argument — the anchor menu (`All boards · Export`) was reachable only by a
+gesture nothing on screen declared, so it added a `Menu` handle to the title
+card. But the handle answered the gesture's invisibility with a control that
+still said only *"Menu"* — the name of a mechanism, not of anything the reader
+came to do — and put it in the compartment's bottom-right joint, a place found
+by looking rather than by expecting. **Zero cognitive tax** is not paid by
+trading an undeclared gesture for a declared riddle. Issue #126 asks for the
+actions *themselves* to be present. The ruling puts them there.
+
+**Ruling — two flat tabs, `All boards` and `Export`, hovering just above the
+Parking Lot.** They are the mirror, at the sheet's other end, of the band's two
+header tabs: one section of furniture closing each end of the sheet with a
+labelled tab, the free canvas between. Each tab carries its drawn mark (§13.3,
+`GLYPH.boards`/`GLYPH.export`) and its word, so it is recognised, not decoded.
+On both platforms the row invokes the two actions directly; the popup menu is no
+longer the only container they live in.
+
+**Flat, not tactile — the interrogation, not a default (the owner's call).** The
+obvious move was §14's tactile signature (offset shadow, press-translate) that
+`New board`, the selection buttons and the retired handle all wear. It was
+rejected on what the tabs *are*: **All boards** navigates and **Export** leaves
+the device — neither acts on a note. §14's tactile family is the set of controls
+that say *"I have your content"*; these two belong instead to the sheet's own
+furniture, so they wear the band label's flat box (`--frame` fill, `--ink-dark`
+via `.on-light`, 13px/600, `padding: 2px 6px`), not a raised chip. The one
+change from the band tab is a **symmetric** `border-radius: 3px`: the band tab
+rounds only its lower corners because it merges with the rule above it; this row
+hangs beneath no rule, sitting 8px clear of the lot's top edge, so it reads
+free-standing and rounds all four. `--frame` rotates with `#board[data-cat]`
+(B67), so the row inside board scope takes the board's hue for free — no
+re-assert needed, the leak B77 warned of runs the other way.
+
+**The toggle states its act, not its state (B43/B71's grammar).** On the board
+the first tab offers **All boards**; while the All-Boards surface is up — the
+desktop list overlay, or the mobile lot-grid that draws over the Parking Lot
+(B74) — the same tab offers **This board**, the scope-antonym that returns you.
+One mark throughout (the boards domain), the label alone flips, so state is
+never colour (§1) and no `aria-pressed` rides alongside a label that already
+names the act. It is pure navigation, so it runs raw — `goToList` /
+`returnToBoard`, no `commitAction` (B81). **Export** commits (a file leaves the
+device), so it takes `commitAction`'s drop-guard, exactly the anchor menu's
+Export item, and reads `current`, exactly that item's call site (issue #43).
+
+**The recognizer never has to classify it.** The tabs are native `<button>`s;
+`onPointerDown` returns for anything inside `#board-actions` before a gesture is
+armed — the `#lot-menu` passthrough's own precedent (B74) — so their clicks fire
+and no note is captured under them, and **no `classifyTarget` branch is added**
+(the handle needed one; native buttons do not). The container is
+`pointer-events: none`, a positioning frame exactly like a `.band-zone`, so a
+press on bare canvas *beside* the tabs still reaches the recognizer and captures
+a note; only the tabs are live.
+
+**The touch floor, without growing the box (B7).** The flat tab is well under
+§6's floor, so it carries the note's decoupled `--hit` collar, set on
+`#board-actions` in `updateBoardGeometry` (the line the handle's own `--hit`
+vacated) and measured off the row — its width spans the sheet, so only the
+height term binds. The collar is **asymmetric, spent entirely upward** onto the
+canvas, because downward is the Parking Lot's own furniture; where a note (`z-2`)
+overlaps it the note wins, and a bare-canvas tap into it fires the tab — the same
+reading B65's collar had, mirrored to the opposite edge. It is also focusable
+inside `#board`, so it inherits the handle's keyboard guard: the row
+`stopPropagation`s Delete/Backspace (and Enter, whose native default still fires
+the tab's click) so the desktop grammar, which keys off `selected` alone, cannot
+destroy the note underneath; Escape passes through.
+
+**What is removed.** `#title-menu` entirely — its markup (`index.html`), its CSS
+and `::before` collar (`styles.css §3`), and its handlers `openTitleMenu` /
+`tapTitleMenu` / the keydown, its `classifyTarget` and `handleTap` branches, and
+the `el.titleMenu` reads in `updateBoardGeometry`, `closeMenu` and `goToList`
+(the last keeps B65's care — on desktop the list overlay occludes the row, so
+focus on a tab is blurred there; on mobile the row stays visible above the grid,
+so it is kept). The **mobile anchor long-press is untouched** (its removal, and
+the note/lot long-press, belong to issue #125's unit); the desktop right-click on
+notes and cards is untouched. With the handle gone, desktop loses nothing B65
+gave it: the row is that platform's declared route to the two actions, where no
+long-press is armed (B19) and `contextmenu` routes notes alone.
+
+**The record.** The rendering values — placement, the flat-tab box, the collar
+and the toggle — live in `UIUX §3.3` (new) and `§14` (the handle's fifth-species
+block rewritten as the flat-tab species); `§6`'s asymmetric-collar example and
+`§7`'s menu-door paragraph move to the row, and `§7`'s Anchor-menu row is
+corrected to **All boards · Export** to match the shipped order (B75) the row
+now shares. `sw.js`'s `CACHE` bumps to **v33** and `test/tokens.js` pins it.
+`test/mobile.js` [21] and `test/desktop.js` [D21] are rewritten off the handle
+onto the row — it clears the floor, opens the list, exports a PDF, and the old
+`#title-menu` is asserted absent; [16]/[15] (the mobile anchor and board-row
+menus) still assert their menus unchanged.
+
+**Impermanent, named so it is not rediscovered.** The row is a home for exactly
+two board-level actions. The day a third is asked for, or a note-level action
+wants to sit beside them, this becomes a question about what the row is for —
+not a question about where to wedge one more tab.
+
 ### B84. A note wears its own action toolbar; the note long-press menu and the desktop right-click note menu are retired, and a note has a real minimum width (issue #126; supersedes the note branch of the long-press menu A1/B43 and its B71 Highlight item; supersedes the desktop right-click note menu of B22/issue #55; supersedes the `#selection` overlay's Complete·Copy·Delete of B22/issue #59; leaves the anchor board menu B75/B34, `buildMenu`/`closeMenu`/`#menu`, the lot's inline desktop actions B25, and the board-card menu B24 untouched)
 
 The principle is **declared controls over hidden gestures**, resolved against
@@ -3037,7 +3203,7 @@ is a future unit.
 
 **The record.** The rendered values — the row's tab metrics, the 132 minimum, the
 12 px offset above the frame — live in `UIUX §4.5` and `§14`. `sw.js`'s `CACHE` bumps
-to v32. The menu-driven tests move to the row: `test/mobile.js` [8]/[17]/[17b] drive
+to v34. The menu-driven tests move to the row: `test/mobile.js` [8]/[17]/[17b] drive
 the on-select toolbar (genuine CDP touch, B27b) and assert a note long-press opens no
 menu; `test/desktop.js`'s note-action, note-Copy and multi-select-menu blocks drive
 the row (or the retained `#selection` frame) and assert a right-click opens no app
