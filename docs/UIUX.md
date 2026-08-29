@@ -1004,16 +1004,25 @@ shadowed or disabled.
 turned into a 2×2 grid** of the four category buttons, drawn over the lot at its
 current height (expanded with it) and dismissed back to the lot without ever
 touching the board's parking-lot data (B74). The grid reads clockwise from the
-top-left: To Do, Notes, Learning, Ideas. A drilled category is then a
-full-screen list on `--chrome`, most recently updated first, opening straight
-onto that one section — **there is no page heading** (B66): the category head
-says where you are.
+top-left: To Do, Notes, Learning, Ideas. A drilled category is then a **panel
+that rises from the Parking Lot to a third of the viewport** (B82, issue #125),
+most recently updated first, opening straight onto that one section — the board
+stays visible above it, where a full-screen list once replaced it. **There is no
+page heading** (B66): the category head says where you are. The panel's height is
+`⌊viewport / 3⌋`, measured in JS off `window.innerHeight` and published as
+`--list-panel-h` — never a CSS `vh`, so the soft keyboard (which moves only the
+visual viewport, B28) does not drag it. The rise is the toast's `translateY`
+idiom on §8's one 200ms curve, degrading to instant under reduced-motion; its
+top edge is the Parking Lot's own `--frame` rule, rounded and on `--elevation`
+as the transient surface it is (§2.4).
 
 **Desktop:** an always-visible 300px rail (B24) — **sunken, not floating** (§2.4),
 sitting outside `#board` so the recognizer never sees its events, listing all
 four categories at once. Cards are the water's upper fall on `--chrome`, compact.
 "All boards" on desktop fills `#list-view` with the same four-button picker; the
-drill screen is the same as mobile's.
+drill stays the **full-screen overlay** there (B82 keeps the desktop overlay:
+the always-on rail already leaves the board reachable, so only the phone's drill
+becomes the third-height panel).
 
 **Both surfaces order a section by last touch, newest first** (B69, superseding
 B24's immutable slot): the key is the later of `updatedAt` (written on every
@@ -1060,7 +1069,21 @@ and **opens the new board at once**.
 `§6`'s touch floor and stops there: a card is a tap target, and what makes it
 read as a discrete object with its own edge is the hairline and the water
 fill, never the height. **4px** separates card from card inside a section;
-**8px** separates section from section.
+**8px** separates section from section. This is the height on the **rail and the
+desktop drill**; the **mobile drilled-list card** stands taller — **76px** — for
+the two extra things B82 puts on it (below).
+
+**The mobile drilled-list card carries a two-line title and a Last Updated
+stamp** (B82, issue #125). In the third-height slide-up panel the card gives up
+the sheet's width — **three to a row** (below) — so the title **clamps to two
+lines** and then indicates truncation with `…`, and a **`Last Updated:
+MM/DD/YY`** line sits **bottom-right** of every card (zero-padded month and day,
+two-digit year). The stamp is the record's own `updatedAt` — already written on
+every committing action (B69) — so nothing new persists. The rail and the
+desktop drill keep the single-line 44px card, with the same `Last Updated` line
+laid **inline** at the card's right; only the phone's panel restacks it under a
+two-line title. The card is `76px` (`LIST_CARD_H`) and `catPageCap` budgets the
+panel against it, the rail against its own 44px.
 
 **Each section is a framed, tinted tray in its own family** (B72, issue #107).
 The 8px gap alone left the categories reading as one run of buttons, so a
@@ -1093,19 +1116,22 @@ drawn, even when a single page hides the pager, so the budget cannot flap
 between one- and many-page states.
 
 **The per-page budget is measured, never a constant** (B42, restated B68,
-B74): the surface's real content height, less every *drawn* section's
-furniture, in whole rows — **times the cards a row holds** (B70). The list
-puts **two** to a row; the rail keeps one, because `PANE_W` is 300 and two
-would be narrower than the titles they name. Since B74 a mobile drill shows
-**one** category, so `catPageCap` is told one section is drawn and that
-category takes the whole screen — roughly **thirty** cards on a 384×846 phone,
-several times the old stacked-list share. The desktop rail still stacks all
-four categories, splitting the height and reclaiming a collapsed section's
-rows for the ones with boards. Where the measurement falls short of what is
-asked for, the pager states it — a number that clipped off the bottom of a
-short phone would be a lie about the height.
+B74, B82): the surface's real content height, less every *drawn* section's
+furniture, in whole rows — **times the cards a row holds**. The mobile list
+puts **three** to a row (B82 took it from B70's two); the rail keeps one,
+because `PANE_W` is 300 and two would be narrower than the titles they name.
+Since B74 a mobile drill shows **one** category; since B82 it shows it in a
+panel a third of the viewport tall, so `catPageCap` is told one section is drawn
+and measures the panel's real height — roughly **six** cards on a 384×846 phone
+(three across, two rows), the density the shorter panel trades for keeping the
+board in view. The desktop rail still stacks all four categories, splitting the
+height and reclaiming a collapsed section's rows for the ones with boards. Where
+the measurement falls short of what is asked for, the pager states it — a number
+that clipped off the bottom of a short phone would be a lie about the height.
 
-**Truncation is always indicated** — `text-overflow: ellipsis`, never a hard cut.
+**Truncation is always indicated** — `text-overflow: ellipsis` on the single-line
+card, a **two-line `-webkit-line-clamp`** on the mobile drilled card (B82), never
+a hard cut.
 
 A rail board swap is a 260ms crossfade (§8) with **no history push** — B9 is
 bypassed, not touched.

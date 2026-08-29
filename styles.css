@@ -816,6 +816,41 @@ body {
   display: flex;
   flex-direction: column;
 }
+/* The drilled category is a panel that rises from the Parking Lot to a third of
+   the viewport, the board still visible above it (issue #125 / B82). Mobile only
+   — the desktop overlay stays full-screen (inset:0), where the always-on rail
+   already keeps the board reachable. The height is measured in JS (--list-panel-h,
+   NO vh — B28/B32's keyboard-safe discipline); the top edge is the Parking Lot's
+   own --frame rule (B61), rounded and lifted on --elevation as the transient
+   surface it is (§2.4). The rise is the #toast translateY idiom on §8's one
+   curve; the kill-switch below lands it instant under reduced-motion. */
+html:not(.desktop) #list-view {
+  top: auto;                           /* release inset:0's top; bottom/left/right hold */
+  height: var(--list-panel-h, 280px);  /* = listPanelH() in app.js; px fallback, never vh */
+  border-top: 1px solid var(--frame);
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  /* --elevation upward: the panel is flush to the viewport floor, so the token's
+     downward cast would fall off-screen — the lift belongs on the top edge, the
+     one seam that adjoins the board (§2.4). Same magnitude and ink as --elevation,
+     reflected for a bottom sheet. On the deep ground the --frame rule above does
+     most of the separating (the Lot/band's own idiom); this is the transient
+     surface's hint of lift over it. */
+  box-shadow: 0 -2px 8px rgb(0 0 0 / 0.45);
+  transform: translateY(100%);         /* parked below the fold */
+  transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+html:not(.desktop) #list-view.show { transform: translateY(0); }
+/* While the drilled panel is risen, the board behind it is context, not a
+   capture surface: a tap on the exposed sheet must not drop a note on the board
+   you navigated away from (B18/B81's stray-capture guard, carried to the panel).
+   Tied to .show, which is dropped the instant a dismissal starts, so the board
+   is live again immediately on return — not after the fall. The level-1 picker
+   is untouched (its lot-grid tiles live inside #board and stay live): only the
+   drill sets .show. Dismissal is the back gesture (B9), never a board tap, so
+   nothing reachable is blocked. Desktop's full-screen overlay covers the board
+   outright and needs none of this. */
+html:not(.desktop):has(#list-view.show) #board { pointer-events: none; }
 /* No page heading (issue #95 / B66): the screen opens straight onto the
    categories, whose own heads say what each section holds. #list-rows is the
    view's only child and takes the whole height. */
@@ -949,6 +984,37 @@ body {
   font-size: 13px;
   color: var(--ink);
 }
+/* The mobile drilled-list card is the slide-up panel's own denser skin
+   (issue #125 / B82): three to a row (.cat-cards below), a title clamped to two
+   lines, and the "Last Updated" line pinned bottom-right. It stands taller than
+   §6's floor — LIST_CARD_H in app.js, which catPageCap() budgets the panel
+   against — while the rail and the desktop drill keep the single-line 44px card
+   above (the always-on rail means the board is never hidden, so the phone's
+   panel is where the denser card earns its place). */
+html:not(.desktop) .board-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  height: 76px;                        /* = LIST_CARD_H in app.js */
+  padding: 6px 10px;
+}
+html:not(.desktop) .board-row .row-title {
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 1.25;
+  white-space: normal;                 /* wrap, then clamp — not the single-line ellipsis above */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;               /* two lines, then "…" (UIUX §10, B82) */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+html:not(.desktop) .board-row .row-date {
+  margin-top: auto;                    /* pushed to the card's bottom edge */
+  align-self: flex-end;                /* bottom-RIGHT (B82) */
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: right;
+}
 
 /* ---- §10.5 Categories (issue #58 / B42, issue #74 / B44, issue #88 / B63,
    issue #97 / B68) -- Three sections — To-Do, Idea, Note — on both the mobile
@@ -1046,12 +1112,12 @@ body {
   padding: 0 12px;
   font-size: 14px;
 }
-/* Two cards to a row on the phone (B70, issue #97). A board card names a board;
-   a name does not need the sheet's whole width, and at B68's row height the
-   right two thirds of one were empty. Halving the card sideways doubles what a
-   category shows in the same height — the one axis with slack left, since §6's
-   44px floor closed the vertical one. The rail keeps a single column: at
-   PANE_W 300 two would be narrower than the titles they carry. */
+/* Three cards to a row on the phone (B70 put two; B82 takes it to three, issue
+   #125). A board card names a board; a name does not need the sheet's whole
+   width, and the drilled list is now a slide-up panel a third of the viewport
+   tall (B82), so the horizontal axis buys back the density the shorter panel
+   gives up. The rail keeps a single column: at PANE_W 300 two would already be
+   narrower than the titles they carry. */
 .cat-cards {
   grid-area: cards;
   align-self: stretch;
@@ -1059,7 +1125,7 @@ body {
   min-height: 0;
   overflow: hidden;                    /* pagination, never a scrollbar */
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));   /* = LIST_CARD_COLS in app.js */
+  grid-template-columns: repeat(3, minmax(0, 1fr));   /* = LIST_CARD_COLS in app.js */
   align-content: start;                /* rows keep their height; the slack stays at the bottom */
   gap: 4px;                            /* = PANE_ROW_GAP in app.js */
   /* Clears the cards off the tray's inset frame (B72). HORIZONTAL only: a
