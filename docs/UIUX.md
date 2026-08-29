@@ -802,11 +802,11 @@ the frame. The export draws the same centring in the same content box
 is transparent before it — enforced at blur (B8) and again on every render (B31).
 A note earns its frame the way it earns persistence.
 
-**The radius stays near-square.** Notes scale 0.5–2.0 and `NOTE_MIN_W` is 60, so
-a large radius inside `transform: scale()` turns a minimum-width note into a
-capsule. 3px is a geometric constraint, not a taste: it reads as *drawn* at every
-size the note can be. It moves 2 → 3 from v1 to hold that reading against the new
-2px frame; `EXPORT_GEO.radius` mirrors it by hand (§15).
+**The radius stays near-square.** Notes scale 0.5–2.0 and `NOTE_MIN_W` is 132
+(§4.5), so a large radius inside `transform: scale()` turns a minimum-width note
+into a capsule. 3px is a geometric constraint, not a taste: it reads as *drawn* at
+every size the note can be. It moves 2 → 3 from v1 to hold that reading against the
+new 2px frame; `EXPORT_GEO.radius` mirrors it by hand (§15).
 
 **The note carries no shadow** (§1).
 
@@ -891,6 +891,56 @@ a lot item has no coordinates (`PRD §4`).
 The one override is narrow and scoped: on desktop, a selected row draws an
 `outline` with its actions inline at the row's right edge (B25). Selected, on
 desktop, and nowhere else.
+
+### §4.5 The note's action toolbar
+
+*New in v2 (B84, issue #126).* A note's four actions — Complete/Restore ·
+Highlight · Copy · Delete — sit on a row the note wears, in the menu's order
+(§7): the destructive tab last, in `--danger`. It replaces the note long-press
+menu and the desktop right-click note menu; on desktop it also replaces the
+`#selection` overlay's own action buttons, which the overlay no longer carries
+(it is the resize frame only).
+
+**A minimum note width.** `NOTE_MIN_W` is **132** — a real minimum *rendered*
+width, not only the wrap-cap floor it was at 60. It is the width that seats the
+four tabs, and one number carries three jobs so they cannot drift apart: the CSS
+`min-width` on a non-empty `.note-text`, the wrap-cap floor (`noteMaxW`), and the
+drag/resize width floor. A note can never be *sized* narrower than its own row. An
+empty note is exempt (it keeps no frame, §6.2, and shows no row), so it stays free
+to be its true width; `createNote` floors a new note's `x` `NOTE_MIN_W` back from
+the right edge so its frame never spills off the sheet.
+
+**The tabs are flat, in the band-label's hand** (§3.1 — the same tab that names
+Components and Requirements), not pills and not the `.sel-btn` raised control:
+
+```css
+.note-tb-btn {
+  padding: 2px 6px;                    /* the band-label tab (§3.1) */
+  border-radius: 3px;                  /* tracks the note's own (§4) */
+  background: var(--frame);            /* the board's frame hue; rotates per type (B67) */
+  color: var(--ink);                   /* .on-light → --ink-dark, 5.70:1 (B76) */
+  font-size: 13px; font-weight: 600;
+}
+.note-tb-delete { background: var(--danger); }   /* --danger as a fill carrying --ink-dark, 8.83:1 (§2.6) */
+```
+
+The marks are `GLYPH`'s own drawn SVG (§13.3), each SVG `aria-hidden` with the
+label on the button for AT. The row is a **child of the note**, so it scales with
+the note and is never wider than it. It sits `12px` above the note's top edge —
+clear of the resize frame's north band (B22) — and flips to the top edge itself
+near the sheet top, where there is no room above (`reflectToolbarFlip`). Each tab
+keeps a 44px-tall hit target expanded upward (§6, B7's decoupled-hit idiom) so a
+row of four never overlaps a neighbour. Focus wears the two-tone ring (§2.7).
+
+**Shown only on select/focus** (the owner's call — not always drawn), by the same
+state that raises the resize frame: `.note.selected` on desktop (B22), `:focus-within`
+on mobile (an active note by editing it, a completed one by taking frame focus). It
+hides while the note is picked up (`.pressed`). The show/hide is the §8 fade —
+`opacity`/`visibility`, `200ms` on §8's curve — and degrades under the reduced-motion
+kill-switch. **State is never colour alone (§1):** the Complete tab flips its mark
+(check ⇄ undo) and label; the Highlight tab flips its label and shows an inset border
+while the note wears the `--highlight` wash (B71) — the wash is the state, the tab
+only triggers and names it.
 
 ---
 
@@ -1381,10 +1431,12 @@ reason:
 | bare `:hover` | `@media (hover: hover)` | mobile is the primary path; a bare hover sticks after a touch |
 | `box-shadow: 0.1em 0.1em` | `… var(--ink-dark)` | unqualified it inherits `currentColor` |
 
-**Selection buttons** (`.sel-btn` — Complete · Copy · Delete): accent fill per
-§2.6, or `--chrome` for Copy, `--ink-dark` label, ink border, same shadow
-geometry. Copy takes plain chrome because it changes nothing — accents mark state
-changes.
+**Lot-row actions** (`.sel-btn` — Complete · Copy · Delete, inline on a selected
+Parking Lot row, desktop only, B25): accent fill per §2.6, or `--chrome` for Copy,
+`--ink-dark` label, ink border, same shadow geometry. Copy takes plain chrome
+because it changes nothing — accents mark state changes. Since B84 this is the only
+place `.sel-btn` is drawn — a *note's* actions are the flat tabs of §4.5, not this
+raised control.
 
 **Pager** (`.pager-btn`): `--accent-page`, same construction, `opacity: 0.4`
 when disabled.

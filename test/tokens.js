@@ -517,6 +517,22 @@ console.log('\n[8] The scratch pair moves together: 0.62 over 0.12, both poles (
   ok('the export mixes its scratch at 0.62', /0\.62/.test(app) && !/\*\s*0\.97/.test(app));
 }
 
+console.log('\n[8b] The note toolbar minimum width — one number, JS and CSS agree (UIUX §4.5, B84)');
+{
+  // NOTE_MIN_W in app.js is at once the wrap-cap floor, the drag/resize floor and
+  // the CSS .note-text min-width; B84 says one number does all jobs, so they must
+  // not drift. This is the guard the value has no other reason to stay in sync.
+  const jsMin = Number((app.match(/const NOTE_MIN_W\s*=\s*(\d+)/) || [])[1]);
+  const cssMin = Number((css.match(/\.note-text:not\(:empty\)\s*{[^}]*min-width:\s*(\d+)px/) || [])[1]);
+  ok('NOTE_MIN_W is a real minimum, not the old 60', jsMin >= 120, String(jsMin));
+  ok('the CSS .note-text min-width equals NOTE_MIN_W', jsMin === cssMin, `js=${jsMin} css=${cssMin}`);
+  // The row is four flat tabs, delete last in --danger as a fill (not accent text).
+  ok('the toolbar draws four tabs, delete in --danger fill',
+     /note-tb-complete/.test(app) && /note-tb-highlight/.test(app) &&
+     /note-tb-copy/.test(app) && /note-tb-delete/.test(app) &&
+     /\.note-tb-delete\s*{[^}]*background:\s*var\(--danger\)/.test(css));
+}
+
 console.log('\n[9] The five colour sync points agree (PRD §9.5.1, B55)');
 {
   const metas = [...html.matchAll(/<meta name="theme-color"([^>]*)>/g)];
@@ -570,8 +586,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v33 — B36 is the definition of shipped',
-    /const CACHE = 'todo-boards-v33';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v34 — B36 is the definition of shipped',
+    /const CACHE = 'todo-boards-v34';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));

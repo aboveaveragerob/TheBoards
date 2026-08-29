@@ -679,6 +679,82 @@ body {
   box-shadow: 0 0 0 4px var(--ink-dark);
 }
 
+/* ---- §4.5 The note's action toolbar (B84, issue #126) -------------------
+   A real minimum rendered width, so a note is always at least a toolbar wide.
+   It floors only NON-empty notes: an empty note keeps no frame (§6.2) and shows
+   no row, so it must stay free to be its true (zero) width. = NOTE_MIN_W in
+   app.js, which is at once this floor, the wrap-cap floor and the drag/resize
+   floor — a note can never be sized narrower than its own row. */
+.note-text:not(:empty) { min-width: 132px; }   /* = NOTE_MIN_W (UIUX §4.5) */
+
+/* Four flat tabs on the note's top edge — Complete/Restore · Highlight · Copy ·
+   Delete, the menu's B43 order, Delete last in --danger. A CHILD of the note, so
+   it scales with it and is never wider than the note (the min-width above seats
+   it). Styled as the band-label tab (§3.1): --frame fill, .on-light ink at
+   13px/600, 3px radius — NOT a pill. Drawn always; shown only on select/focus. */
+.note-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);           /* clear of the resize frame's north edge */
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+  z-index: 3;                          /* above the note's text and scratch */
+  opacity: 0; visibility: hidden;      /* shown by the select/focus rule below */
+  transition: opacity 200ms cubic-bezier(0.22, 0.61, 0.36, 1), visibility 0s 200ms;
+}
+/* No room above near the sheet top: the row flips to sit at the top edge instead
+   (reflectToolbarFlip toggles .tb-flip). */
+.note.tb-flip .note-toolbar { bottom: auto; top: 0; }
+/* An empty note shows no row (it has no frame either, §6.2). The row follows the
+   text in DOM, so the general-sibling selector reaches it without :has(). */
+.note-text:empty ~ .note-toolbar { display: none; }
+
+.note-tb-btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 2px 6px;                    /* the band-label tab (§3.1) */
+  border: 0; border-radius: 3px;
+  background: var(--frame);            /* the board's own frame hue; rotates per type (B67) */
+  color: var(--ink);                   /* --ink-dark, rebound by .on-light — 5.70:1 (B76) */
+  font-size: 13px; font-weight: 600; line-height: 1.3;
+  cursor: pointer;
+}
+/* The destructive tab wears the warm hue as a FILL, not as text: --danger is a
+   fill carrying --ink-dark (8.83:1, UIUX §2.6), and an accent is never a text
+   colour on the note (the water/note placement rule, §2.6). Its mark stays
+   --ink-dark, so the tab differs from the other three by fill + glyph, not colour
+   alone (§1) — Delete last and distinct, the menu's B43 order. */
+.note-tb-delete { background: var(--danger); }
+/* Highlight's "on" state is a geometry, not colour alone (§1): an inset border
+   while the note wears the amber wash. The wash is the real signal; this only
+   labels the toggle and flips its aria-label (updateNoteToolbar). */
+.note.highlight .note-tb-highlight { box-shadow: inset 0 0 0 2px var(--ink-dark); }
+/* Decoupled hit area (§6, B7's idiom): the small tab keeps a 44px-tall tap target,
+   expanded UPWARD only so a row of four never overlaps a neighbour or the note. */
+.note-tb-btn::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: -24px; bottom: 0;
+}
+.note-tb-btn:focus-visible {           /* the two-tone ring (§2.7), same as the note */
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark);
+}
+/* Shown by the same state that draws the resize frame, and hidden while the note
+   is picked up (a drag/pinch/resize is not the moment to act). Desktop selects;
+   mobile engages by focus (an active note edits, a completed one takes frame
+   focus — either way :focus-within). */
+html.desktop .note.selected:not(.pressed) .note-toolbar,
+html:not(.desktop) .note:focus-within:not(.pressed) .note-toolbar {
+  opacity: 1; visibility: visible;
+  transition: opacity 200ms cubic-bezier(0.22, 0.61, 0.36, 1), visibility 0s;
+}
+/* A selected note rises so its toolbar clears any note overlapping its top edge
+   (mobile surfaces the engaged note; desktop selection does not, B22). */
+html.desktop .note.selected { z-index: 3; }
+
 /* Pressed (drag/pinch engaged): border thickens to 3px, padding compensates so
    nothing reflows — the "picked up" / "I have this" confirmation (§4.2). */
 .note.pressed .note-text {
@@ -1367,18 +1443,11 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
 #selection .sel-handle.tr { right: -8px; top: -8px; }
 #selection .sel-handle.bl { left: -8px;  bottom: -8px; }
 #selection .sel-handle.br { right: -8px; bottom: -8px; }
-#selection .sel-actions {
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 12px);
-  transform: translateX(-50%);
-  display: flex;
-  gap: 8px;
-  pointer-events: auto;
-}
-#selection .sel-actions.above { top: auto; bottom: calc(100% + 12px); }
+/* The note overlay carries no action buttons since B84 — a selected note's
+   actions live on its own top-edge toolbar (§4.5). .sel-btn remains only for the
+   Parking Lot's inline row actions (.lot-actions) below. */
 
-/* The three actions (UIUX §14): accent fills carrying --ink-dark behind the
+/* The lot-row actions (UIUX §14): accent fills carrying --ink-dark behind the
    ink border and the shared tactile signature. Copy takes plain chrome
    because it changes nothing — accents mark state changes. */
 .sel-btn {

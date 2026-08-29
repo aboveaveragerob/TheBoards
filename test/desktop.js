@@ -72,7 +72,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D4] Selection buttons commit instantly (B81)');
+  console.log('\n[D4] The note toolbar shows on select and commits instantly (B81/B84)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await page.mouse.click(800, 600);
@@ -85,18 +85,32 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
     await page.mouse.click(box.x, box.y);
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(150);
     const btn = await page.evaluate(() => {
-      const b = document.querySelector('#selection .sel-btn');
+      const bar = document.querySelector('.note.selected .note-toolbar');
+      const b = document.querySelector('.note.selected .note-tb-complete');
       if (!b) return null;
       const r = b.getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2,
+               visible: bar && getComputedStyle(bar).visibility === 'visible' };
     });
-    ok('selection has action buttons', !!btn);
+    ok('the selected note shows its toolbar', !!btn && btn.visible);
     if (btn) {
       await page.mouse.click(btn.x, btn.y);
       await page.waitForTimeout(100);
       ok('complete lands at once (B81)', await page.evaluate(() => !!document.querySelector('.note.complete')));
+      ok('and the tab flips its label to Restore', await page.evaluate(() =>
+        document.querySelector('.note-tb-complete').getAttribute('aria-label') === 'Restore'));
+      // Keyboard operability (B84, UIUX §12): focus the tab and press Enter — it
+      // must RESTORE (activate the tab), not edit the note underneath. The removed
+      // note menu used to be the only keyboard route to Complete/Highlight/Copy.
+      await page.waitForTimeout(500);                    // clear the re-fire guard
+      await page.evaluate(() => document.querySelector('.note.selected .note-tb-complete').focus());
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(150);
+      ok('Enter on a focused tab activates it (restores), never edits', await page.evaluate(() =>
+        !document.querySelector('.note.complete') &&
+        (!document.activeElement || !document.activeElement.classList.contains('note-text'))));
     }
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
@@ -422,7 +436,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  console.log('\n[D15] Copy: Complete · Copy · Delete, B18 window, clipboard + notice (issue #59)');
+  console.log('\n[D15] Toolbar: Complete · Highlight · Copy · Delete; instant Copy + notice (issue #59, B84)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -436,18 +450,18 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
     await page.mouse.click(box.x, box.y);
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(150);
     const labels = await page.evaluate(() =>
-      [...document.querySelectorAll('#selection .sel-btn')].map(b => b.textContent));
-    ok('three buttons in order Complete · Copy · Delete',
-       labels.join('|') === 'Complete|Copy|Delete', JSON.stringify(labels));
+      [...document.querySelectorAll('.note.selected .note-tb-btn')].map(b => b.getAttribute('aria-label')));
+    ok('four tabs in order Complete · Highlight · Copy · Delete',
+       labels.join('|') === 'Complete|Highlight|Copy|Delete', JSON.stringify(labels));
     const btn = await page.evaluate(() => {
-      const b = document.querySelector('#selection .sel-btn.sel-copy');
+      const b = document.querySelector('.note.selected .note-tb-copy');
       if (!b) return null;
       const r = b.getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
-    ok('the Copy button is hittable', !!btn);
+    ok('the Copy tab is hittable', !!btn);
     if (btn) {
       // A sentinel proves the clipboard really changed, and does so at once.
       await page.evaluate(() => navigator.clipboard.writeText('sentinel'));
@@ -1093,62 +1107,55 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
        Math.abs(d1.x - d2.x) < 1 && Math.abs(d1.y - d2.y) < 1, JSON.stringify({ d1, d2 }));
     ok('and the delta is the drag (~60px)', d1.x > 45 && d1.x < 75, JSON.stringify(d1));
 
-    // Right-click a MEMBER: the selection's own menu.
+    // Right-click a note no longer opens an app menu (B84): a multi-selection is
+    // acted on through the PRIMARY note's toolbar (the primary leads — 'two').
     const m1 = await rectOf('one');
     await page.mouse.click(m1.cx, m1.cy, { button: 'right' });
     await page.waitForTimeout(150);
-    ok('menu opened on right-click', await page.evaluate(() =>
-      document.querySelector('#menu').hidden === false));
-    const shape = await page.evaluate(() => {
-      const b = [...document.querySelectorAll('#menu button')];
-      return { labels: b.map(x => x.textContent), danger: b.map(x => x.classList.contains('danger')),
-               seps: document.querySelectorAll('#menu .sep').length };
-    });
-    ok('menu is Complete all · Highlight all · Delete all', shape.labels.length === 3 &&
-       /Complete all/.test(shape.labels[0]) && /Highlight all/.test(shape.labels[1]) &&
-       /Delete all/.test(shape.labels[2]), JSON.stringify(shape.labels));
-    ok('only Delete all is danger, and last',
-       shape.danger.join('|') === 'false|false|true', JSON.stringify(shape.danger));
-    ok('one separator', shape.seps === 1, String(shape.seps));
+    ok('right-click on a note opens no app menu (B84)', await page.evaluate(() =>
+      document.querySelector('#menu').hidden !== false));
+    ok('the right-click left the selection intact', await page.evaluate(() =>
+      document.querySelectorAll('.note.selected, .note.multi-selected').length === 2));
 
-    // Highlight all → both members wash amber; re-opening flips the item to
-    // remove (issue #105, B71). Left clean before the delete flow below.
-    await page.evaluate(() => {
-      [...document.querySelectorAll('#menu button')].find(b => /Highlight all/.test(b.textContent)).click();
-    });
-    await page.waitForTimeout(550);
-    ok('Highlight all washes both selected, not the third', await page.evaluate(() => {
+    // The primary's toolbar buttons; each acts on the whole selection.
+    const primaryBtn = (cls) => page.evaluate((c) => {
+      const b = document.querySelector('.note.selected .' + c);
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, label: b.getAttribute('aria-label') };
+    }, cls);
+
+    // Highlight → both members wash amber, not the third; the tab flips its label;
+    // toggling clears them (issue #105, B71). The label is singular — the tab tracks
+    // the primary's state and acts on the set (the sel-btn's "primary keys" grammar).
+    let hb = await primaryBtn('note-tb-highlight');
+    ok('the primary toolbar offers Highlight', !!hb);
+    await page.mouse.click(hb.x, hb.y);
+    await page.waitForTimeout(500);
+    ok('Highlight washes both selected, not the third', await page.evaluate(() => {
       const hi = t => [...document.querySelectorAll('.note')]
         .find(x => x.querySelector('.note-text').textContent === t).classList.contains('highlight');
       return hi('one') && hi('two') && !hi('three');
     }));
     ok('and it persisted on the records', await page.evaluate(() =>
        current.notes.filter(n => n.highlighted).length === 2));
-    await page.mouse.click(m1.cx, m1.cy, { button: 'right' });
-    await page.waitForTimeout(150);
-    ok('the item flips to Remove highlights', await page.evaluate(() =>
-       [...document.querySelectorAll('#menu button')].some(b => /Remove highlights/.test(b.textContent))));
-    await page.evaluate(() => {
-      [...document.querySelectorAll('#menu button')].find(b => /Remove highlights/.test(b.textContent)).click();
-    });
-    await page.waitForTimeout(550);
-    ok('Remove highlights clears both', await page.evaluate(() =>
+    ok('the tab flips to Remove highlight', (await primaryBtn('note-tb-highlight')).label === 'Remove highlight',
+       JSON.stringify(await primaryBtn('note-tb-highlight')));
+    hb = await primaryBtn('note-tb-highlight');
+    await page.mouse.click(hb.x, hb.y);
+    await page.waitForTimeout(500);
+    ok('toggling Highlight clears both', await page.evaluate(() =>
        current.notes.filter(n => n.highlighted).length === 0));
 
-    // Re-open for the delete-all flow below.
-    await page.mouse.click(m1.cx, m1.cy, { button: 'right' });
-    await page.waitForTimeout(150);
-
-    // Delete all → one B18 window, both gone, ONE Undo toast.
+    // Delete → both selected leave together (200ms), ONE Undo toast, restore at index.
     const origTexts = await page.evaluate(() => current.notes.map(n => n.text));
-    await page.evaluate(() => {
-      [...document.querySelectorAll('#menu button')].find(b => /Delete all/.test(b.textContent)).click();
-    });
+    const db = await primaryBtn('note-tb-delete');
+    await page.mouse.click(db.x, db.y);
     await page.waitForTimeout(100);
-    ok('nothing deleted at 100ms (B18)', (await noteCount(page)) === 3,
+    ok('the batch leaves together — both still drawn mid-animation', (await noteCount(page)) === 3,
        'count=' + await noteCount(page));
     await page.waitForTimeout(600);
-    ok('both selected notes gone after the window', (await noteCount(page)) === 1,
+    ok('both selected notes gone after the leave', (await noteCount(page)) === 1,
        'count=' + await noteCount(page));
     const toast = await page.evaluate(() => ({
       shown: document.querySelector('#toast').classList.contains('show'),
@@ -1157,8 +1164,6 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     }));
     ok('ONE Undo toast for the batch', toast.shown && toast.msg === 'Deleted' && toast.buttons === 1,
        JSON.stringify(toast));
-
-    // Undo restores both at their original indices.
     await page.evaluate(() => document.querySelector('#toast button').click());
     await page.waitForTimeout(600);
     ok('both restored', (await noteCount(page)) === 3, 'count=' + await noteCount(page));
@@ -1166,7 +1171,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       JSON.stringify(current.notes.map(n => n.text)) === JSON.stringify(want), origTexts),
       JSON.stringify(origTexts));
 
-    // sel-btn actions run on the whole selection: Complete both, Copy both.
+    // Complete and Copy run on the whole selection from the primary's toolbar.
     const s1 = await rectOf('one');
     await page.mouse.click(s1.cx, s1.cy);
     await page.waitForTimeout(100);
@@ -1174,26 +1179,18 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.keyboard.down('Shift');
     await page.mouse.click(s2.cx, s2.cy);
     await page.keyboard.up('Shift');
-    await page.waitForTimeout(100);
-    const btn = await page.evaluate(() => {
-      const b = document.querySelector('#selection .sel-btn.sel-complete');
-      const r = b.getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-    });
-    await page.mouse.click(btn.x, btn.y);
-    await page.waitForTimeout(550);
+    await page.waitForTimeout(150);
+    const compBtn = await primaryBtn('note-tb-complete');
+    await page.mouse.click(compBtn.x, compBtn.y);
+    await page.waitForTimeout(500);
     ok('Complete with two selected completes both', await page.evaluate(() => {
       const st = t => [...document.querySelectorAll('.note')]
         .find(x => x.querySelector('.note-text').textContent === t).classList.contains('complete');
       return st('one') && st('two') && !st('three');
     }));
-    const cbtn = await page.evaluate(() => {
-      const b = document.querySelector('#selection .sel-btn.sel-copy');
-      const r = b.getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-    });
+    const cbtn = await primaryBtn('note-tb-copy');
     await page.mouse.click(cbtn.x, cbtn.y);
-    await page.waitForTimeout(550);
+    await page.waitForTimeout(300);
     ok('Copy with two selected joins the texts, primary first', await page.evaluate(() =>
       navigator.clipboard.readText().then(t => t === 'two\none', () => false)));
     ok('no page errors', errors.length === 0, errors.join(' | '));
@@ -1360,6 +1357,18 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('back returns to the board, the row uncovered',
        await page.evaluate(() => document.querySelector('#list-view').hidden === true &&
          /All boards/.test(document.querySelector('#action-boards .label').textContent)));
+
+    // Right-click on a note no longer opens an app menu (B84): its actions are on
+    // the note's own toolbar, reached by the click that selects it.
+    await page.mouse.click(900, 600);
+    await page.waitForTimeout(500);
+    await page.keyboard.type('RIGHTCLICKPATH');
+    await page.evaluate(() => document.activeElement.blur());
+    await page.waitForTimeout(200);
+    await page.mouse.click(905, 605, { button: 'right' });
+    await page.waitForTimeout(200);
+    ok('right-click on a note opens no app menu (B84)',
+       await page.evaluate(() => document.querySelector('#menu').hidden !== false));
 
     // The tabs are focusable inside #board, so their keys must not reach the
     // desktop grammar underneath: Delete there destroys the selection (B83's

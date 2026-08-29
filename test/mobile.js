@@ -229,8 +229,8 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
-  // ---- 8. long-press a note still opens its menu ---------------------------
-  console.log('\n[8] Long-press a note still opens the menu');
+  // ---- 8. a note's actions live on its toolbar; long-press opens no menu ----
+  console.log('\n[8] Tapping a note raises its action toolbar; long-press opens no menu (B84)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await tap(page, 200, 400);
@@ -242,37 +242,58 @@ async function openCat(page, cat) {
       const r = document.querySelector('.note').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
+    // A note no longer carries a long-press menu (B84): a 500ms+ hold is just a
+    // slow tap, so it engages the note (enters edit) and opens NO menu.
     await tap(page, box.x, box.y, 700);
-    await page.waitForTimeout(150);
-    const menuVisible = await page.evaluate(() => document.querySelector('#menu').hidden === false);
-    ok('menu opened on note long-press', menuVisible);
-    // B43 (issues #59/#60) + B71 (issue #105): All boards · Complete · Highlight
-    // · Copy · Delete, top to bottom — danger last, behind the one separator.
-    const shape = await page.evaluate(() => {
-      const b = [...document.querySelectorAll('#menu button')];
-      return { labels: b.map(x => x.textContent),
-               danger: b.map(x => x.classList.contains('danger')),
-               seps: document.querySelectorAll('#menu .sep').length };
+    await page.waitForTimeout(200);
+    ok('a note long-press opens no menu (B84)',
+       await page.evaluate(() => document.querySelector('#menu').hidden !== false));
+    // The engaged note is :focus-within, so its toolbar is shown.
+    const tb = await page.evaluate(() => {
+      const bar = document.querySelector('.note .note-toolbar');
+      const btns = [...document.querySelectorAll('.note-tb-btn')];
+      const bg = el => getComputedStyle(el).backgroundColor;
+      return {
+        visible: bar ? getComputedStyle(bar).visibility === 'visible' : false,
+        labels: btns.map(b => b.getAttribute('aria-label')),
+        lastIsDelete: btns.length ? btns[btns.length - 1].classList.contains('note-tb-delete') : false,
+        deleteBg: document.querySelector('.note-tb-delete') ? bg(document.querySelector('.note-tb-delete')) : '',
+        completeBg: document.querySelector('.note-tb-complete') ? bg(document.querySelector('.note-tb-complete')) : '',
+      };
     });
-    const labels = shape.labels;
-    ok('menu is All boards · Complete · Highlight · Copy · Delete', labels.length === 5 &&
-       /All boards/.test(labels[0]) && /Complete/.test(labels[1]) && /Highlight/.test(labels[2]) &&
-       /Copy/.test(labels[3]) && /Delete/.test(labels[4]), JSON.stringify(labels));
-    ok('only Delete is danger, and it is last',
-       shape.danger.join('|') === 'false|false|false|false|true', JSON.stringify(shape.danger));
-    ok('one separator before Delete', shape.seps === 1, String(shape.seps));
-    // Export is board-level. The item-order law is per-menu, and a note's menu
-    // is not the place to export the board it happens to sit on.
-    ok('the note menu did not gain Export', !labels.some(l => /Export/.test(l)), JSON.stringify(labels));
-    // dismissing the menu on canvas must NOT also create a note (B30)
-    const n0 = await noteCount(page);
-    // Bare canvas: above the note, clear of the menu it opened (which hangs
-    // below the press point), of the lot band (y 708-830) and of the top band,
-    // whose anchors end at y=126 (B38).
-    await tap(page, 60, 200);
+    ok('the engaged note shows its toolbar', tb.visible);
+    // B43 order, carried onto the row (B84): Complete · Highlight · Copy · Delete.
+    ok('toolbar is Complete · Highlight · Copy · Delete', tb.labels.length === 4 &&
+       /Complete/.test(tb.labels[0]) && /Highlight/.test(tb.labels[1]) &&
+       /Copy/.test(tb.labels[2]) && /Delete/.test(tb.labels[3]), JSON.stringify(tb.labels));
+    ok('Delete is last and distinct — the --danger fill, not the frame fill',
+       tb.lastIsDelete && tb.deleteBg !== tb.completeBg,
+       JSON.stringify({ last: tb.lastIsDelete, del: tb.deleteBg, comp: tb.completeBg }));
+    // Notes carry no Export (that is board-level, on the anchor menu).
+    ok('the note toolbar has no Export', !tb.labels.some(l => /Export/i.test(l)), JSON.stringify(tb.labels));
+    ok('the note survived, unduplicated', (await noteCount(page)) === 1, 'count=' + await noteCount(page));
+    ok('no menu is open anywhere', await page.evaluate(() => document.querySelector('#menu').hidden !== false));
+
+    // A whitespace-only note shows its row (it is :not(:empty)); Completing it
+    // must not crash — the pre-act blur discards the blank note (B8) and the
+    // guarded action no-ops on the vanished record (B84).
+    await page.evaluate(() => document.activeElement && document.activeElement.blur());
     await page.waitForTimeout(150);
-    ok('menu dismissal creates no note (B30)', (await noteCount(page)) === n0, 'before=' + n0 + ' after=' + await noteCount(page));
-    ok('menu is closed', await page.evaluate(() => document.querySelector('#menu').hidden !== false));
+    await tap(page, 300, 620);                            // a second note on clear canvas
+    await page.waitForTimeout(80);
+    await page.keyboard.type('   ');                      // whitespace only
+    await page.waitForTimeout(120);
+    const wcp = await page.evaluate(() => {
+      const b = document.querySelector('.note:focus-within .note-tb-complete');
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    if (wcp) { await tap(page, wcp.x, wcp.y); await page.waitForTimeout(250); }
+    ok('Completing a whitespace note discards it without crashing (B84)',
+       errors.length === 0 && (await noteCount(page)) === 1,
+       'errors=[' + errors.join('|') + '] count=' + await noteCount(page));
+
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
@@ -1069,8 +1090,8 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
-  // ---- 17. Copy from the long-press menu (issue #59) -----------------------
-  console.log('\n[17] Long-press menu Copy shows the Copied notice');
+  // ---- 17. Copy from the note's toolbar (issue #59, B84) -------------------
+  console.log('\n[17] Toolbar Copy shows the Copied notice');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await ctx.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -1083,20 +1104,18 @@ async function openCat(page, cat) {
       const r = document.querySelector('.note').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
-    await tap(page, box.x, box.y, 700);
-    await page.waitForTimeout(150);
+    await tap(page, box.x, box.y);                       // engage → the toolbar shows
+    await page.waitForTimeout(200);
     const btn = await page.evaluate(() => {
-      const b = [...document.querySelectorAll('#menu button')].find(x => /Copy/.test(x.textContent));
+      const b = document.querySelector('.note-tb-copy');
       if (!b) return null;
       const r = b.getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
-    ok('the menu offers Copy', !!btn);
+    ok('the toolbar offers Copy', !!btn);
     if (btn) {
       await tap(page, btn.x, btn.y);
-      await page.waitForTimeout(600);                    // through the B18 window
-      ok('menu closed after the window',
-        await page.evaluate(() => document.querySelector('#menu').hidden !== false));
+      await page.waitForTimeout(300);
       ok('Copied notice shows', await page.evaluate(() => {
         const t = document.querySelector('#toast');
         return t.classList.contains('show') && /Copied/.test(t.textContent);
@@ -1109,8 +1128,8 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
-  // ---- 17b. Highlight toggles the note's wash, and the label flips (issue #105, B71)
-  console.log('\n[17b] Long-press menu Highlight washes the note, and toggles back');
+  // ---- 17b. Toolbar Highlight washes the note, and the label flips (issue #105, B71, B84)
+  console.log('\n[17b] Toolbar Highlight washes the note, and toggles back');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await tap(page, 200, 400);
@@ -1126,32 +1145,32 @@ async function openCat(page, cat) {
     ok('a new note is not highlighted', await page.evaluate(() =>
       !document.querySelector('.note').classList.contains('highlight') && !current.notes[0].highlighted));
 
-    const tapItem = async (re) => {
-      const btn = await page.evaluate((src) => {
-        const b = [...document.querySelectorAll('#menu button')].find(x => new RegExp(src).test(x.textContent));
-        if (!b) return null;
-        const r = b.getBoundingClientRect();
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-      }, re);
-      if (btn) { await tap(page, btn.x, btn.y); await page.waitForTimeout(600); }
-      return btn;
-    };
+    // The Highlight tab keeps the note engaged (no blur), so it can be toggled
+    // twice without re-tapping — spaced past the B81 re-fire guard.
+    const hlBtn = () => page.evaluate(() => {
+      const b = document.querySelector('.note-tb-highlight');
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2, label: b.getAttribute('aria-label') };
+    });
 
-    // Open the menu, choose Highlight: the whole note washes amber, and it persists.
-    await tap(page, box.x, box.y, 700);
-    await page.waitForTimeout(150);
-    const onBtn = await tapItem('^Highlight$');
-    ok('the menu offers Highlight', !!onBtn);
+    await tap(page, box.x, box.y);                       // engage → the toolbar shows
+    await page.waitForTimeout(200);
+    let hb = await hlBtn();
+    ok('the toolbar offers Highlight', !!hb && /^Highlight$/.test(hb.label), hb && hb.label);
+    await tap(page, hb.x, hb.y);
+    await page.waitForTimeout(300);
     ok('the note gains the highlight class', await page.evaluate(() =>
       document.querySelector('.note').classList.contains('highlight')));
     ok('and the record carries highlighted', await page.evaluate(() => current.notes[0].highlighted === true));
+    ok('the tab label flips to Remove highlight', (await hlBtn()).label === 'Remove highlight',
+       (await hlBtn()).label);
 
-    // Re-open: the item now reads "Remove highlight" (the Complete/Restore grammar).
-    await tap(page, box.x, box.y, 700);
-    await page.waitForTimeout(150);
-    ok('the item flips to Remove highlight', await page.evaluate(() =>
-      [...document.querySelectorAll('#menu button')].some(b => /Remove highlight/.test(b.textContent))));
-    await tapItem('Remove highlight');
+    // Toggle back off (past the guard); the note is still engaged.
+    await page.waitForTimeout(300);
+    hb = await hlBtn();
+    await tap(page, hb.x, hb.y);
+    await page.waitForTimeout(300);
     ok('the wash toggles back off', await page.evaluate(() =>
       !document.querySelector('.note').classList.contains('highlight') && current.notes[0].highlighted === false));
     ok('highlighting deleted nothing', (await noteCount(page)) === 1);

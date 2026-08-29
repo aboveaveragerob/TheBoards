@@ -3146,3 +3146,66 @@ menus) still assert their menus unchanged.
 two board-level actions. The day a third is asked for, or a note-level action
 wants to sit beside them, this becomes a question about what the row is for —
 not a question about where to wedge one more tab.
+
+### B84. A note wears its own action toolbar; the note long-press menu and the desktop right-click note menu are retired, and a note has a real minimum width (issue #126; supersedes the note branch of the long-press menu A1/B43 and its B71 Highlight item; supersedes the desktop right-click note menu of B22/issue #55; supersedes the `#selection` overlay's Complete·Copy·Delete of B22/issue #59; leaves the anchor board menu B75/B34, `buildMenu`/`closeMenu`/`#menu`, the lot's inline desktop actions B25, and the board-card menu B24 untouched)
+
+The principle is **declared controls over hidden gestures**, resolved against
+"capture precedes structure" and "zero cognitive tax" (PRD §1, UIUX §1). A note's
+actions — Complete/Restore, Highlight, Copy, Delete — were reachable only by a
+gesture with no visible affordance: a 500 ms long-press on mobile, a right-click on
+desktop. Nothing on the note said they existed; a first-time hand had no way to find
+them, and the long-press competed with the drag that moves a note. The actions now
+live on a **row the note wears** — four flat tabs on its top edge, in the menu's B43
+order (Complete/Restore · Highlight · Copy · Delete, Delete last in `--danger`) — so
+the control is seen, not remembered.
+
+**On select, not always-on** (the owner's call). An always-drawn row would tax every
+note on the board with chrome that four of five notes are not being acted on; it is
+drawn always but shown only when the note is *engaged* — selected on desktop (the
+same `#selection` state, B22), focused on mobile (an active note by editing it, a
+completed one by taking frame focus — either way `:focus-within`). One state raises
+the resize frame and the row together; the same click that reveals the actions is the
+one that was already selecting the note, so no step is added.
+
+**Built into the note, so it belongs to the note.** The row is a child of the note
+element (`makeNoteToolbar` in `makeNoteEl`), which means it scales with the note and
+can never be wider than the note it acts on — the interrogation's "does the form
+borrow from the function" answered by construction. Its buttons are routed through the
+gesture recognizer, not native clicks, because `setPointerCapture` retargets a click
+inside `#board` (the same reason `.sel-btn` is routed, B22): `classifyTarget` gains an
+early `note-tb-btn` branch that claims them before the press reaches the note beneath.
+State is never colour alone (UIUX §1): Complete flips its mark (check ⇄ undo) and
+label; Highlight flips its label and shows an inset while the note wears the amber
+wash, whose wash is the real signal; the row's job is to *trigger and name* the
+completion veil and the highlight wash, not to be them.
+
+**A real minimum width** (issue #126 pt 4.1). `NOTE_MIN_W` was only a wrap-cap floor
+(60), not a rendered minimum — an empty or short note drew narrower than a toolbar,
+with nowhere to seat the row. It is raised to **132** and made a true minimum: a CSS
+`min-width` on a non-empty `.note-text`, the wrap-cap floor (`noteMaxW`), and the
+drag/resize width floor all read the one number, so a note can never be *sized*
+narrower than its own row. `createNote` floors the new note's `x` a toolbar-width back
+from the right edge for the same reason. The empty-note rule (§6.2, no frame until the
+first character) is kept coherent: the `min-width` and the row are both gated on
+non-empty, so an empty note is still frameless, rowless and free to be its true width.
+
+**What is removed, and what is deliberately not.** Gone: the note's long-press arming
+(`HAS_MENU` keeps only `anchor`), the desktop note `contextmenu` listener, and
+`openMenuFor`'s note/lot item branches — plus the `#selection` overlay's own
+Complete·Copy·Delete, now redundant with the row. Kept whole: the anchor menu
+(`All boards · Export`, B75/B34 — the board is still reachable by long-press before
+its card is; mobile [16] proves it), the shared `buildMenu`/`closeMenu`/`#menu`, the
+board-card delete menu (B24), and the desktop lot row's inline actions (B25). **Accepted
+gap:** the lot's *mobile* item actions rode the same long-press menu and are not rebuilt
+here (the owner scoped a lot toolbar out) — desktop lot rows keep theirs; a mobile lot
+item can still be edited by tap, only not completed/copied/deleted until a lot toolbar
+is a future unit.
+
+**The record.** The rendered values — the row's tab metrics, the 132 minimum, the
+12 px offset above the frame — live in `UIUX §4.5` and `§14`. `sw.js`'s `CACHE` bumps
+to v34. The menu-driven tests move to the row: `test/mobile.js` [8]/[17]/[17b] drive
+the on-select toolbar (genuine CDP touch, B27b) and assert a note long-press opens no
+menu; `test/desktop.js`'s note-action, note-Copy and multi-select-menu blocks drive
+the row (or the retained `#selection` frame) and assert a right-click opens no app
+menu. The board-menu/export tests (mobile [15]/[16], desktop anchor/export) are
+untouched and still pass.
