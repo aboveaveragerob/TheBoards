@@ -48,10 +48,21 @@ const PANE_ROW_H = 44;               // .pane-card / .board-row min-height — �
 // and section to section. The first tightens to buy the fourth card; the
 // second is what keeps three categories reading as three, and it holds at 8.
 const PANE_ROW_GAP = 4;              // .cat-cards grid gap
-// Cards to a row in the list (B70, issue #97). §6's 44px floor closed the
-// vertical axis, so the horizontal one buys the boards: a card names a board
-// and does not need the sheet's width. The rail stays at one — PANE_W is 300.
-const LIST_CARD_COLS = 2;            // = .cat-cards grid-template-columns
+// Cards to a row in the drilled list (B70 put two; B82 takes it to three,
+// issue #125). The mobile drill is now a slide-up panel a third of the viewport
+// tall (B82), so the horizontal axis buys back the density the shorter panel
+// gives up. The rail stays at one — PANE_W is 300, two would be narrower than
+// the titles they name.
+const LIST_CARD_COLS = 3;            // = .cat-cards grid-template-columns (mobile; the rail is one)
+// The mobile drilled-list card carries a two-line title and a "Last Updated"
+// line (B82, issue #125), so it stands taller than the §6 touch floor the rail
+// card holds to: catPageCap() budgets the drilled list against this, the rail
+// against PANE_ROW_H.
+const LIST_CARD_H = 76;              // = html:not(.desktop) .board-row height in styles.css
+// The drilled list rises to a third of the viewport, the board still behind it
+// (B82, UIUX §10). Measured from window.innerHeight in JS — the stable measure
+// while the soft keyboard is up (B28) — so no `vh` enters the CSS (B32).
+const LIST_PANEL_FRAC = 1 / 3;
 const CAT_SEC_GAP = 8;               // #list-rows / #pane-cards flex gap
 const DBLCLICK_MS = 350;             // second click on a selected item within this = edit
 // Three durations paired to styles.css §8 values — they move together
@@ -94,6 +105,10 @@ const COPY = {
   exportLossy: 'Some characters aren’t in the PDF font.',
   saveError: 'Couldn’t save — retrying.',
   untitled: 'What’s up?',
+  // "Last Updated" on every board card (issue #125 / B82): read from the record's
+  // own updatedAt — already stamped on every committing action (B69), so nothing
+  // new persists. The date renders MM/DD/YY (formatMDY), stated in UIUX §10.
+  lastUpdated: 'Last Updated: ',
   // The four categories (issue #58; #112 added Learning). "unsorted" is renamed
   // at the label only — its storage key stays 'unsorted' (B63). catNew is generic
   // on purpose: the enclosing group's aria-label disambiguates the four, the same
@@ -356,6 +371,10 @@ function applyLayout() {
   // Both sections size to their content (B47): the band re-measures because a
   // width change re-wraps the zone anchors, the lot because rows may re-cap.
   updateBoardGeometry();
+  // The drilled-list panel's height (B82): set BEFORE the capacity check below,
+  // which measures #list-rows inside it. On mobile the CSS pins #list-view to
+  // this; on desktop the value is unused (the overlay stays inset:0).
+  el.listView.style.setProperty('--list-panel-h', listPanelH() + 'px');
   // Re-derive each note's on-sheet x, y AND size (one similarity ratio per
   // note, B64) and its decoupled hit area (physical size changed). The wrap
   // cap needs no re-derive here: (rw − x)/scale reads stored fields only, so
@@ -566,6 +585,15 @@ const lotH = () => {
     Math.round(LOGICAL_H * LOT_MAX_FRAC)
   );
 };
+
+/* The drilled list's slide-up panel rises to a third of the viewport, the board
+   still behind it (B82, issue #125, UIUX §10). Computed in JS and published as
+   --list-panel-h — the lot's own pattern — off window.innerHeight rather than a
+   CSS `vh`, so the soft keyboard (which resizes only the visual viewport, B28)
+   never moves it (B32's keyboard-safe discipline). Physical CSS px: the panel
+   is #list-view, a fixed element OUTSIDE the scaled board, so it is not divided
+   by renderScale. Desktop keeps the full-screen overlay and ignores this. */
+const listPanelH = () => Math.round(window.innerHeight * LIST_PANEL_FRAC);
 
 /* One site sets both sections' geometry, called wherever their content
    changes: layout, anchor input, and every lot insertion/removal. The
@@ -2826,7 +2854,13 @@ let lotMenuOpen = false;
 const boardOrder = (a, b) => (b.createdAt - a.createdAt) ||
   (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
 
-// Shared row/card content: title, or untitled placeholder + creation date.
+// Shared row/card content: the title (or untitled placeholder), then a
+// "Last Updated" line on EVERY card (B82, issue #125) — where before only an
+// untitled card carried a bare creation date. The date is the record's own
+// updatedAt (floored to createdAt for a record that predates the stamp), so no
+// new field persists (B69 already writes updatedAt on every committing action).
+// One shape, both skins: styles.css lays the line inline on the rail, and
+// bottom-right under a two-line title on the mobile drilled-list card.
 function fillRowContent(node, b) {
   node.textContent = '';
   const titled = !!(b.title && b.title.trim().length);
@@ -2834,11 +2868,9 @@ function fillRowContent(node, b) {
   title.textContent = titled ? b.title : COPY.untitled;
   if (!titled) title.classList.add('untitled');
   node.appendChild(title);
-  if (!titled) {
-    const date = document.createElement('span'); date.className = 'row-date';
-    date.textContent = formatDate(b.createdAt);
-    node.appendChild(date);
-  }
+  const date = document.createElement('span'); date.className = 'row-date';
+  date.textContent = COPY.lastUpdated + formatMDY(b.updatedAt || b.createdAt);
+  node.appendChild(date);
 }
 
 /* The three categories (issue #58 / B42, extended to the list view by issue #74
@@ -2921,7 +2953,10 @@ function catPageCap(filled, drawn) {
   // hides it, so the budget cannot flap between one- and many-page states.
   // Rows are what the height buys; columns are what a row holds. Capacity is
   // their product, so the pager still counts cards and B42's law is untouched.
-  const rows = Math.max(1, Math.floor((avail / n - head - pager) / (PANE_ROW_H + PANE_ROW_GAP)));
+  // The mobile list card is taller than the rail's (B82: two title lines + the
+  // Last Updated line), so each surface budgets against its own row height.
+  const rowH = isDesktop ? PANE_ROW_H : LIST_CARD_H;
+  const rows = Math.max(1, Math.floor((avail / n - head - pager) / (rowH + PANE_ROW_GAP)));
   return rows * (isDesktop ? 1 : LIST_CARD_COLS);
 }
 
@@ -3153,6 +3188,15 @@ function makeListRow(b) {
 function formatDate(ms) {
   const d = new Date(ms);
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+// The card's "Last Updated" stamp reads MM/DD/YY (B82, issue #125, UIUX §10):
+// zero-padded month and day, a two-digit year, compact enough for the narrow
+// three-across card. Local time, like formatDate. formatDate itself stays the
+// PDF export's long form (§10.5) — this is a second formatter, not a change.
+function formatMDY(ms) {
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, '0');
+  return p(d.getMonth() + 1) + '/' + p(d.getDate()) + '/' + p(d.getFullYear() % 100);
 }
 
 /* One gesture law for a board card, on either surface (issue #74 / B44).
@@ -3505,8 +3549,18 @@ async function showCat(cat) {
   listOpen = true;
   catView = cat;
   if (!isDesktop) closeLotMenu();     // the drill is a screen; the grid steps aside
+  el.listView.classList.remove('show'); // mobile: start below the fold; inert on desktop
   el.listView.hidden = false;
-  await renderCat(cat);
+  await renderCat(cat);                // measures the panel's real height BEFORE the rise
+  // The rise (B82, issue #125): the #toast translateY idiom — one rAF so the
+  // below-the-fold frame paints before .show flips it to translateY(0), on §8's
+  // one 200ms curve. Reduced-motion kills the transition (styles.css §8), so it
+  // lands instant. Desktop #list-view has no panel transform: .show is a no-op
+  // there and the full-screen overlay is already shown. The guard skips a rise
+  // whose navigation was superseded before the frame arrived.
+  requestAnimationFrame(() => {
+    if (listOpen && catView === cat) el.listView.classList.add('show');
+  });
 }
 /* Mobile only: the Parking Lot becomes the All-Boards menu (issue #112 / B74).
    A transient overlay drawn over #lot at its current --lot-h — if the lot is
@@ -3539,11 +3593,24 @@ async function ensureCurrentValid() {
   if (!all.length) await idbPut(current);
   renderBoard();
 }
+/* Put the #list-view away (B82, issue #125). Mobile slides the drilled panel
+   back down and hides it once it has fallen — sequenced by setTimeout, never
+   transitionend (B24): reduced-motion kills the transition and the hide still
+   lands on the same clock, and a re-open before it fires re-adds .show so the
+   guard leaves the panel up. Desktop hides its full-screen overlay at once —
+   there is no panel to fall, and its own tests expect an instant hide. */
+function hideListView() {
+  el.listView.classList.remove('show');
+  if (isDesktop) { el.listView.hidden = true; return; }
+  setTimeout(() => {
+    if (!el.listView.classList.contains('show')) el.listView.hidden = true;
+  }, LEAVE_MS);
+}
 async function showBoardFromList() {
   listOpen = false;
   catView = null;
   closeLotMenu();                      // mobile: the grid steps aside, the real lot returns
-  el.listView.hidden = true;
+  hideListView();                      // slide the drilled panel down, then hide (B82)
   if (!current) { await ensureCurrentValid(); }
   else { renderBoard(); }
   if (isDesktop) renderPane();         // a board opened from the #list-view drill lights its rail card
@@ -3558,7 +3625,7 @@ window.addEventListener('popstate', () => {
   closeMenu();
   const s = history.state;
   if (s && s.v === 'cat') { showCat(s.cat); }
-  else if (s && s.v === 'list') { catView = null; if (!isDesktop) el.listView.hidden = true; showList(); }
+  else if (s && s.v === 'list') { catView = null; if (!isDesktop) hideListView(); showList(); }  // mobile: the drilled panel slides down as the grid returns (B82)
   else { showBoardFromList(); }
 });
 
