@@ -24,8 +24,12 @@ let   LOGICAL_W = 900;               // mobile: = vw, the sheet is the viewport 
 let   LOGICAL_H = 1000;              // responsive: recomputed each layout to fill the viewport
 let   LEGACY_H = 1000;               // the LOGICAL_H the pre-B32 build would have produced
                                      // on this device; places notes that predate `rh`.
-const NOTE_MIN_W = 60;               // narrowest useful note column: ~3 chars at 17px
-                                     // + 28px box chrome (issue #53) — see noteMaxW
+const NOTE_MIN_W = 132;              // real minimum rendered note width (UIUX §4.5, B84):
+                                     // wide enough to seat the 4-button on-select toolbar.
+                                     // One number does three jobs — the wrap-cap floor
+                                     // (noteMaxW), the CSS min-width on .note-text, and the
+                                     // drag/resize width floor — so a note can never be sized
+                                     // narrower than its own row (issue #126 pt 4.1).
 const MIN_SCALE = 0.5, MAX_SCALE = 2.0;
 const MOVE_THRESHOLD = 16;           // px before a drag begins / long-press cancels (B29)
 const KB_HIDE_SLOP = 120;            // visual-viewport growth (px) that reads as the soft
@@ -679,11 +683,124 @@ function makeNoteEl(note) {
   scratch.setAttribute('aria-hidden', 'true');
 
   node.appendChild(text); node.appendChild(scratch);
+  node.appendChild(makeNoteToolbar(note));                   // the on-select action row (B84)
   applyCompleteA11y(node, note.state === 'complete');
+  reflectToolbarFlip(node, note);                            // above the note, or below near the sheet top
   noteEls.set(note.id, node);
   requestAnimationFrame(() => setHitInset(node, note));
   return node;
 }
+
+/* The note's action toolbar (B84, issue #126, UIUX §4.5/§14): four flat tabs on
+   the note's top edge — Complete/Restore · Highlight · Copy · Delete, in the
+   menu's B43 order, Delete last in --danger. It is a CHILD of the note, so it
+   scales with it (never wider than the note it belongs to) and rides the board's
+   renderScale like every other mark. It is drawn always but shown only on
+   select/focus (CSS); routed through the recognizer, not native clicks (B84,
+   like .sel-btn). The marks are GLYPH's own drawn SVG (UIUX §13.3), each SVG
+   aria-hidden with the label on the button for AT. */
+function makeNoteToolbar(note) {
+  const bar = document.createElement('div');
+  bar.className = 'note-toolbar';
+  bar.setAttribute('role', 'toolbar');
+  bar.setAttribute('aria-label', 'Note actions');
+  const mk = (cls, glyph, label) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    // .on-light rebinds the ink to --ink-dark on the --frame fill (band-label's
+    // pairing, B76); note-tb-btn is the recognizer-routing hook (classifyTarget).
+    b.className = 'note-tb-btn on-light ' + cls;
+    b.innerHTML = glyph;                       // GLYPH SVG is already aria-hidden
+    b.setAttribute('aria-label', label);
+    bar.appendChild(b);
+    return b;
+  };
+  const done = note.state === 'complete';
+  mk('note-tb-complete', done ? GLYPH.restore : GLYPH.complete, done ? COPY.restore : COPY.complete);
+  mk('note-tb-highlight', GLYPH.highlight, note.highlighted ? COPY.unhighlight : COPY.highlight);
+  mk('note-tb-copy', GLYPH.copy, COPY.copy);
+  mk('note-tb-delete', GLYPH.delete, COPY.delete);           // destructive, last (UIUX §7)
+  return bar;
+}
+
+/* The Complete tab flips its mark (check ⇄ undo) and label with the note's state;
+   the Highlight tab flips only its label — its "on" look is CSS off .note.highlight,
+   and the real signal is the note's own amber wash (never colour alone, UIUX §1). */
+function updateNoteToolbar(node, note) {
+  const comp = node.querySelector('.note-tb-complete');
+  if (comp) {
+    const done = note.state === 'complete';
+    comp.innerHTML = done ? GLYPH.restore : GLYPH.complete;
+    comp.setAttribute('aria-label', done ? COPY.restore : COPY.complete);
+  }
+  const hl = node.querySelector('.note-tb-highlight');
+  if (hl) hl.setAttribute('aria-label', note.highlighted ? COPY.unhighlight : COPY.highlight);
+}
+
+/* The row hangs above the note's top edge; a note near the sheet top has no room
+   there, so it flips to sit just inside the top edge instead (UIUX §4.5). The row
+   is a note child, so its board-logical height scales with the note (effScale) —
+   the threshold does too. renderY is stable across fold/renderScale. */
+const TB_ROW_H = 34;                  // ~the row's own height + its 12px gap, at scale 1
+function reflectToolbarFlip(node, note) {
+  node.classList.toggle('tb-flip', renderY(note) < TB_ROW_H * effScale(note));
+}
+
+/* One toolbar action, from a pointer tap (handleTap) or the keyboard (below).
+   Commits on release through the B81 drop-guard. Acts on the whole multi-
+   selection when this note is the desktop primary of one, else on this note
+   alone — mobile has no selection, so it is always the single note. */
+function runNoteToolbarAction(btn) {
+  const noteNode = btn.closest('.note');
+  if (!noteNode) return;
+  const note = current.notes.find(n => n.id === noteNode.dataset.id);
+  if (!note) return;
+  const editingHere = () =>
+    isEditing(document.activeElement) && noteNode.contains(document.activeElement);
+  commitAction(() => {
+    const inMulti = selected && selected.kind === 'note' &&
+                    multiSel.size > 1 && multiSel.has(note.id);
+    const ids = inMulti ? selectedNoteIds() : [note.id];
+    if (btn.classList.contains('note-tb-copy')) {
+      // note.text is live off every keystroke (the input handler), so Copy needs
+      // no blur — it copies the current text and leaves the note engaged.
+      copyText(ids.map(id => {
+        const n = current.notes.find(m => m.id === id);
+        return n ? n.text : '';
+      }).join('\n'));
+    } else if (btn.classList.contains('note-tb-delete')) {
+      if (editingHere()) document.activeElement.blur();   // no dangling editor in the leaving node
+      deleteNotes(ids);                                   // one commit → one Undo
+    } else if (btn.classList.contains('note-tb-highlight')) {
+      // The wash leaves the text editable, so Highlight keeps the note engaged
+      // too (mobile can toggle it twice without re-tapping).
+      if (inMulti) setSelectedNotesHighlight(!note.highlighted);
+      else toggleHighlight(noteNode);                     // primary keys the direction
+    } else {                                              // complete / restore
+      // #54's law: completing buries the text (§4.3), so an open editor on this
+      // note commits first — the veil never falls over a live caret.
+      if (editingHere()) document.activeElement.blur();
+      if (inMulti) setSelectedNotesState(note.state === 'complete');
+      else if (note.state === 'complete') restoreNote(noteNode); else completeNote(noteNode);
+    }
+  });
+}
+
+/* Keyboard operability (UIUX §12/§4.5): the pointer path routes through the
+   recognizer (setPointerCapture retargets native clicks), so a keyboard Enter/
+   Space on a focused tab is the ONE activation the recognizer never sees. This
+   handles it, and stopPropagation keeps it off the desktop note grammar below —
+   without it, Enter on a selected note's tab would ALSO edit the note. The tabs
+   are the keyboard route to Complete/Highlight/Copy the removed note menu used
+   to be (B84). */
+el.board.addEventListener('keydown', (e) => {
+  const btn = e.target.closest && e.target.closest('.note-tb-btn');
+  if (!btn) return;
+  if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+  e.preventDefault();
+  e.stopPropagation();
+  runNoteToolbarAction(btn);
+});
 
 function makeLotEl(item) {
   const node = document.createElement('div');
@@ -724,17 +841,17 @@ const pointers = new Map();          // pointerId -> {x,y,startX,startY}
 let g = null;                        // active gesture context
 let swallowTap = false;              // the pointerdown that dismissed a menu is inert (B30)
 
-/* Only these carry a long-press menu. The creation surfaces — bare canvas and
-   the lot background — have no item to act on, so no timer is armed over them
-   and the press stays a pending tap: hold as long as you like on empty paper
-   and the release still captures a note. B5 rules that a deliberate press
-   which isn't a long-press must still act; a press that *is* one, over a
-   surface with nothing to open, is the same case one step further out, and
-   capture precedes structure (PRD §1). Boards is unaffected — it lives on the
-   anchors. (Previously every one of these presses vibrated and then threw in
-   openMenuFor, which also suppressed the release: the dropped taps in the
-   Z Fold capture video.) */
-const HAS_MENU = new Set(['note', 'lot-item', 'anchor']);
+/* Only the anchors still carry a long-press menu (B84, issue #126): it is the
+   board's own menu — All boards · Export — and the board is reachable through
+   its title/Components/Requirements before its card is. Notes lost their
+   long-press menu when they gained the on-select toolbar (B84); the lot's
+   mobile item menu went with it (accepted gap — desktop lot rows keep their
+   inline actions). The creation surfaces — bare canvas and the lot background —
+   never carried one: they have no item to act on, so no timer is armed and the
+   press stays a pending tap (hold as long as you like on empty paper and the
+   release still captures a note; B5). Boards is unaffected — it lives here, on
+   the anchors. */
+const HAS_MENU = new Set(['anchor']);
 
 function classifyTarget(target) {
   // Selection chrome first: action buttons (notes and lot rows share .sel-btn),
@@ -746,6 +863,11 @@ function classifyTarget(target) {
   // would otherwise fall through to 'canvas' and drop a note — and its hit
   // collar reaches past the card, which is exactly where that would happen.
   if (target.closest('#title-menu')) return { type: 'title-menu', node: el.titleMenu };
+  // The note's own action toolbar (B84): setPointerCapture retargets the native
+  // click, so — exactly like .sel-btn above — the recognizer must claim these
+  // buttons before the press falls through to the note beneath them.
+  const tbBtn = target.closest('.note-tb-btn');
+  if (tbBtn) return { type: 'note-tb-btn', node: tbBtn };
   const note = target.closest('.note');
   if (note) return { type: 'note', node: note };
   const lotItem = target.closest('.lot-item');
@@ -906,43 +1028,27 @@ function commitAction(fn) {
 function handleTap(target, x, y, shift) {
   switch (target.type) {
     case 'sel-btn': {
-      // Complete/Restore/Copy/Delete — every button runs through B18's window,
-      // Copy included: one grammar for the row, and the drain animation is the
-      // acknowledgment a clipboard write otherwise lacks (issue #59). Copy of
-      // a completed item is allowed — the record still holds the text.
+      // Lot rows only now (B84): notes act through their own top-edge toolbar
+      // (case 'note-tb-btn'). Every button commits on release through the B81
+      // drop-guard; Copy of a completed row is allowed — the record still holds
+      // the text (issue #59).
       const lotRow = target.node.closest('.lot-item');
+      if (!lotRow) break;
       const isDel = target.node.classList.contains('sel-delete');
       const isCopy = target.node.classList.contains('sel-copy');
       commitAction(() => {
-        if (lotRow) {
-          const item = current.parkingLot.find(i => i.id === lotRow.dataset.id);
-          if (!item) return;
-          if (isCopy) copyText(item.text);
-          else if (isDel) { clearSelection(); deleteLot(lotRow); }
-          else {
-            if (item.state === 'complete') restoreLot(lotRow); else completeLot(lotRow);
-            updateSelectionUI();
-          }
-        } else if (selected && selected.kind === 'note') {
-          // The note branch acts on the WHOLE selection (issue #55): with one
-          // note selected these are byte-for-byte the old single-note actions.
-          const ids = selectedNoteIds();
-          const note = current.notes.find(n => n.id === selected.id);
-          if (!note || !ids.length) return;
-          if (isCopy) {
-            // Every selected note's text, primary first, one per line — a
-            // single selection is today's copy unchanged.
-            copyText(ids.map(id => {
-              const n = current.notes.find(m => m.id === id);
-              return n ? n.text : '';
-            }).join('\n'));
-          }
-          else if (isDel) deleteNotes(ids);      // one commit → one Undo
-          else setSelectedNotesState(note.state === 'complete');  // primary keys the direction
+        const item = current.parkingLot.find(i => i.id === lotRow.dataset.id);
+        if (!item) return;
+        if (isCopy) copyText(item.text);
+        else if (isDel) { clearSelection(); deleteLot(lotRow); }
+        else {
+          if (item.state === 'complete') restoreLot(lotRow); else completeLot(lotRow);
+          updateSelectionUI();
         }
       });
       break;
     }
+    case 'note-tb-btn': runNoteToolbarAction(target.node); break;   // B84 (keyboard path too, below)
     case 'sel-frame': break;           // a motionless click on the ring does nothing
     case 'canvas': {
       // Click-away while editing commits and only dismisses (issue #54). This
@@ -1000,7 +1106,12 @@ function handleTap(target, x, y, shift) {
         break;
       }
       surfaceNote(node);                                        // B27
+      // Engaging a note raises its toolbar (B84): an active note enters edit
+      // (its text takes focus), a completed one takes focus on the note itself
+      // — either way the note is :focus-within, so the row shows. A completed
+      // note never edits (§4.3), so focusing the frame is how it engages.
       if (note.state === 'active') editNoteText(node, x, y);
+      else node.focus({ preventScroll: true });
       break;
     }
     case 'lot-item': {
@@ -1065,7 +1176,10 @@ function editNoteText(noteNode, clientX, clientY) {
    (B27) — is the ordinary case. */
 function createNote(clientX, clientY) {
   const pt = toLogical(clientX, clientY);
-  const note = { id: uuid(), text: '', x: clamp(pt.x, 0, LOGICAL_W - 4),
+  // x is floored NOTE_MIN_W back from the right edge (B84): a new note is at
+  // least a toolbar wide, so its left edge must leave that much room or the
+  // frame would spill off the sheet. y keeps its 4px keep-on-page clamp.
+  const note = { id: uuid(), text: '', x: clamp(pt.x, 0, Math.max(0, LOGICAL_W - NOTE_MIN_W)),
                  y: clamp(pt.y, 0, LOGICAL_H - 4), rw: LOGICAL_W, rh: LOGICAL_H,
                  scale: 1.0, state: 'active' };
   current.notes.push(note);                          // top of z-order
@@ -1371,6 +1485,7 @@ function endDrag() {
   setHitInset(node, note);           // the drag can have rewrapped the note (issue #53)
   node.classList.remove('pressed');
   saveNow();
+  reflectToolbarFlip(node, note);    // a drop near the sheet top flips the row (B84)
   if (isDesktop) updateSelectionUI();  // reposition + unhide at the drop point
 }
 
@@ -1448,14 +1563,16 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
    inert, reversible state: it commits nothing, so it is instant and opens no
    acknowledged window (B18 governs actions). It never calls surfaceNote — that
    would write, and the overlay renders above every note regardless.
-   Notes wear a #selection overlay (frame + handles + the two action buttons),
-   a sibling of the notes in board space: it inherits renderScale but never
-   note.scale, so the chrome stays constant-weight at any note size. Buttons
-   are routed through the recognizer — setPointerCapture retargets click, so
-   native listeners inside #board are unreliable by construction. */
+   Notes wear a #selection overlay — the resize frame only now (ring + edges +
+   handles, B84) — a sibling of the notes in board space: it inherits renderScale
+   but never note.scale, so the frame stays constant-weight at any note size.
+   The note's actions live on its own top-edge toolbar (makeNoteToolbar), shown
+   by this same select state; its buttons are routed through the recognizer —
+   setPointerCapture retargets click, so native listeners inside #board are
+   unreliable by construction. */
 let selected = null;                 // { kind: 'note'|'lot', id }
 let lastTap = { key: null, t: 0 };   // double-click pairing across taps
-let selEl = null, selActions = null, selPrimary = null, selCopy = null, selDelete = null;
+let selEl = null;                     // the resize-frame overlay (ring + edges + handles); actions live on the note's toolbar (B84)
 
 /* Multi-selection (issue #55, B41): desktop NOTES only — lot rows stay
    single-select by design (their inline buttons live on the row, and a lot
@@ -1539,21 +1656,10 @@ function ensureSelectionEl() {
     h.setAttribute('aria-hidden', 'true');
     selEl.appendChild(h);
   }
-  selActions = document.createElement('div');
-  selActions.className = 'sel-actions';
-  selPrimary = document.createElement('button');
-  selPrimary.type = 'button'; selPrimary.className = 'sel-btn sel-complete';
-  // Copy sits between them (issue #59): Complete · Copy · Delete — the same
-  // non-destructive-first, destructive-last order as the long-press menu (B43).
-  selCopy = document.createElement('button');
-  selCopy.type = 'button'; selCopy.className = 'sel-btn sel-copy';
-  selCopy.textContent = COPY.copy;
-  selDelete = document.createElement('button');
-  selDelete.type = 'button'; selDelete.className = 'sel-btn sel-delete';
-  selDelete.textContent = COPY.delete;
-  selActions.appendChild(selPrimary); selActions.appendChild(selCopy);
-  selActions.appendChild(selDelete);
-  selEl.appendChild(selActions);
+  // The overlay is the resize frame only now (B84): the ring, four edge bands
+  // and four corner handles. A selected note's actions moved onto its own
+  // top-edge toolbar (makeNoteToolbar), so the overlay no longer carries
+  // Complete/Copy/Delete buttons.
 }
 
 function selectNote(id) {
@@ -1638,12 +1744,14 @@ function updateSelectionUI() {
     selEl.style.top = top + 'px';
     selEl.style.width = w + 'px';
     selEl.style.height = h + 'px';
-    selPrimary.textContent = note.state === 'complete' ? COPY.restore : COPY.complete;
+    // The note's own toolbar carries the labels now (B84): re-derive its
+    // Complete/Highlight marks and its above/below flip for the current geometry
+    // (a drag or resize can have moved the note toward the sheet top).
+    updateNoteToolbar(node, note);
+    reflectToolbarFlip(node, note);
     // Two or more selected: the overlay drops its resize grip (edges +
     // handles, hidden in CSS) — resize is single-selection only (issue #55).
     selEl.classList.toggle('multi', multiSel.size > 1);
-    // Buttons sit under the bottom frame edge; flip above when they'd leave the page.
-    selActions.classList.toggle('above', top + h + 64 > LOGICAL_H);
     setSelectionHidden(false);
   } else {
     const node = lotEls.get(selected.id);
@@ -1687,9 +1795,11 @@ function endResize() {
 // their own saveNow, the bulk path (issue #55) saves once for the whole set.
 function setNoteState(node, complete) {
   const note = current.notes.find(n => n.id === node.dataset.id);
+  if (!note) return;                   // a blank note the pre-act blur just discarded (B84/B8)
   note.state = complete ? 'complete' : 'active';
   node.classList.toggle('complete', complete);
   applyCompleteA11y(node, complete);
+  updateNoteToolbar(node, note);       // Complete ⇄ Restore mark/label (B84)
 }
 function completeNote(node) { setNoteState(node, true); saveNow(); }
 function restoreNote(node) { setNoteState(node, false); saveNow(); }
@@ -1698,11 +1808,14 @@ function restoreNote(node) { setNoteState(node, false); saveNow(); }
 // note.highlighted (legacy notes lack the field, which is falsy — B21's idiom).
 function setNoteHighlight(node, on) {
   const note = current.notes.find(n => n.id === node.dataset.id);
+  if (!note) return;                   // discarded blank note (B84/B8) — nothing to wash
   note.highlighted = on;
   node.classList.toggle('highlight', on);
+  updateNoteToolbar(node, note);       // Highlight ⇄ Remove highlight label (B84)
 }
 function toggleHighlight(node) {
   const note = current.notes.find(n => n.id === node.dataset.id);
+  if (!note) return;
   setNoteHighlight(node, !note.highlighted); saveNow();
 }
 function completeLot(node) {
@@ -1898,44 +2011,17 @@ let menuOpen = false, menuKeyHandler = null, menuOutsideHandler = null;
 let menuInvoker = null;              // desktop contextmenu: focus returns here on close
 let menuReturnFocus = false;         // true only inside closeMenu's synchronous focus return
 
+/* Only the board's own menu remains here (B84, issue #126): notes and lot items
+   lost their long-press/right-click menus when notes gained the on-select
+   toolbar. Long-press on the board you're looking at (issue #43) exports it
+   directly rather than routing through the list; both items are non-destructive,
+   so no separator — same rule as everywhere else. */
 function openMenuFor(target, clientX, clientY) {
-  let items = [];
-  if (target.type === 'anchor') {
-    // Long-press on the board you're looking at (issue #43): export it
-    // directly rather than routing through the list. Both items are
-    // non-destructive, so no separator — same rule as everywhere else.
-    items = [
-      { label: COPY.boards, glyph: GLYPH.boards, action: goToList },
-      { label: COPY.export, glyph: GLYPH.export, action: () => exportBoardPdf(current) },
-    ];
-  } else {
-    const node = target.node;
-    const isNote = target.type === 'note';
-    const rec = isNote ? current.notes.find(n => n.id === node.dataset.id)
-                       : current.parkingLot.find(i => i.id === node.dataset.id);
-    if (!rec) return;                // a menu over nothing has nothing to offer
-    const completed = rec.state === 'complete';
-    // Order (B43, issues #59/#60): All boards · Complete/Restore · Copy ·
-    // Delete. A1's Complete-first placement is superseded; UIUX §7's law —
-    // destructive last, in --danger, behind a hairline — still holds.
-    items.push({ label: COPY.boards, glyph: GLYPH.boards, action: goToList });
-    if (completed) items.push({ label: COPY.restore, glyph: GLYPH.restore,
-        action: () => (isNote ? restoreNote(node) : restoreLot(node)) });
-    else items.push({ label: COPY.complete, glyph: GLYPH.complete,
-        action: () => (isNote ? completeNote(node) : completeLot(node)) });
-    // Highlight (issue #105, B71): a note-only appearance toggle, sitting with
-    // the other note-state action. The label flips on the live record, and the
-    // lot has no surface to wash, so it is not offered there.
-    if (isNote) items.push({ label: rec.highlighted ? COPY.unhighlight : COPY.highlight,
-        glyph: GLYPH.highlight, action: () => toggleHighlight(node) });
-    // Copy reads the live record, not a snapshot — an edit between open and
-    // act (impossible by gesture, cheap to honour) still copies the truth.
-    items.push({ label: COPY.copy, glyph: GLYPH.copy, action: () => copyText(rec.text) });
-    items.push({ sep: true });
-    items.push({ label: COPY.delete, glyph: GLYPH.delete, danger: true,
-        action: () => (isNote ? deleteNote(node) : deleteLot(node)) });
-  }
-  buildMenu(items, clientX, clientY);
+  if (target.type !== 'anchor') return;   // a note/lot target has nothing to open here anymore
+  buildMenu([
+    { label: COPY.boards, glyph: GLYPH.boards, action: goToList },
+    { label: COPY.export, glyph: GLYPH.export, action: () => exportBoardPdf(current) },
+  ], clientX, clientY);
 }
 
 /* The compartment's handle (issue #94, B65): the SAME menu the title's
@@ -1973,67 +2059,12 @@ el.titleMenu.addEventListener('keydown', (e) => {
   if (!e.repeat) tapTitleMenu();
 });
 
-/* Desktop right-click on a note (issue #55): the selection's own menu, ONE
-   delegated listener. Right-click on empty canvas or the lot keeps the
-   BROWSER's native menu, and an active editor keeps its own (paste, spelling);
-   lot rows stay single-select with inline buttons, so they are not routed
-   here either. The recognizer never sees the press (button !== 0 guard), so
-   nothing underneath drags or creates. */
-el.board.addEventListener('contextmenu', (e) => {
-  if (!isDesktop) return;
-  if (isEditing(e.target)) return;     // the editor's own menu is the useful one
-  const target = classifyTarget(e.target);
-  if (target.type !== 'note') return;
-  const note = current.notes.find(n => n.id === target.node.dataset.id);
-  if (!note) return;                   // no record (a mid-leave husk): the native menu stands
-  e.preventDefault();
-  // #54's law holds here too: an editor open elsewhere commits before the
-  // menu acts on committed state.
-  commitOpenEditor(target.node);
-  // Outside the current multi-selection the right-click acts on the clicked
-  // note alone — select it (single) first, exactly like a plain click.
-  if (!(selected && selected.kind === 'note' &&
-        (selected.id === note.id || multiSel.has(note.id)))) selectNote(note.id);
-  const ids = selectedNoteIds();
-  if (!ids.length) return;
-  const many = ids.length > 1;
-  // The primary action flips to Restore only when EVERY selected note is
-  // complete — a mixed selection still reads Complete, which is the state it
-  // will make true. Singular labels when one note is selected (B43's grammar).
-  const allComplete = ids.every(id => {
-    const n = current.notes.find(m => m.id === id);
-    return n && n.state === 'complete';
-  });
-  // Highlight flips to "remove" only when EVERY selected note is already
-  // highlighted (issue #105, B71) — the same all-qualify rule as Complete
-  // above, so a mixed selection reads "Highlight", the state it will make true.
-  const allHighlighted = ids.every(id => {
-    const n = current.notes.find(m => m.id === id);
-    return n && n.highlighted;
-  });
-  const items = [
-    allComplete
-      ? { label: many ? COPY.restoreAll : COPY.restore, glyph: GLYPH.restore,
-          action: () => setSelectedNotesState(true) }
-      : { label: many ? COPY.completeAll : COPY.complete, glyph: GLYPH.complete,
-          action: () => setSelectedNotesState(false) },
-    allHighlighted
-      ? { label: many ? COPY.unhighlightAll : COPY.unhighlight, glyph: GLYPH.highlight,
-          action: () => setSelectedNotesHighlight(false) }
-      : { label: many ? COPY.highlightAll : COPY.highlight, glyph: GLYPH.highlight,
-          action: () => setSelectedNotesHighlight(true) },
-    { sep: true },                     // destructive last, behind the hairline (UIUX §7)
-    { label: many ? COPY.deleteAll : COPY.delete, glyph: GLYPH.delete, danger: true,
-      action: () => deleteNotes(selectedNoteIds()) },
-  ];
-  menuInvoker = target.node;           // focus returns to the note on close
-  let x = e.clientX, y = e.clientY;
-  if (!x && !y) {                      // Shift+F10 fires contextmenu at 0,0
-    const r = target.node.getBoundingClientRect();
-    x = r.left + r.width / 2; y = r.top + r.height / 2;
-  }
-  buildMenu(items, x, y);
-});
+/* Desktop right-click on a note no longer opens an app menu (B84, issue #126):
+   a note's actions live on its on-select toolbar, reached by the same click that
+   selects it, and by the keyboard grammar (Enter/Delete/Escape). Right-click
+   falls through to the browser's own menu, exactly as it already did on the
+   canvas and the lot. The board card's own contextmenu listener (its delete
+   menu, B24) is a different element and is untouched. */
 
 function buildMenu(items, clientX, clientY) {
   closeMenu();
@@ -2510,7 +2541,12 @@ function exportNoteBox(note) {
   const chrome = 2 * g.notePadX + 2 * g.border;
   const cap = noteMaxW(note);
   const maxContent = cap - chrome;
-  const content = Math.min(pdfNaturalW(note.text, false, g.noteSize), maxContent);
+  // Floor the content box at the NOTE_MIN_W minimum the screen draws (B84), so a
+  // short note exports the same width it renders — B34's on-screen fidelity. The
+  // floor is ≤ maxContent because cap ≥ NOTE_MIN_W, and the text centres in the
+  // wider box exactly as it does on screen (B62).
+  const content = Math.max(NOTE_MIN_W - chrome,
+    Math.min(pdfNaturalW(note.text, false, g.noteSize), maxContent));
   const lines = pdfWrap(note.text, false, g.noteSize, content);
   return {
     w: content + chrome,
