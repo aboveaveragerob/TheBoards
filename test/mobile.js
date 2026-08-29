@@ -1378,10 +1378,10 @@ async function openCat(page, cat) {
     ok('indicator reads 1/' + pages, pg.ind === '1/' + pages,
        pg.ind + ' (total=' + pg.total + ' onPage=' + pg.onPage + ')');
     ok('the seed still overflows into 3+ pages', pages >= 3, 'pages=' + pages);
-    // B70: a whole screen for one category, so a row still carries two cards.
-    ok('the cards track is two columns wide (B70)', pg.cols === 2, String(pg.cols));
+    // B82: the drilled panel is a third of the viewport, and a row carries three cards.
+    ok('the cards track is three columns wide (B82)', pg.cols === 3, String(pg.cols));
     ok('the shown page does not overflow its clip', pg.noScroll);
-    ok('the drill screen itself does not scroll', pg.listNoScroll);
+    ok('the drill panel itself does not scroll', pg.listNoScroll);
     ok('pager buttons clear the 44px touch floor', pg.floor >= 44, String(pg.floor));
 
     // Page turns are inert navigation — instant, no 400ms window (B22).
@@ -1708,6 +1708,8 @@ async function openCat(page, cat) {
         const cards = sec.querySelector('.cat-cards');
         const v = document.querySelector('#list-view');
         const all = await idbGetAll();
+        const vr = v.getBoundingClientRect();
+        const oneDate = sec.querySelector('.board-row .row-date');
         return {
           only: document.querySelectorAll('#list-rows .board-cat').length,
           cols: getComputedStyle(cards).gridTemplateColumns.split(' ').filter(Boolean).length,
@@ -1717,17 +1719,47 @@ async function openCat(page, cat) {
           cardFloor: Math.min(99, ...[...sec.querySelectorAll('.board-row')].map(c => c.getBoundingClientRect().height)),
           clip: cards.scrollHeight <= cards.clientHeight + 1,
           listNoScroll: v.scrollHeight <= v.clientHeight + 1,
+          // The slide-up panel (B82): a bottom third of the viewport, the board
+          // visible above it, risen to translateY(0) via .show.
+          risen: v.classList.contains('show'),
+          panelTop: Math.round(vr.top),
+          panelBottom: Math.round(vr.bottom),
+          panelH: Math.round(vr.height),
+          vh: window.innerHeight,
+          // Every card carries a "Last Updated: MM/DD/YY" line (B82).
+          dateText: oneDate ? oneDate.textContent : null,
+          dateCount: sec.querySelectorAll('.board-row .row-date').length,
         };
       });
       ok('the drill draws exactly one section', s.only === 1, String(s.only));
-      ok('the cards track is two columns wide (B70)', s.cols === 2, String(s.cols));
+      ok('the cards track is three columns wide (B82)', s.cols === 3, String(s.cols));
       ok('no card is under the 44px touch floor (UIUX §6)', s.cardFloor >= 44, String(s.cardFloor));
-      ok('a whole screen for one category clears several cards (B70)', s.onPage >= 6,
+      // The slide-up panel is a bottom third of the viewport, board still behind it (B82).
+      ok('the drilled list rose to a bottom panel', s.risen && s.panelBottom >= s.vh - 1,
+         JSON.stringify([s.risen, s.panelBottom, s.vh]));
+      ok('the panel is about a third of the viewport, the board visible above',
+         s.panelTop > s.vh * 0.5 && Math.abs(s.panelH - s.vh / 3) <= 8,
+         JSON.stringify([s.panelTop, s.panelH, s.vh]));
+      ok('every card carries a Last Updated MM/DD/YY line (B82)',
+         s.dateCount === s.onPage && /^Last Updated: \d{2}\/\d{2}\/\d{2}$/.test(s.dateText || ''),
+         JSON.stringify([s.dateCount, s.onPage, s.dateText]));
+      ok('the third-of-the-viewport panel still clears several cards (B82)', s.onPage >= 6,
          JSON.stringify([s.onPage, s.total]));
       ok('the budget is measured, and the pager says so',
          s.ind === '1/' + Math.ceil(s.total / s.onPage), s.ind + ' onPage=' + s.onPage);
       ok('the section does not overflow its clip', s.clip);
-      ok('the screen itself does not scroll', s.listNoScroll);
+      ok('the panel itself does not scroll', s.listNoScroll);
+      // The board behind the risen panel is context, not a capture surface (B82):
+      // a tap on the exposed sheet above the panel must not drop a note on it.
+      const notesBefore = await page.evaluate(() => (current.notes || []).length);
+      await tap(page, 190, 200);         // well above panelTop (~564): bare board
+      await page.waitForTimeout(120);
+      const inert = await page.evaluate(() => {
+        const v = document.querySelector('#list-view');
+        return { notes: (current.notes || []).length, shown: v.hidden === false && v.classList.contains('show') };
+      });
+      ok('a tap on the board behind the panel captures nothing (B82)',
+         inert.notes === notesBefore && inert.shown, JSON.stringify([inert.notes, notesBefore, inert.shown]));
       ok('no page errors', errors.length === 0, errors.join(' | '));
       await ctx.close();
     }

@@ -2980,3 +2980,70 @@ ghost and the Complete / Copy cases assert the action lands at once; the menu,
 cat-add and title-handle assertions drop `.tapped`; `test/mobile.js` does the same
 for cat-add and the title handle; `test/tokens.js` drops the `.tapped` selectors
 from its accent-on-chrome whitelist and pins v31.
+
+---
+
+### B82. The drilled category is a panel that rises to a third of the viewport, three cards across, each a two-line title over a "Last Updated" stamp (issue #125; refines B74's full-screen mobile drill to a slide-up panel; supersedes B70's two-across for the mobile list, and B68's 44px height for the mobile drilled card only; keeps B42/B68/B74's measured budget, B9's back gesture, B28/B32's keyboard-safe layout, B24's setTimeout-sequenced teardown, the rail's own card untouched)
+
+The task, issue #125: drilling "All boards → a category" should not replace the
+board. Four changes, one panel.
+
+**The panel.** B74 made the mobile drill a full-screen list on `--chrome`; it
+hid the board whole. That reads against *work performed stays visible* (PRD §1):
+the boards you are choosing between are siblings of the one you were just on, and
+losing it to browse them is a cost. So the drilled category now **rises from the
+Parking Lot to a third of the viewport** — the board stays visible above it,
+the panel closing the sheet's bottom the way the Lot it rose from does. Its
+height is `⌊window.innerHeight / 3⌋`, computed in JS and published as
+`--list-panel-h` (the Lot's own `--lot-h` pattern), **never a CSS `vh`** — B28/B32
+hold the mobile layout still under the soft keyboard by measuring
+`window.innerHeight`, and a `vh` here would reintroduce exactly the viewport
+coupling those rulings removed. The rise is the `#toast` `translateY` idiom
+(parked at `translateY(100%)`, shown at `translateY(0)`) on §8's one
+`cubic-bezier(0.22,0.61,0.36,1)` at 200ms; the global reduced-motion kill-switch
+lands it instant, and the teardown is **setTimeout-sequenced, never
+`transitionend`** (B24) — a re-open before the timer fires re-adds `.show` and
+the guard leaves the panel up. Its top edge is the Lot's own `--frame` rule
+(B61), rounded and on `--elevation` as the transient surface it is (§2.4).
+**Desktop keeps the full-screen overlay** (B74's `#list-view`, `inset:0`): the
+always-on rail already leaves the board reachable there, so the panel is the
+phone's alone. The value lives in `UIUX §10`.
+
+**Three across.** The shorter panel would show fewer boards than B74's full
+screen, so the horizontal axis buys the density back: B70 halved the card to
+two-across when §6's floor closed the vertical; B82 takes it to **three**, on
+the same reasoning — a card names a board and does not need the sheet's width.
+`LIST_CARD_COLS` = 3, `.cat-cards` three columns, mobile only (the rail stays
+one — `PANE_W` is 300). Roughly six cards a page on a 384×846 phone (three
+across, two rows) — the density traded for keeping the board in view.
+
+**Two-line title.** At a third the width a one-line ellipsis cuts most titles at
+a word or two, so the mobile card's title **clamps to two lines**
+(`-webkit-line-clamp: 2`) and then indicates truncation with `…` — the first
+place this app wraps a card title. `UIUX §10`'s "truncation always indicated"
+is unbroken; the mark is the clamp's, not `text-overflow`'s.
+
+**Last Updated.** Every card now carries a **`Last Updated: MM/DD/YY`** line
+(zero-padded month and day, two-digit year — `formatMDY`, a second formatter
+beside the PDF export's long `formatDate`), bottom-right under the title on the
+mobile card and inline on the rail. The date is the record's own `updatedAt`,
+which B69 already stamps on every committing action — so **nothing new
+persists**, no DB version moves; where B74's card showed a bare creation date on
+untitled boards alone, the stamp is now on every card, titled included. This
+makes the card taller than §6's floor (`LIST_CARD_H` = 76px), so `catPageCap`
+budgets the mobile panel against that height and the rail against its own 44px —
+the one shared row-height constant splits in two. State is never colour alone
+(§1): the title is the fill's own pole, the date its quieter sibling.
+
+**The record.** The values live in `UIUX §10` (the third-viewport fraction, the
+three-across count, the two-line clamp, the `MM/DD/YY` format, the 76px card).
+`sw.js`'s `CACHE` bumps to **v32** (and `test/tokens.js` pins it). `app.js` gains
+`LIST_CARD_H` / `LIST_PANEL_FRAC` / `listPanelH()` / `formatMDY()`, sets
+`--list-panel-h` in `applyLayout`, splits `catPageCap`'s row height by surface,
+puts the stamp on every card in `fillRowContent`, and slides the panel in
+`showCat` / out through a new `hideListView` (used by `showBoardFromList` and the
+drill→picker `popstate`). `styles.css` adds the mobile `#list-view` panel and its
+`.show`, restacks the mobile `.board-row`, and takes `.cat-cards` to three
+columns. `test/mobile.js` [19b]/[22] move to three-across and assert the panel's
+third-height geometry, the board visible above it, and the `Last Updated` line;
+the desktop drill and its tests are untouched.
