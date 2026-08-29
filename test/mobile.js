@@ -1591,88 +1591,115 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
-  // ---- 21. the compartment's handle: the menu, named, on the title card ----
-  console.log('\n[21] The compartment names its menu (issue #94, B65)');
+  // ---- 21. the board-action row: All boards / Export, declared above the lot -
+  console.log('\n[21] The board-action row above the Parking Lot (issue #126, B83)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     const geo = await page.evaluate(() => {
-      const b = document.querySelector('#title-menu');
-      const r = b.getBoundingClientRect();
-      const card = document.querySelector('#anchor-title').getBoundingClientRect();
-      const rule = document.querySelector('#band-rule').getBoundingClientRect();
-      const hit = parseFloat(getComputedStyle(b).getPropertyValue('--hit')) || 0;
-      return { label: b.textContent, expanded: b.getAttribute('aria-expanded'),
-               pop: b.getAttribute('aria-haspopup'), child: document.querySelector('#anchor-title').contains(b),
-               r: { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom },
-               card: { right: card.right, bottom: card.bottom }, ruleTop: rule.top, hit };
+      const row = document.querySelector('#board-actions');
+      const btns = [...row.querySelectorAll('.board-action')];
+      const lot = document.querySelector('#lot').getBoundingClientRect();
+      const rs = parseFloat(getComputedStyle(document.querySelector('#board'))
+        .getPropertyValue('--rs')) || 1;
+      const hit = parseFloat(getComputedStyle(row).getPropertyValue('--hit')) || 0;
+      const collar = getComputedStyle(btns[0], '::before');
+      const boards = btns[0].getBoundingClientRect(), exp = btns[1].getBoundingClientRect();
+      return {
+        gone: document.querySelector('#title-menu') === null,
+        role: row.getAttribute('role'),
+        labels: btns.map(b => b.querySelector('.label').textContent),
+        hasGlyph: btns.every(b => !!b.querySelector('.glyph svg')),
+        onLight: btns.every(b => b.classList.contains('on-light')),
+        lotTop: lot.top, rowBottom: Math.max(boards.bottom, exp.bottom), rs, hit,
+        collarTop: collar.top, collarBottom: collar.bottom,
+        boards: { x: boards.x + boards.width / 2, y: boards.y + boards.height / 2,
+                  w: boards.width, h: boards.height, top: boards.top },
+        exp: { x: exp.x + exp.width / 2, y: exp.y + exp.height / 2, w: exp.width, h: exp.height },
+      };
     });
-    ok('the handle says Menu', geo.label === 'Menu', geo.label);
-    ok('and declares the popup it opens', geo.pop === 'menu' && geo.expanded === 'false',
-       JSON.stringify([geo.pop, geo.expanded]));
-    // The whole reason it is a sibling: contenteditable is toggled onto
-    // #anchor-title itself, so a child would be edited along with the title.
-    ok('it is a SIBLING of the title, never inside the editable region', geo.child === false);
-    ok('flush with the compartment\'s right edge (±0.5)',
-       Math.abs(geo.r.right - geo.card.right) < 0.5, JSON.stringify([geo.r.right, geo.card.right]));
-    ok('bisected by the compartment\'s bottom edge (±1)',
-       Math.abs((geo.r.y + geo.r.h / 2) - geo.card.bottom) < 1,
-       JSON.stringify([geo.r.y + geo.r.h / 2, geo.card.bottom]));
-    // B38/B47 are untouched: the handle is out of flow and nothing measures it.
-    ok('the compartment did not grow: bottom is still rule + 22 (B38/B47)',
-       Math.abs(geo.card.bottom - (geo.ruleTop + 22)) < 1,
-       JSON.stringify([geo.card.bottom, geo.ruleTop]));
-    // UIUX §6 / B7: the hit area expands, the visual frame does not.
-    ok('the visual frame stays small (32px)', Math.abs(geo.r.h - 32) < 0.5, String(geo.r.h));
-    ok('the hit target clears the 44px touch floor',
-       geo.r.h + 2 * geo.hit >= 44 && geo.r.w + 2 * geo.hit >= 44,
-       JSON.stringify([geo.r.w + 2 * geo.hit, geo.r.h + 2 * geo.hit]));
+    ok('the old #title-menu handle is gone', geo.gone);
+    ok('the row is a labelled group of two tabs: All boards, Export',
+       geo.role === 'group' && geo.labels.length === 2 &&
+       /All boards/.test(geo.labels[0]) && /Export/.test(geo.labels[1]), JSON.stringify(geo.labels));
+    ok('each tab carries its drawn mark and rebinds ink via .on-light',
+       geo.hasGlyph && geo.onLight);
+    ok('the row sits above the lot\'s top edge', geo.rowBottom <= geo.lotTop + 0.5,
+       JSON.stringify([geo.rowBottom, geo.lotTop]));
+    // UIUX §6 / B7: the flat tab is under the floor; the collar clears it.
+    ok('both tabs clear the 44px touch floor (width on their own, height via the collar)',
+       geo.boards.w >= 44 && geo.exp.w >= 44 &&
+       geo.boards.h + 2 * geo.hit * geo.rs >= 44 && geo.exp.h + 2 * geo.hit * geo.rs >= 44,
+       JSON.stringify([geo.boards.w, geo.boards.h + 2 * geo.hit * geo.rs, geo.hit, geo.rs]));
+    // The collar is asymmetric (B83): spent UPWARD, onto the canvas, away from
+    // the lot below — the mirror of the handle's downward collar.
+    ok('the collar reaches up, never down into the lot',
+       geo.collarBottom === '0px' && parseFloat(geo.collarTop) <= 0,
+       JSON.stringify([geo.collarTop, geo.collarBottom]));
 
-    // The collar is asymmetric on purpose (B65): all of it goes DOWNWARD, onto
-    // the deep, because upward is the title's own words.
-    ok('the collar never reaches up into the title\'s words',
-       await page.evaluate(() => {
-         const b = document.querySelector('#title-menu');
-         const box = b.getBoundingClientRect();
-         const collar = getComputedStyle(b, '::before');
-         return collar.top === '0px' && parseFloat(collar.bottom) <= 0 && box.height > 0;
-       }));
-    // Press the BOTTOM of the collar — past the card, over bare canvas — so the
-    // classifier, not the painted box, is what is under test.
+    // Press the collar — above the tab, over bare canvas — so the passthrough,
+    // not the painted box, is what is under test: it must fire the tab, not drop
+    // a note (the reading B65's collar had, mirrored).
     const before = await noteCount(page);
-    await tap(page, geo.r.x + geo.r.w / 2, geo.r.bottom + 2 * geo.hit - 1);
-    await page.waitForTimeout(80);
-    ok('the menu opens at once, with no acknowledgment fill (B81)',
-       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
-         !document.querySelector('#title-menu.tapped')));
+    await tap(page, geo.boards.x, geo.boards.top - geo.hit * geo.rs);
+    await page.waitForTimeout(200);
     const opened = await page.evaluate(() => ({
-      open: document.querySelector('#menu').hidden === false,
-      items: [...document.querySelectorAll('#menu button')].map(b => b.textContent),
-      expanded: document.querySelector('#title-menu').getAttribute('aria-expanded'),
+      grid: document.querySelector('#lot-menu').hidden === false,
+      lotMenuOpen, listOpen,
+      label: document.querySelector('#action-boards .label').textContent,
     }));
-    ok('the collar opened the menu — no note on the canvas beneath it',
-       opened.open && (await noteCount(page)) === before, JSON.stringify(opened.open));
-    // Exactly the anchor menu B43 pins, unchanged: the handle is a second door
-    // to one room, not a second room.
-    ok('and it is the anchor menu unchanged: All boards then Export',
-       opened.items.length === 2 && /All boards/.test(opened.items[0]) &&
-       /Export/.test(opened.items[1]), JSON.stringify(opened.items));
-    ok('the handle reports itself expanded', opened.expanded === 'true', opened.expanded);
+    ok('All boards raised the lot-grid — no note on the canvas beneath the collar',
+       opened.grid && opened.lotMenuOpen && (await noteCount(page)) === before,
+       JSON.stringify([opened.grid, opened.lotMenuOpen]));
+    ok('and the tab flips its label to This board', /This board/.test(opened.label), opened.label);
 
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(120);
-    ok('Escape shuts it, collapsed, with focus back on the handle',
-       await page.evaluate(() => document.querySelector('#menu').hidden === true &&
-         document.querySelector('#title-menu').getAttribute('aria-expanded') === 'false' &&
-         document.activeElement === document.querySelector('#title-menu')));
+    // The toggle's other face returns you, however the surface was raised.
+    const back = await page.evaluate(() => {
+      const r = document.querySelector('#action-boards').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await tap(page, back.x, back.y);
+    await page.waitForTimeout(300);
+    ok('This board returns to the board — grid gone, label back to All boards',
+       await page.evaluate(() => document.querySelector('#lot-menu').hidden === true &&
+         !lotMenuOpen && !listOpen &&
+         /All boards/.test(document.querySelector('#action-boards .label').textContent)));
 
-    // Issue #94's own condition: the gesture path is not replaced.
+    // history.go is async and not idempotent, so a re-entrant returnToBoard (a
+    // fast double-tap of "This board", where the tab is not blurred on mobile)
+    // would double-pop past the board and out of the app. The popping guard
+    // drops the second call before the first pop's popstate lands (B83).
+    await page.evaluate(() => goToList());
+    await page.waitForTimeout(200);
+    const pops = await page.evaluate(() => {
+      let n = 0; const real = history.go.bind(history);
+      history.go = (d) => { n++; real(d); };
+      returnToBoard(); returnToBoard();            // the second must be dropped
+      history.go = real;
+      return n;
+    });
+    await page.waitForTimeout(300);
+    ok('a re-entrant returnToBoard pops once, never past the board (B83)', pops === 1, String(pops));
+    ok('and it landed back on the board', await page.evaluate(() =>
+      !!document.querySelector('#board') && !listOpen && !lotMenuOpen));
+
+    // Export commits — a file leaves the device — straight from the tab (issue #43).
+    const beforeExport = await noteCount(page);
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      tap(page, geo.exp.x, geo.exp.y),
+    ]);
+    const s = fs.readFileSync(await dl.path()).toString('latin1');
+    ok('the Export tab produced a PDF', s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
+    ok('exporting created no note under the tab', (await noteCount(page)) === beforeExport);
+
+    // The mobile anchor long-press menu is untouched (issue #125 owns its removal).
     const t = await page.evaluate(() => {
       const r = document.querySelector('#anchor-title').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + 24 };
     });
     await tap(page, t.x, t.y, 700);
     await page.waitForTimeout(200);
-    ok('long-press on the title still opens the same menu — both paths exist',
+    ok('long-press on the title still opens the anchor menu, both items',
        await page.evaluate(() => document.querySelector('#menu').hidden === false &&
          [...document.querySelectorAll('#menu button')].length === 2));
     ok('no page errors', errors.length === 0, errors.join(' | '));

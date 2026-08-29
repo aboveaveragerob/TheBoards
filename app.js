@@ -69,6 +69,12 @@ const COPY = {
   // — and it is now the only place the word is written: B43's exception for
   // the #list-title page heading is gone with the heading itself (B66).
   complete: 'Complete', restore: 'Restore', delete: 'Delete', boards: 'All boards',
+  // The board-action toggle's other face (issue #126, B83): when the All-Boards
+  // surface is showing, the same tab states the act that returns you — "This
+  // board", the scope-antonym of "All boards". The label states the act it
+  // performs, the Complete/Restore and Highlight grammar (B43/B71), so no
+  // aria-pressed rides alongside it.
+  thisBoard: 'This board',
   // Plural labels for a multi-selection (issue #55): the count is visible on
   // the board itself — every member wears a ring — so the label says "all",
   // not a number the user would have to reconcile.
@@ -245,7 +251,9 @@ const el = {
   toast: document.getElementById('toast'),
   pane: document.getElementById('pane'),
   paneCards: document.getElementById('pane-cards'),
-  titleMenu: document.getElementById('title-menu'),   // the compartment's handle (B65)
+  boardActions: document.getElementById('board-actions'),   // the board-action row (B83)
+  actionBoards: document.getElementById('action-boards'),   // All Boards ⇄ This board toggle
+  actionExport: document.getElementById('action-export'),   // Export this board
 };
 const anchorEls = {
   title: document.getElementById('anchor-title'),
@@ -561,18 +569,24 @@ const lotH = () => {
 
 /* One site sets both sections' geometry, called wherever their content
    changes: layout, anchor input, and every lot insertion/removal. The
-   compartment's handle rides the card's bottom-right corner (B65), so it is
-   set from here too — the card's MEASURED height, read after --rule-y lands,
-   because a title past the two-line floor grows the box the handle sits on. */
+   board-action row rides the lot's top edge (B83), so its hit collar is set
+   from here too — the flat tabs draw well under the touch floor, and only
+   renderScale can move that physical size, which changes here on every layout. */
 function updateBoardGeometry() {
   el.board.style.setProperty('--rule-y', bandRuleY() + 'px');
   el.board.style.setProperty('--lot-h', lotH() + 'px');
   // offsetHeight, not the rect: it is transform-independent, so this is the
   // card's LOGICAL bottom edge on both paths (the rect would arrive scaled).
   el.board.style.setProperty('--card-bottom', anchorEls.title.offsetHeight + 'px');
-  // The handle's own frame is fixed, so only renderScale can move it off the
-  // floor — and that changes here, on every layout (UIUX §6, B7).
-  el.titleMenu.style.setProperty('--hit', hitInset(el.titleMenu, renderScale) + 'px');
+  // The tabs' own frame is the band label's (B83); the note's decoupled collar
+  // (UIUX §6, B7) is what clears the floor. Measured off the row — its width
+  // spans the sheet so the width term is 0, its height is the tab's, so this is
+  // the upward collar each tab needs to reach 44px on touch / 24px on desktop.
+  // hitInset reads the row's INTEGER offsetHeight, but the flat tab's box is
+  // fractional (13px × 1.3 + 2px padding ≈ 20.9), so offsetHeight can round it
+  // up half a pixel and leave the collar a sub-pixel short of the floor: a
+  // half-pixel of headroom keeps the rendered box at or above it.
+  el.boardActions.style.setProperty('--hit', (hitInset(el.boardActions, renderScale) + 0.5) + 'px');
 }
 
 /* §6/B7's law is not the note's alone: any board-space target expands its hit
@@ -652,6 +666,7 @@ function renderBoard() {
   // Parking Lot.
   el.lotItems.textContent = ''; lotEls.clear();
   for (const item of current.parkingLot) el.lotItems.appendChild(makeLotEl(item));
+  syncBoardActions();                // the toggle reads All boards on a drawn board (B83)
   applyLayout();
 }
 
@@ -742,10 +757,10 @@ function classifyTarget(target) {
   const selBtn = target.closest('.sel-btn');
   if (selBtn) return { type: 'sel-btn', node: selBtn };
   if (target.closest('#selection')) return { type: 'sel-frame', node: selEl };
-  // The compartment's handle (B65). It is a SIBLING of #anchor-title, so it
-  // would otherwise fall through to 'canvas' and drop a note — and its hit
-  // collar reaches past the card, which is exactly where that would happen.
-  if (target.closest('#title-menu')) return { type: 'title-menu', node: el.titleMenu };
+  // The board-action row (B83) needs no branch here: its tabs are native
+  // buttons and onPointerDown returns before classify runs for anything inside
+  // #board-actions (the #lot-menu passthrough's precedent), so the recognizer
+  // never sees them and their own clicks fire.
   const note = target.closest('.note');
   if (note) return { type: 'note', node: note };
   const lotItem = target.closest('.lot-item');
@@ -764,6 +779,12 @@ function onPointerDown(e) {
   // bubble here — but it is a menu, not the board: let its buttons receive their
   // own native clicks rather than the recognizer swallowing them as lot capture.
   if (e.target.closest('#lot-menu')) return;
+  // The board-action tabs (issue #126, B83) are native buttons too: the same
+  // passthrough lets their clicks fire (All Boards / Export) with no gesture
+  // armed and no preventDefault, so no note is captured under them. Presses on
+  // the row's pointer-events:none frame never reach here (they hit the canvas
+  // behind it), so only a real tab press returns — bare canvas still captures.
+  if (e.target.closest('#board-actions')) return;
   // Secondary/middle presses are inert to the recognizer (issue #55): a
   // right-click must reach the contextmenu listener with no gesture context
   // armed, or the press underneath the menu would drag/select/create. The
@@ -1030,9 +1051,6 @@ function handleTap(target, x, y, shift) {
     }
     case 'anchor':
       editText(target.node, x, y);      // edit-entry is instant on both (B27, B81)
-      break;
-    case 'title-menu':
-      tapTitleMenu();
       break;
   }
 }
@@ -1938,39 +1956,62 @@ function openMenuFor(target, clientX, clientY) {
   buildMenu(items, clientX, clientY);
 }
 
-/* The compartment's handle (issue #94, B65): the SAME menu the title's
-   long-press and right-click already give, opened from a control that says it
-   exists. Neither gesture path is touched — this only removes the requirement
-   to know one. The menu drops from the handle's own bottom-right corner, so
-   buildMenu's viewport flip right-aligns it under the control on a phone.
+/* The board-action row (issue #126, B83): the two board-level actions the
+   anchor menu carries — All boards and Export — declared as flat tabs above the
+   Parking Lot instead of hidden behind a gesture. This is the door B65 opened
+   with the `Menu` handle, re-homed onto controls that state their own act.
+   Long-press and right-click still open the anchor menu; only the handle is
+   gone. */
 
-   Opening commits nothing, so it is instant with no guard (B81); the menu drops
-   offset from the handle rather than under the finger, and each item carries its
-   own drop-guard, so an impatient double-tap can't fall through onto an action. */
-function openTitleMenu() {
-  // #54's law: an open editor commits before the menu acts on committed state.
-  if (isEditing(document.activeElement)) document.activeElement.blur();
-  const r = el.titleMenu.getBoundingClientRect();
-  menuInvoker = el.titleMenu;          // focus returns to the handle on close
-  el.titleMenu.setAttribute('aria-expanded', 'true');
-  openMenuFor({ type: 'anchor', node: anchorEls.title }, r.right, r.bottom);
+/* Fill a tab with its drawn mark (UIUX §13.3) and label. Built once at boot;
+   the toggle only restates its label text afterwards (syncBoardActions). */
+function fillBoardAction(btn, glyph, label) {
+  const g = document.createElement('span');
+  g.className = 'glyph'; g.setAttribute('aria-hidden', 'true'); g.innerHTML = glyph;
+  const l = document.createElement('span'); l.className = 'label'; l.textContent = label;
+  btn.append(g, l);
 }
-const tapTitleMenu = () => openTitleMenu();   // opening a menu commits nothing — instant, no guard (B81)
+fillBoardAction(el.actionBoards, GLYPH.boards, COPY.boards);
+fillBoardAction(el.actionExport, GLYPH.export, COPY.export);
 
-/* The recognizer owns pointers, so the keyboard is the one path it cannot see.
-   preventDefault stops the native click the key would otherwise synthesize, and
-   stopPropagation keeps the press off the desktop keyboard grammar below — the
-   handle is the first focusable thing inside #board that is neither an editor
-   nor the selection, so without it Enter would ALSO edit the selected note and
-   Delete would destroy it. Auto-repeat is dropped: held past ~500ms the repeats
-   would land on the menu item buildMenu had just focused. */
-el.titleMenu.addEventListener('keydown', (e) => {
-  const activates = e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar';
-  if (!activates && e.key !== 'Delete' && e.key !== 'Backspace') return;
-  e.stopPropagation();                 // Escape still reaches the grammar below
-  if (!activates) return;
-  e.preventDefault();
-  if (!e.repeat) tapTitleMenu();
+/* The toggle wears the act it will perform (B43/B71's grammar, not a fixed
+   noun): on the board it offers All boards; while the All-Boards surface is up
+   — the desktop list overlay, or the mobile lot-grid — it offers the way back
+   to this one. One mark (GLYPH.boards, the boards domain), the label alone
+   flips, so state is never colour (UIUX §1). Called from renderBoard and every
+   list-state transition. */
+function syncBoardActions() {
+  const away = listOpen || lotMenuOpen;
+  const l = el.actionBoards.querySelector('.label');
+  if (l) l.textContent = away ? COPY.thisBoard : COPY.boards;
+}
+
+/* All Boards is pure navigation: it commits nothing a stray tap could
+   duplicate, so it runs raw, no commitAction (B81). goToList opens the list /
+   lot-grid; returnToBoard pops back however deep. */
+el.actionBoards.addEventListener('click', () => {
+  if (listOpen || lotMenuOpen) returnToBoard();
+  else goToList();
+});
+/* Export DOES commit — a file leaves the device — so it takes commitAction's
+   drop-guard, the same guard the anchor menu's Export item runs under. It reads
+   `current`, exactly the anchor-menu call site (issue #43). */
+el.actionExport.addEventListener('click', () => commitAction(() => exportBoardPdf(current)));
+
+/* The tabs are focusable things inside #board, and the desktop keyboard grammar
+   (Enter edits the selection, Delete destroys it) listens on document and keys
+   off `selected` alone, not focus — so a tab focused over a selected note would
+   otherwise let Delete reach that note. The row swallows the grammar's keys;
+   Enter's native default (the first press) still fires the tab's own click, and
+   Escape passes through so deselect-from-anywhere still works. This is B65's
+   guard, re-homed — including its auto-repeat drop: the native click fires per
+   Enter keydown, so a held key would fire the tab's action (an export!) over
+   and over, since commitAction only rate-limits to ACTION_DELAY. preventDefault
+   on the repeats suppresses the synthesized click, so a held Enter acts once. */
+el.boardActions.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== 'Delete' && e.key !== 'Backspace') return;
+  e.stopPropagation();
+  if (e.repeat) e.preventDefault();
 });
 
 /* Desktop right-click on a note (issue #55): the selection's own menu, ONE
@@ -2103,7 +2144,6 @@ function closeMenu() {
   el.menu.classList.remove('show');
   el.menu.hidden = true;
   menuOpen = false;
-  el.titleMenu.setAttribute('aria-expanded', 'false');   // collapsed, whoever opened it (B65)
   if (menuKeyHandler) document.removeEventListener('keydown', menuKeyHandler, true);
   if (menuOutsideHandler) document.removeEventListener('pointerdown', menuOutsideHandler, true);
   menuKeyHandler = menuOutsideHandler = null;
@@ -3262,8 +3302,19 @@ async function openBoardById(id) {
    and the picker's below it come off in one go — history.go(-2) fires a single
    popstate with the board's null state. A one-level open (a guard for the
    picker, though it holds no boards) pops once. B9 is untouched: this is the
-   back gesture's own machinery, never a shadow of it. */
+   back gesture's own machinery, never a shadow of it.
+
+   `history.go` is async and NOT idempotent: two calls before its popstate lands
+   pop twice, and the second pop takes the board's own entry — out of the app.
+   `goToList` guards its twin with a synchronous `listOpen` check, but `listOpen`
+   is not cleared until this pop's popstate runs, so a re-entrancy flag is what
+   makes the "This board" toggle (mobile, where the tab is not blurred) safe
+   against a fast double-tap (B83). Cleared on the next popstate, when the nav
+   this began has landed. */
+let popping = false;
 function returnToBoard() {
+  if (popping) return;
+  popping = true;
   const depth = (history.state && history.state.v === 'cat') ? 2 : 1;
   history.go(-depth);
 }
@@ -3417,11 +3468,13 @@ function updateActiveCardTitle() {
 
 function goToList() {
   if (listOpen) return;
-  // The compartment's handle may have just taken focus back from the menu it
-  // opened (B65, closeMenu's menuInvoker return). The list is an overlay over
-  // the board, so leaving focus on a control it occludes strands a keyboard or
-  // AT user behind the page they just navigated away from.
-  if (document.activeElement === el.titleMenu) el.titleMenu.blur();
+  // On desktop the list is a full overlay (z 500) over the board, so leaving
+  // focus on the "All boards" tab it now occludes would strand a keyboard/AT
+  // user behind the page they navigated away from (B83, keeping B65's care). On
+  // mobile the grid opens over the lot and the tab stays visible above it,
+  // flipping to "This board" — its focus is not stranded, so it is kept.
+  if (isDesktop && el.boardActions.contains(document.activeElement))
+    document.activeElement.blur();
   history.pushState({ v: 'list' }, '');
   showList();
 }
@@ -3432,6 +3485,7 @@ function goToList() {
 async function showList() {
   listOpen = true;
   catView = null;
+  syncBoardActions();                 // mobile keeps the tab visible above the grid — flip it to "This board" (B83)
   if (!isDesktop) { openLotMenu(); return; }
   // Unhide FIRST: catPageCap() measures #list-rows, and a `hidden` element
   // measures 0 — rendering before the reveal would page every category to a
@@ -3500,6 +3554,7 @@ async function showBoardFromList() {
    drill to the picker re-opens it on the surface the mode uses — the mobile
    grid or the desktop screen. */
 window.addEventListener('popstate', () => {
+  popping = false;                     // the nav returnToBoard began has landed (B83)
   closeMenu();
   const s = history.state;
   if (s && s.v === 'cat') { showCat(s.cat); }

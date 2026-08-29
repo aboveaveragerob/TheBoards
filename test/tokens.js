@@ -335,15 +335,16 @@ console.log('\n[4] Edges, rules and hairlines — every adjacency at the worst e
   // B61: both ends of the sheet close with the same line.
   ok('#lot-rule is drawn in --frame — the same idiom at both ends (B61)',
     /#lot-rule\s*{[^}]*background:\s*var\(--frame\)/s.test(css));
-  // B65: the compartment's handle is the card's own line, filled — a control
-  // made of the edge it sits on, and deliberately not --accent-page, which B59
-  // gave to the controls that MAKE a board (both are on screen at once on
-  // desktop). The fill's separation is the pair already published above.
-  ok('the compartment\'s handle is --frame filled, --ink-dark label (B65)',
-    /#title-menu\s*{[^}]*background:\s*var\(--frame\)[^}]*}/s.test(css) &&
-    /#title-menu\s*{[^}]*color:\s*var\(--ink-dark\)[^}]*}/s.test(css));
+  // B83: the board-action tabs are the band label's flat box — --frame filled,
+  // ink rebound to --ink-dark via .on-light (the band label's pairing, and the
+  // retired handle's before it). Deliberately not --accent-page, which B59 gave
+  // to the controls that MAKE a board (both are on screen at once on desktop).
+  // The fill's separation is the pair already published above.
+  ok('the board-action tab is --frame filled, ink via var(--ink) rebound by .on-light (B83)',
+    /\.board-action\s*{[^}]*background:\s*var\(--frame\)[^}]*}/s.test(css) &&
+    /\.board-action\s*{[^}]*color:\s*var\(--ink\)[^}]*}/s.test(css));
   ok('and it is NOT the primary\'s accent (B59 keeps --accent-page)',
-    !/#title-menu\s*{[^}]*var\(--accent-page\)[^}]*}/s.test(css));
+    !/\.board-action\s*{[^}]*var\(--accent-page\)[^}]*}/s.test(css));
   ok('--frame filled, dark label = 5.70', r2(contrast(T.frame, T.inkDark)) === 5.70,
     String(r2(contrast(T.frame, T.inkDark))));
   ok('--hairline is that surface\'s ink at 0.40',
@@ -569,8 +570,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v31 — B36 is the definition of shipped',
-    /const CACHE = 'todo-boards-v31';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v32 — B36 is the definition of shipped',
+    /const CACHE = 'todo-boards-v32';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));
