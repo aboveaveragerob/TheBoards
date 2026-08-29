@@ -3047,3 +3047,102 @@ drill→picker `popstate`). `styles.css` adds the mobile `#list-view` panel and 
 columns. `test/mobile.js` [19b]/[22] move to three-across and assert the panel's
 third-height geometry, the board visible above it, and the `Last Updated` line;
 the desktop drill and its tests are untouched.
+
+## AB. The board's actions come out of hiding (issue #126)
+
+### B83. All boards and Export become a flat-tab row above the Parking Lot (supersedes B65's `Menu` handle; re-homes the anchor menu's entry points onto declared controls; keeps the mobile anchor long-press and B75's item order)
+
+**The principle: a declared control beats a hidden gesture, and a control that
+names its act beats one that names a mechanism.** B65 already made half this
+argument — the anchor menu (`All boards · Export`) was reachable only by a
+gesture nothing on screen declared, so it added a `Menu` handle to the title
+card. But the handle answered the gesture's invisibility with a control that
+still said only *"Menu"* — the name of a mechanism, not of anything the reader
+came to do — and put it in the compartment's bottom-right joint, a place found
+by looking rather than by expecting. **Zero cognitive tax** is not paid by
+trading an undeclared gesture for a declared riddle. Issue #126 asks for the
+actions *themselves* to be present. The ruling puts them there.
+
+**Ruling — two flat tabs, `All boards` and `Export`, hovering just above the
+Parking Lot.** They are the mirror, at the sheet's other end, of the band's two
+header tabs: one section of furniture closing each end of the sheet with a
+labelled tab, the free canvas between. Each tab carries its drawn mark (§13.3,
+`GLYPH.boards`/`GLYPH.export`) and its word, so it is recognised, not decoded.
+On both platforms the row invokes the two actions directly; the popup menu is no
+longer the only container they live in.
+
+**Flat, not tactile — the interrogation, not a default (the owner's call).** The
+obvious move was §14's tactile signature (offset shadow, press-translate) that
+`New board`, the selection buttons and the retired handle all wear. It was
+rejected on what the tabs *are*: **All boards** navigates and **Export** leaves
+the device — neither acts on a note. §14's tactile family is the set of controls
+that say *"I have your content"*; these two belong instead to the sheet's own
+furniture, so they wear the band label's flat box (`--frame` fill, `--ink-dark`
+via `.on-light`, 13px/600, `padding: 2px 6px`), not a raised chip. The one
+change from the band tab is a **symmetric** `border-radius: 3px`: the band tab
+rounds only its lower corners because it merges with the rule above it; this row
+hangs beneath no rule, sitting 8px clear of the lot's top edge, so it reads
+free-standing and rounds all four. `--frame` rotates with `#board[data-cat]`
+(B67), so the row inside board scope takes the board's hue for free — no
+re-assert needed, the leak B77 warned of runs the other way.
+
+**The toggle states its act, not its state (B43/B71's grammar).** On the board
+the first tab offers **All boards**; while the All-Boards surface is up — the
+desktop list overlay, or the mobile lot-grid that draws over the Parking Lot
+(B74) — the same tab offers **This board**, the scope-antonym that returns you.
+One mark throughout (the boards domain), the label alone flips, so state is
+never colour (§1) and no `aria-pressed` rides alongside a label that already
+names the act. It is pure navigation, so it runs raw — `goToList` /
+`returnToBoard`, no `commitAction` (B81). **Export** commits (a file leaves the
+device), so it takes `commitAction`'s drop-guard, exactly the anchor menu's
+Export item, and reads `current`, exactly that item's call site (issue #43).
+
+**The recognizer never has to classify it.** The tabs are native `<button>`s;
+`onPointerDown` returns for anything inside `#board-actions` before a gesture is
+armed — the `#lot-menu` passthrough's own precedent (B74) — so their clicks fire
+and no note is captured under them, and **no `classifyTarget` branch is added**
+(the handle needed one; native buttons do not). The container is
+`pointer-events: none`, a positioning frame exactly like a `.band-zone`, so a
+press on bare canvas *beside* the tabs still reaches the recognizer and captures
+a note; only the tabs are live.
+
+**The touch floor, without growing the box (B7).** The flat tab is well under
+§6's floor, so it carries the note's decoupled `--hit` collar, set on
+`#board-actions` in `updateBoardGeometry` (the line the handle's own `--hit`
+vacated) and measured off the row — its width spans the sheet, so only the
+height term binds. The collar is **asymmetric, spent entirely upward** onto the
+canvas, because downward is the Parking Lot's own furniture; where a note (`z-2`)
+overlaps it the note wins, and a bare-canvas tap into it fires the tab — the same
+reading B65's collar had, mirrored to the opposite edge. It is also focusable
+inside `#board`, so it inherits the handle's keyboard guard: the row
+`stopPropagation`s Delete/Backspace (and Enter, whose native default still fires
+the tab's click) so the desktop grammar, which keys off `selected` alone, cannot
+destroy the note underneath; Escape passes through.
+
+**What is removed.** `#title-menu` entirely — its markup (`index.html`), its CSS
+and `::before` collar (`styles.css §3`), and its handlers `openTitleMenu` /
+`tapTitleMenu` / the keydown, its `classifyTarget` and `handleTap` branches, and
+the `el.titleMenu` reads in `updateBoardGeometry`, `closeMenu` and `goToList`
+(the last keeps B65's care — on desktop the list overlay occludes the row, so
+focus on a tab is blurred there; on mobile the row stays visible above the grid,
+so it is kept). The **mobile anchor long-press is untouched** (its removal, and
+the note/lot long-press, belong to issue #125's unit); the desktop right-click on
+notes and cards is untouched. With the handle gone, desktop loses nothing B65
+gave it: the row is that platform's declared route to the two actions, where no
+long-press is armed (B19) and `contextmenu` routes notes alone.
+
+**The record.** The rendering values — placement, the flat-tab box, the collar
+and the toggle — live in `UIUX §3.3` (new) and `§14` (the handle's fifth-species
+block rewritten as the flat-tab species); `§6`'s asymmetric-collar example and
+`§7`'s menu-door paragraph move to the row, and `§7`'s Anchor-menu row is
+corrected to **All boards · Export** to match the shipped order (B75) the row
+now shares. `sw.js`'s `CACHE` bumps to **v33** and `test/tokens.js` pins it.
+`test/mobile.js` [21] and `test/desktop.js` [D21] are rewritten off the handle
+onto the row — it clears the floor, opens the list, exports a PDF, and the old
+`#title-menu` is asserted absent; [16]/[15] (the mobile anchor and board-row
+menus) still assert their menus unchanged.
+
+**Impermanent, named so it is not rediscovered.** The row is a home for exactly
+two board-level actions. The day a third is asked for, or a note-level action
+wants to sit beside them, this becomes a question about what the row is for —
+not a question about where to wedge one more tab.

@@ -1303,99 +1303,104 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
   }
 
   // ---- D21. the same handle on desktop, where the anchor menu had no door ---
-  console.log('\n[D21] The compartment names its menu on desktop too (issue #94, B65)');
+  console.log('\n[D21] The board-action row on desktop (issue #126, B83)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     const geo = await page.evaluate(() => {
-      const b = document.querySelector('#title-menu');
-      const r = b.getBoundingClientRect();
-      const card = document.querySelector('#anchor-title').getBoundingClientRect();
-      const hit = parseFloat(getComputedStyle(b).getPropertyValue('--hit')) || 0;
+      const row = document.querySelector('#board-actions');
+      const btns = [...row.querySelectorAll('.board-action')];
       const rs = parseFloat(getComputedStyle(document.querySelector('#board'))
         .getPropertyValue('--rs')) || 1;
-      return { shown: getComputedStyle(b).display !== 'none', label: b.textContent,
-               r: { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right },
-               card: { right: card.right, bottom: card.bottom }, hit, rs };
+      const hit = parseFloat(getComputedStyle(row).getPropertyValue('--hit')) || 0;
+      const collar = getComputedStyle(btns[0], '::before');
+      const boards = btns[0].getBoundingClientRect(), exp = btns[1].getBoundingClientRect();
+      return {
+        gone: document.querySelector('#title-menu') === null,
+        shown: getComputedStyle(row).display !== 'none',
+        labels: btns.map(b => b.querySelector('.label').textContent), rs, hit,
+        collarTop: collar.top, collarBottom: collar.bottom,
+        boards: { x: boards.x + boards.width / 2, y: boards.y + boards.height / 2, w: boards.width, h: boards.height },
+        exp: { x: exp.x + exp.width / 2, y: exp.y + exp.height / 2, w: exp.width, h: exp.height },
+      };
     });
-    ok('the handle is drawn on desktop', geo.shown && geo.label === 'Menu',
-       JSON.stringify([geo.shown, geo.label]));
-    ok('flush right, bisected by the card\'s bottom edge (±1)',
-       Math.abs(geo.r.right - geo.card.right) < 1 &&
-       Math.abs((geo.r.y + geo.r.h / 2) - geo.card.bottom) < 1,
-       JSON.stringify([geo.r.right, geo.card.right, geo.r.y + geo.r.h / 2, geo.card.bottom]));
+    ok('the row is drawn on desktop and the #title-menu handle is gone',
+       geo.shown && geo.gone, JSON.stringify([geo.shown, geo.gone]));
+    ok('two tabs: All boards, Export', geo.labels.length === 2 &&
+       /All boards/.test(geo.labels[0]) && /Export/.test(geo.labels[1]), JSON.stringify(geo.labels));
     // B23's 24px pointer floor, measured in PHYSICAL px — the collar is what
-    // makes it hold at a small renderScale, and 0 when the frame already does.
-    ok('the hit target clears the 24px desktop floor (B23)',
-       geo.r.h + 2 * geo.hit * geo.rs >= 24 && geo.r.w + 2 * geo.hit * geo.rs >= 24,
-       JSON.stringify([geo.r.w + 2 * geo.hit * geo.rs, geo.r.h + 2 * geo.hit * geo.rs, geo.rs]));
+    // makes it hold at the board's renderScale (width stands on its own).
+    ok('both tabs clear the 24px desktop floor (B23)',
+       geo.boards.w >= 24 && geo.exp.w >= 24 &&
+       geo.boards.h + 2 * geo.hit * geo.rs >= 24 && geo.exp.h + 2 * geo.hit * geo.rs >= 24,
+       JSON.stringify([geo.boards.w, geo.boards.h + 2 * geo.hit * geo.rs, geo.hit, geo.rs]));
+    ok('the collar reaches up, never down into the lot',
+       geo.collarBottom === '0px' && parseFloat(geo.collarTop) <= 0,
+       JSON.stringify([geo.collarTop, geo.collarBottom]));
 
-    // Desktop arms no long-press (issue #4) and right-click routes only notes,
-    // so this is the first door the anchor menu has ever had here.
+    // Export commits straight from the tab (issue #43); the recognizer never
+    // sees the click, so no note lands under it.
     const before = await noteCount(page);
-    await page.mouse.click(geo.r.x + geo.r.w / 2, geo.r.y + geo.r.h / 2);
-    await page.waitForTimeout(80);
-    ok('the menu opens at once, with no acknowledgment fill (B81)',
-       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
-         !document.querySelector('#title-menu.tapped')));
-    const items = await page.evaluate(() =>
-      [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('it opens the anchor menu unchanged: All boards then Export',
-       items.length === 2 && /All boards/.test(items[0]) && /Export/.test(items[1]),
-       JSON.stringify(items));
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.mouse.click(geo.exp.x, geo.exp.y),
+    ]);
+    const s = fs.readFileSync(await dl.path()).toString('latin1');
+    ok('the Export tab produced a PDF', s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
     ok('and created no note under it', (await noteCount(page)) === before);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(120);
 
-    // The recognizer owns pointers, so the keyboard is its own path (B65).
-    await page.evaluate(() => document.querySelector('#title-menu').focus());
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(560);
-    ok('Enter on the focused handle opens the same menu',
-       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
-         document.querySelectorAll('#menu button').length === 2));
-    ok('and it opened exactly once', (await noteCount(page)) === before &&
-       await page.evaluate(() => document.querySelectorAll('#menu button').length) === 2);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(120);
+    // All boards raises the picker overlay (the desktop All-Boards surface, B74).
+    await page.mouse.click(geo.boards.x, geo.boards.y);
+    await page.waitForTimeout(200);
+    ok('All boards opens the #list-view picker, no note',
+       await page.evaluate(() => document.querySelector('#list-view').hidden === false &&
+         document.querySelectorAll('#list-rows .cat-button').length === 4) &&
+       (await noteCount(page)) === before);
+    await page.evaluate(() => history.back());     // the overlay covers the row; back returns
+    await page.waitForTimeout(300);
+    ok('back returns to the board, the row uncovered',
+       await page.evaluate(() => document.querySelector('#list-view').hidden === true &&
+         /All boards/.test(document.querySelector('#action-boards .label').textContent)));
 
-    // Right-click is untouched: on a note it is still the note's own menu.
-    await page.mouse.click(900, 600);
-    await page.waitForTimeout(500);
-    await page.keyboard.type('RIGHTCLICKPATH');
+    // The tabs are focusable inside #board, so their keys must not reach the
+    // desktop grammar underneath: Delete there destroys the selection (B83's
+    // re-homing of B65's guard).
+    await page.mouse.click(900, 600);              // create a note on bare canvas
+    await page.waitForTimeout(300);
+    await page.keyboard.type('GUARDNOTE');
     await page.evaluate(() => document.activeElement.blur());
     await page.waitForTimeout(200);
-    await page.mouse.click(905, 605, { button: 'right' });
-    await page.waitForTimeout(200);
-    ok('right-click on a note still gives the note menu, untouched',
-       await page.evaluate(() =>
-         [...document.querySelectorAll('#menu button')].some(b => /Delete/.test(b.textContent))));
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
-
-    // The handle is the first focusable thing inside #board that is neither an
-    // editor nor the selection, so its keys must not reach the desktop keyboard
-    // grammar underneath: Enter there edits the selection, Delete destroys it.
-    await page.mouse.click(905, 605);              // select the note
-    await page.waitForTimeout(120);
-    await page.evaluate(() => document.querySelector('#title-menu').focus());
+    await page.mouse.click(905, 605);              // select it
+    await page.waitForTimeout(150);
+    ok('a note is selected for the guard case', await page.evaluate(() => !!selected));
+    const noteBefore = await noteCount(page);
+    await page.evaluate(() => document.querySelector('#action-boards').focus());
+    await page.keyboard.press('Delete');
+    await page.waitForTimeout(300);
+    ok('Delete on a focused tab does not destroy the selected note underneath',
+       (await noteCount(page)) === noteBefore, String(noteBefore));
+    // The native click fires per Enter keydown, so a HELD Enter on the Export
+    // tab would export again and again (commitAction only rate-limits to
+    // ACTION_DELAY). The guard leaves the first Enter to activate and drops the
+    // repeat by preventing its default, so no synthesized click follows (B83).
+    const repeat = await page.evaluate(() => {
+      const btn = document.querySelector('#action-export');
+      btn.focus();
+      const mk = (r) => new KeyboardEvent('keydown',
+        { key: 'Enter', repeat: r, bubbles: true, cancelable: true });
+      const first = mk(false), held = mk(true);
+      btn.dispatchEvent(first); btn.dispatchEvent(held);
+      return { first: first.defaultPrevented, held: held.defaultPrevented };
+    });
+    ok('the first Enter is left to activate, a held-Enter repeat is dropped (B83)',
+       repeat.first === false && repeat.held === true, JSON.stringify(repeat));
+    // Enter on the tab fires its own click (goToList) but must not ALSO edit the
+    // selected note through the grammar.
+    await page.evaluate(() => document.querySelector('#action-boards').focus());
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(120);
-    ok('Enter on the handle does not edit the selected note underneath',
+    await page.waitForTimeout(200);
+    ok('Enter on a focused tab does not edit the selected note underneath',
        await page.evaluate(() => !document.activeElement ||
          !document.activeElement.classList.contains('note-text')));
-    await page.waitForTimeout(500);
-    await page.keyboard.press('Escape');          // shut the menu Enter opened
-    await page.waitForTimeout(400);               // and clear the pairing window
-    await page.mouse.click(905, 605);             // re-select: Enter may have eaten it
-    await page.waitForTimeout(150);
-    ok('a note really is selected for the Delete case',
-       await page.evaluate(() => !!selected));
-    await page.evaluate(() => document.querySelector('#title-menu').focus());
-    const noteBefore = await noteCount(page);
-    await page.keyboard.press('Delete');
-    await page.waitForTimeout(400);
-    ok('Delete on the handle does not destroy the selected note underneath',
-       (await noteCount(page)) === noteBefore, String(noteBefore));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
