@@ -3209,3 +3209,86 @@ menu; `test/desktop.js`'s note-action, note-Copy and multi-select-menu blocks dr
 the row (or the retained `#selection` frame) and assert a right-click opens no app
 menu. The board-menu/export tests (mobile [15]/[16], desktop anchor/export) are
 untouched and still pass.
+
+### B85. The Highlight and Copy tabs take fixed identity fills — amber and blue (issue #131; refines B84/UIUX §4.5, which filled all four tabs with `--frame` and told them apart by glyph; adds `--accent-copy`; leaves the highlight STATE — the B71 wash and its inset border — untouched)
+
+Resolved against *zero cognitive tax* and *every pixel earns its place*. The note
+toolbar (B84) told its four tabs apart by glyph alone — all on the one `--frame` fill,
+save Delete's `--danger`. The owner asked for the Highlight tab yellow and the Copy tab
+blue, so a hand finds each without reading the mark. Highlight reuses the existing amber
+`--highlight` (§2.6.1, `#F2D64B`); Copy takes a new fixed blue `--accent-copy` `#698ebf`.
+Both are **fixed** like `--danger` — they do not rotate with board type — so the fill is
+button *identity* (which action), not board hue and not note state. That keeps *state is
+never colour alone* (§1) intact: the note's Highlight STATE stays the amber wash plus the
+inset border (B71), which the tab only triggers and names; the tab's own amber is chrome.
+The owner accepted that on a To-Do board, where `--frame` is already `#698ebf`, Copy's
+fixed blue equals the frame-filled Complete tab — the one board where the two blues meet.
+Complete keeps `--frame`. Values in UIUX §2.6.1/§4.5; `sw.js` `CACHE` → v35.
+
+### B86. The note toolbar and board-action tabs grow to finger size (issue #132; re-tunes the tab metrics of B84/UIUX §4.5 and B83/UIUX §3.3; keeps §6's 44/24px hit floor and B7's decoupled `--hit` collar; stays within `NOTE_MIN_W`)
+
+Resolved against *zero cognitive tax*. The flat tabs were sized to the band label they
+borrow (`2px 6px`, a 16px mark), tighter than a fingertip wants. The note tabs grow to
+`7px 6px` with an 18px mark; the board-action tabs to `8px 12px`, 14px text, a 16px mark.
+The note row's width budget holds: `(18 + 12)×4 + 3×3 = 129 ≤ 132` (`NOTE_MIN_W`), so a
+note is still at least a toolbar wide and never narrower. The 44px touch floor is met by
+the decoupled `--hit` collar (B7), not the visible box, so growing the box only shrinks
+the collar — on the note side the hand-tuned `::before` retunes to `top: -12px` for the
+taller box; the board side's collar is JS-computed and adjusts itself. Values in UIUX
+§3.3/§4.5; `CACHE` → v35.
+
+### B87. The note toolbar and board-action row anchor flush on the boundary edge — the gap is removed (issue #133; supersedes B84/UIUX §4.5's "12px above the note's top edge" and B83/UIUX §3.3's "8px clear of the lot's top edge, free-standing"; re-tunes `TB_ROW_H`)
+
+Resolved against *every pixel earns its place*. Both rows hovered above their boundary
+with a gap — the note toolbar 12px above the note's top edge, the board-action row 8px
+above the lot. The owner reads the gap as detached; a row should sit ON the edge it
+belongs to. The note toolbar drops to `bottom: 100%` (its bottom edge flush on the note's
+top edge) and the board-action row to `bottom: var(--lot-h)` (flush on the lot's top
+edge). The note's flip threshold `TB_ROW_H` follows the gapless row from 34 to 32, so a
+note near the sheet top still flips its toolbar to just inside the edge. The tabs keep
+their round corners; nothing merges with a rule. Values in UIUX §3.3/§4.5; `CACHE` → v35.
+
+### B88. The note toolbar and board-action row left-anchor, not centred (issue #134; supersedes the centred cluster of B84/UIUX §4.5 and B83/UIUX §3.3)
+
+Resolved against *every pixel earns its place*. Both rows were centred on their object.
+The owner asked for them pinned to the far left, running rightward along the same top
+edge, so the first tab always sits in the same place. The note toolbar drops
+`left: 50%`/`translateX(-50%)` for `left: 0`; the board-action row drops
+`justify-content: center` for `flex-start`. The note row's ≤129px width, left-anchored,
+fits inside a 132px note (B86) — which is why B86 held the tab size under `NOTE_MIN_W`.
+Values in UIUX §3.3/§4.5; `CACHE` → v35.
+
+### B89. The board-list category buttons take their board's water field as ground, not `--card` (issue #135; supersedes B74/UIUX §10's "the picker button is the `--card` tray, enlarged" for `.cat-button`; extends B77's per-family re-assertion to `.cat-button`'s `--water-*`)
+
+Resolved against *every pixel earns its place*. The All-Boards picker tiles grounded in
+the family's `--card` (near-black; To-Do's sits 1.10:1 above `--deep`), which the owner
+reads as dull — the tile did not show its board's colour. A tile now grounds in the
+family's water gradient `linear-gradient(180deg, var(--water-top), var(--water-mid))`, the
+same fill the board's own list cards wear (`.board-row`/`.pane-card`), so a tile previews
+its board; the `--frame` inset frame and the `:active` press-flip are unchanged. The
+"deep blue/green" a person reads is this water field, not the near-black literal `--deep`.
+Because the mobile 2×2 grid (`#lot-menu`) lives inside `#board[data-cat]`, a water token
+read on `.cat-button` would inherit the open board's hue there and fall back to To-Do's on
+the desktop picker (outside board scope) — so the four per-family `--water-*` blocks now
+re-assert on `.cat-button[data-cat]` too, exactly the leak B77 closed for `--frame`/`--card`.
+Scope is `.cat-button`; the section trays `.board-cat` keep `--card`. Values in UIUX
+§2.2.2/§10; `CACHE` → v35.
+
+### B90. Mobile — a first tap selects and reveals the note's toolbar with no keyboard, a second tap edits with the caret at the end (issue #136; supersedes B84's mobile "engaged = editing / `:focus-within`" reveal and, for a note edit, B14's caret-at-touch-point; adds the `.engaged` state; keeps B27a's synchronous focus, B81(b)'s raw edit-entry, B22's no-write-on-select)
+
+Resolved against *capture precedes structure* and *zero cognitive tax*. On mobile,
+engaging a note WAS editing it — one tap opened the keyboard, so a note could not be
+selected (its toolbar shown) without editing, and the caret landed at the touch point.
+Desktop already had the select-then-edit step via `selected`; mobile lacked it. A mobile
+`engaged` id now adds `.note.engaged` on the first tap: the toolbar shows with no focus,
+no keyboard and no write (B22 — the select tap must not `surfaceNote`, which saves). A
+second tap on the engaged active note edits it, synchronously inside `pointerup` so the
+keyboard rises (B27a), with the caret at the END (`editText` with no coordinates →
+`caretToEnd`, as desktop's B26; a deliberate override of B14 for a mobile note edit).
+Tapping empty canvas or the lot while a note is engaged deselects first and creates
+nothing; a further empty tap then creates, so an empty-area tap with nothing engaged still
+makes a note, unchanged. Edit-entry runs raw, not through `commitAction` (B81(b) —
+entering an editor commits a view, not a consequence). A completed note only ever engages
+(it never edits, §4.3). The engaged note rises in z-order like desktop selection; its id
+clears on tap-away and on delete, and the now-orphaned `editNoteText` wrapper is retired.
+Caret value in UIUX §5; `CACHE` → v35.

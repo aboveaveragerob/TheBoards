@@ -548,6 +548,10 @@ unchanged — the note already binds `--ink` to `--ink-dark` on its `.on-light`
 surface (§2.3), which holds on amber at 13.27:1. Unlike the ladder, `--highlight`
 does **not** rotate with board type: an emphasis the user places means the same
 thing on a To-Do, a Note, a Learning and an Idea board, so it is one constant value.
+Since B85, `--highlight` also serves as the Highlight tab's **identity fill** on the
+note toolbar (§4.5), alongside a fixed blue sibling `--accent-copy` `#698ebf` for the
+Copy tab — both fixed like this wash, and both chrome that names *which action*, never
+the note's state.
 
 ### §2.7 Focus
 
@@ -735,10 +739,10 @@ mirror at the sheet's other end of the band's header tabs. This replaces the
 `Menu` handle of B65, whose only route was still a control the reader had to
 notice; the actions now name themselves, in place, on both platforms.
 
-**Placement.** `#board-actions` is `left: 0; right: 0`, a centred flex cluster
-(`gap: 8px`) at `bottom: calc(var(--lot-h) + 8px)` — **8px clear of the lot's
-top edge**, so the tabs read free-standing (all four corners round) rather than
-merging with a rule the way the band tab does. It tracks `--lot-h`, riding up as
+**Placement.** `#board-actions` is `left: 0; right: 0`, a **left-anchored** flex
+cluster (`gap: 8px`, `justify-content: flex-start`, B88) at `bottom: var(--lot-h)`
+— **flush on the lot's top edge** (B87 removed the 8px gap). Its four tab corners
+stay round; it tracks `--lot-h`, riding up as
 the lot grows. `z-index: 1` (the furniture plane; notes at `z-2` stay above).
 The container is `pointer-events: none` — a positioning frame exactly like a
 `.band-zone` — so a press on bare canvas beside the tabs still reaches the
@@ -748,12 +752,12 @@ recognizer and captures a note; only the tabs are live.
 
 ```css
 .board-action {
-  padding: 2px 6px;                 /* the band label's box (§3.1) */
+  padding: 8px 12px;                /* the band label's box (§3.1), finger-size (B86) */
   border: none; border-radius: 3px; /* symmetric — it hangs beneath no rule */
   background: var(--frame);         /* the band tab's fill (B76) — rotates per #board[data-cat] */
   color: var(--ink);               /* --ink-dark at 5.70:1, rebound by .on-light */
-  font-size: 13px; font-weight: 600; line-height: 1.3;
-  gap: 6px;                        /* the drawn mark to its label; mark at 14px */
+  font-size: 14px; font-weight: 600; line-height: 1.3;
+  gap: 6px;                        /* the drawn mark to its label; mark at 16px (B86) */
 }
 ```
 
@@ -915,32 +919,43 @@ Components and Requirements), not pills and not the `.sel-btn` raised control:
 
 ```css
 .note-tb-btn {
-  padding: 2px 6px;                    /* the band-label tab (§3.1) */
+  padding: 7px 6px;                    /* the band-label tab (§3.1), finger-size (B86) */
   border-radius: 3px;                  /* tracks the note's own (§4) */
-  background: var(--frame);            /* the board's frame hue; rotates per type (B67) */
+  background: var(--frame);            /* Complete's ground: the board's frame hue, rotates per type (B67) */
   color: var(--ink);                   /* .on-light → --ink-dark, 5.70:1 (B76) */
   font-size: 13px; font-weight: 600;
 }
-.note-tb-delete { background: var(--danger); }   /* --danger as a fill carrying --ink-dark, 8.83:1 (§2.6) */
+.note-tb-btn svg   { width: 18px; height: 18px; }        /* the mark, grown from 16px (B86) */
+.note-tb-delete    { background: var(--danger); }        /* --danger fill carrying --ink-dark, 8.83:1 (§2.6) */
+.note-tb-highlight { background: var(--highlight); }     /* fixed amber identity fill (B85) */
+.note-tb-copy      { background: var(--accent-copy); }   /* fixed blue identity fill, --accent-copy #698ebf (B85) */
 ```
 
 The marks are `GLYPH`'s own drawn SVG (§13.3), each SVG `aria-hidden` with the
 label on the button for AT. The row is a **child of the note**, so it scales with
-the note and is never wider than it. It sits `12px` above the note's top edge —
-clear of the resize frame's north band (B22) — and flips to the top edge itself
-near the sheet top, where there is no room above (`reflectToolbarFlip`). Each tab
-keeps a 44px-tall hit target expanded upward (§6, B7's decoupled-hit idiom) so a
-row of four never overlaps a neighbour. Focus wears the two-tone ring (§2.7).
+the note and is never wider than it. It sits **flush on the note's top edge**
+(`bottom: 100%`, B87 — the 12px gap removed) and **left-anchored, far left**
+(`left: 0`, no `translateX`, B88), flipping to just inside the top edge near the
+sheet top where there is no room above (`reflectToolbarFlip`, whose `TB_ROW_H`
+threshold is now 32 for the gapless row). Each tab keeps a 44px-tall hit target
+expanded upward (§6, B7's decoupled-hit idiom) so a row of four never overlaps a
+neighbour. Focus wears the two-tone ring (§2.7).
 
 **Shown only on select/focus** (the owner's call — not always drawn), by the same
-state that raises the resize frame: `.note.selected` on desktop (B22), `:focus-within`
-on mobile (an active note by editing it, a completed one by taking frame focus). It
+state that raises the resize frame: `.note.selected` on desktop (B22); on mobile a
+first tap adds `.note.engaged` — the select step, toolbar shown with no keyboard
+(B90) — and editing (a second tap) then makes the note `:focus-within`. It
 hides while the note is picked up (`.pressed`). The show/hide is the §8 fade —
 `opacity`/`visibility`, `200ms` on §8's curve — and degrades under the reduced-motion
 kill-switch. **State is never colour alone (§1):** the Complete tab flips its mark
 (check ⇄ undo) and label; the Highlight tab flips its label and shows an inset border
 while the note wears the `--highlight` wash (B71) — the wash is the state, the tab
-only triggers and names it.
+only triggers and names it. The Highlight and Copy tabs also carry their own **fixed
+identity fills** (amber and `--accent-copy` blue, B85) the way Delete carries
+`--danger`: the fill says *which action* — chrome, not state — so the four tabs are
+told apart by fill **and** glyph. Unlike Complete's rotating `--frame`, these two do
+not change with board type (on a To-Do board Copy's blue equals the frame, the
+owner's accepted call).
 
 ---
 
@@ -953,12 +968,12 @@ desktop code path.
 | | Mobile | Desktop |
 |---|---|---|
 | Create | tap empty canvas | click empty canvas (nothing selected) |
-| Select | — | click |
+| Select | tap (reveals the toolbar, no keyboard, B90) | click |
 | Move | drag | drag |
 | Scale | two-finger pinch | drag the selection frame |
-| Edit | tap | double-click, or `Enter` |
+| Edit | tap again, on the engaged note (B90) | double-click, or `Enter` |
 | Menu | long-press (500ms) | right-click |
-| Caret on edit | at the touch point (B14) | at the end (B26) |
+| Caret on edit | at the end (B90 — was the touch point, B14) | at the end (B26) |
 | Boards | full-screen list | always-visible rail |
 
 `MOVE_THRESHOLD = 16px` of slop before a drag begins or a long-press cancels
@@ -1197,12 +1212,17 @@ separates it, by design (§2.5 — its border separates, not its fill). The thre
 of ground, frame and radius are all layout-free, so the measured card budget
 below is unchanged.
 
-**The All-Boards picker button is the same tray, enlarged** (B74). A category
-button — a tile in the mobile 2×2 grid, or in the desktop `#list-view` picker —
-is its family's `--card` ground and `--frame` inset frame with the category name
-centred on it, the section tray's own idiom made into the button that opens the
-section. So the picker, the drill and the rail all read as one design language,
-four families told apart by hue exactly as the boards are.
+**The All-Boards picker button wears the board's water field** (B89, issue #135).
+A category button — a tile in the mobile 2×2 grid, or in the desktop `#list-view`
+picker — grounds in its family's water gradient `linear-gradient(180deg,
+var(--water-top), var(--water-mid))` — the same fill the board's own list cards wear
+— inside its `--frame` inset frame, the category name centred on it. Its ground was
+the section tray's near-black `--card` before, which read dull; the water lets a tile
+preview its board. The `--water-*` stops are re-asserted per family on
+`.cat-button[data-cat]` so a tile carries its OWN board's water, not the surrounding
+board's (the mobile grid lives inside `#board[data-cat]`) — the B77 leak, closed for
+the tiles too. So the picker, the drill and the rail still read as one design
+language, four families told apart by hue exactly as the boards are.
 
 **An empty category collapses to its head row** (B68): its label and its own
 New board control stay — it is still somewhere to create, and still a target

@@ -230,7 +230,7 @@ async function openCat(page, cat) {
   }
 
   // ---- 8. a note's actions live on its toolbar; long-press opens no menu ----
-  console.log('\n[8] Tapping a note raises its action toolbar; long-press opens no menu (B84)');
+  console.log('\n[8] Mobile: first tap selects (toolbar, no keyboard), second tap edits at the end (B84, B90)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await tap(page, 200, 400);
@@ -243,25 +243,32 @@ async function openCat(page, cat) {
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
     // A note no longer carries a long-press menu (B84): a 500ms+ hold is just a
-    // slow tap, so it engages the note (enters edit) and opens NO menu.
+    // slow tap. On mobile the FIRST tap SELECTS — it reveals the toolbar with no
+    // keyboard and no edit (B90) — and opens NO menu.
     await tap(page, box.x, box.y, 700);
     await page.waitForTimeout(200);
     ok('a note long-press opens no menu (B84)',
        await page.evaluate(() => document.querySelector('#menu').hidden !== false));
-    // The engaged note is :focus-within, so its toolbar is shown.
+    // The engaged note shows its toolbar via the .engaged class, not by editing.
     const tb = await page.evaluate(() => {
-      const bar = document.querySelector('.note .note-toolbar');
+      const note = document.querySelector('.note');
+      const bar = note.querySelector('.note-toolbar');
       const btns = [...document.querySelectorAll('.note-tb-btn')];
       const bg = el => getComputedStyle(el).backgroundColor;
       return {
+        engaged: note.classList.contains('engaged'),
         visible: bar ? getComputedStyle(bar).visibility === 'visible' : false,
+        editing: document.activeElement === note.querySelector('.note-text'),
         labels: btns.map(b => b.getAttribute('aria-label')),
         lastIsDelete: btns.length ? btns[btns.length - 1].classList.contains('note-tb-delete') : false,
         deleteBg: document.querySelector('.note-tb-delete') ? bg(document.querySelector('.note-tb-delete')) : '',
         completeBg: document.querySelector('.note-tb-complete') ? bg(document.querySelector('.note-tb-complete')) : '',
+        highlightBg: document.querySelector('.note-tb-highlight') ? bg(document.querySelector('.note-tb-highlight')) : '',
+        copyBg: document.querySelector('.note-tb-copy') ? bg(document.querySelector('.note-tb-copy')) : '',
       };
     });
-    ok('the engaged note shows its toolbar', tb.visible);
+    ok('the first tap engages the note and shows its toolbar (B90)', tb.engaged && tb.visible, JSON.stringify(tb));
+    ok('the first tap does not open the keyboard — no edit yet (B90)', !tb.editing);
     // B43 order, carried onto the row (B84): Complete · Highlight · Copy · Delete.
     ok('toolbar is Complete · Highlight · Copy · Delete', tb.labels.length === 4 &&
        /Complete/.test(tb.labels[0]) && /Highlight/.test(tb.labels[1]) &&
@@ -269,10 +276,37 @@ async function openCat(page, cat) {
     ok('Delete is last and distinct — the --danger fill, not the frame fill',
        tb.lastIsDelete && tb.deleteBg !== tb.completeBg,
        JSON.stringify({ last: tb.lastIsDelete, del: tb.deleteBg, comp: tb.completeBg }));
+    // Identity fills (B85): Highlight is a fixed amber, Copy a fixed blue — neither
+    // rotates with the board type the way Complete's --frame does. On a To-Do board
+    // Copy's fixed blue equals the frame blue, the owner's accepted call (issue #131).
+    ok('Highlight wears the fixed amber fill (B85)', tb.highlightBg === 'rgb(242, 214, 75)', tb.highlightBg);
+    ok('Copy wears the fixed blue fill (B85)', tb.copyBg === 'rgb(105, 142, 191)', tb.copyBg);
+    const rot = await page.evaluate(() => {
+      const board = document.getElementById('board');
+      const prev = board.dataset.cat;
+      board.dataset.cat = 'idea';            // a green board: --frame rotates, the identity fills do not
+      const bg = s => getComputedStyle(document.querySelector(s)).backgroundColor;
+      const out = { hi: bg('.note-tb-highlight'), copy: bg('.note-tb-copy'), comp: bg('.note-tb-complete') };
+      board.dataset.cat = prev;
+      return out;
+    });
+    ok('the identity fills stay fixed while Complete follows the board (B85)',
+       rot.hi === 'rgb(242, 214, 75)' && rot.copy === 'rgb(105, 142, 191)' && rot.comp !== 'rgb(105, 142, 191)',
+       JSON.stringify(rot));
     // Notes carry no Export (that is board-level, on the anchor menu).
     ok('the note toolbar has no Export', !tb.labels.some(l => /Export/i.test(l)), JSON.stringify(tb.labels));
     ok('the note survived, unduplicated', (await noteCount(page)) === 1, 'count=' + await noteCount(page));
     ok('no menu is open anywhere', await page.evaluate(() => document.querySelector('#menu').hidden !== false));
+
+    // The SECOND tap on the engaged note edits it — keyboard up, caret at the END (B90).
+    await tap(page, box.x, box.y);
+    await page.waitForTimeout(120);
+    ok('the second tap enters edit (keyboard up)', await activeIsNoteText(page));
+    await page.keyboard.type('!');
+    await page.waitForTimeout(80);
+    ok('the caret lands at the end of the text (B90)',
+       (await page.evaluate(() => document.querySelector('.note-text').textContent)) === 'real note!',
+       await page.evaluate(() => document.querySelector('.note-text').textContent));
 
     // A whitespace-only note shows its row (it is :not(:empty)); Completing it
     // must not crash — the pre-act blur discards the blank note (B8) and the
@@ -1298,13 +1332,20 @@ async function openCat(page, cat) {
       const prev = board.dataset.cat;
       board.dataset.cat = 'learning';        // stand the grid over a Learning board
       const todoTile = document.querySelector('#lot-menu .cat-button[data-cat="todo"]');
-      const todoFrame = getComputedStyle(todoTile).getPropertyValue('--frame').trim().toLowerCase();
+      const cs = getComputedStyle(todoTile);
+      const todoFrame = cs.getPropertyValue('--frame').trim().toLowerCase();
+      const todoWater = cs.getPropertyValue('--water-top').trim().toLowerCase();
       const boardFrame = getComputedStyle(board).getPropertyValue('--frame').trim().toLowerCase();
       board.dataset.cat = prev;              // restore
-      return { todoFrame, boardFrame };
+      return { todoFrame, todoWater, boardFrame };
     });
     ok('the To-Do tile keeps its own blue rung under a Learning board scope (B77)',
        leak.todoFrame === '#698ebf' && leak.boardFrame === '#b57a9b', JSON.stringify(leak));
+    // The tile's water ground is re-asserted per family too (B89), so a To-Do tile
+    // shows To-Do water, not the surrounding Learning board's — the same leak, closed
+    // for the new gradient ground of issue #135.
+    ok('the To-Do tile keeps its own water ground under a Learning board scope (B89)',
+       leak.todoWater === '#34697f', JSON.stringify(leak));
 
     // Tapping a tile drills into that category's own screen.
     const tile = await page.evaluate(() => {
