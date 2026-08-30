@@ -784,7 +784,7 @@ function updateNoteToolbar(node, note) {
    there, so it flips to sit just inside the top edge instead (UIUX §4.5). The row
    is a note child, so its board-logical height scales with the note (effScale) —
    the threshold does too. renderY is stable across fold/renderScale. */
-const TB_ROW_H = 34;                  // ~the row's own height + its 12px gap, at scale 1
+const TB_ROW_H = 32;                  // ~the row's own height at scale 1, no gap — flush on-edge (issue #133, B87)
 function reflectToolbarFlip(node, note) {
   node.classList.toggle('tb-flip', renderY(note) < TB_ROW_H * effScale(note));
 }
