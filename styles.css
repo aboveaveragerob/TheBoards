@@ -184,22 +184,26 @@
   --card:        #260e12;
 }
 .board-cat[data-cat="todo"],
-.card-drag-ghost[data-cat="todo"] {
+.card-drag-ghost[data-cat="todo"],
+.cat-button[data-cat="todo"] {
   --water-top:   #34697f;
   --water-mid:   #255265;
 }
 .board-cat[data-cat="idea"],
-.card-drag-ghost[data-cat="idea"] {
+.card-drag-ghost[data-cat="idea"],
+.cat-button[data-cat="idea"] {
   --water-top:   #486b49;
   --water-mid:   #345439;
 }
 .board-cat[data-cat="unsorted"],
-.card-drag-ghost[data-cat="unsorted"] {
+.card-drag-ghost[data-cat="unsorted"],
+.cat-button[data-cat="unsorted"] {
   --water-top:   #6d5b83;
   --water-mid:   #534769;
 }
 .board-cat[data-cat="learning"],
-.card-drag-ghost[data-cat="learning"] {
+.card-drag-ghost[data-cat="learning"],
+.cat-button[data-cat="learning"] {
   --water-top:   #855562;
   --water-mid:   #6a414c;
 }
@@ -999,7 +1003,7 @@ html:not(.desktop):has(#list-view.show) #board { pointer-events: none; }
   text-align: center;
   min-height: 44px;                    /* the touch floor (UIUX §6) */
   padding: 12px;
-  background: var(--card);             /* the family's tray ground (B72) */
+  background: linear-gradient(180deg, var(--water-top), var(--water-mid));  /* the family's water field, as its list cards (issue #135, B89) */
   outline: 2px solid var(--frame);     /* the family's inset frame (B72) */
   outline-offset: -2px;
   border: 0;
