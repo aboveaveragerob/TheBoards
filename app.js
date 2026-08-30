@@ -1111,6 +1111,7 @@ function handleTap(target, x, y, shift) {
       // with a selection active a tap only dismisses; capture is only primary
       // when nothing is selected or being edited.
       if (isDesktop && selected) { clearSelection(); break; }
+      if (!isDesktop && engaged) { clearEngaged(); break; }   // mobile: tap-away deselects; a further tap creates (issue #136, B90)
       createNote(x, y);                // capture is instant on both (B27, B81)
       break;
     }
@@ -1118,6 +1119,7 @@ function handleTap(target, x, y, shift) {
       // Same #54 law as canvas: an open editor commits and the tap is spent.
       if (isEditing(document.activeElement)) { document.activeElement.blur(); break; }
       if (isDesktop && selected) { clearSelection(); break; }   // creation surface too
+      if (!isDesktop && engaged) { clearEngaged(); break; }   // mobile: tap-away deselects (issue #136, B90)
       createLotItem();                 // capture is instant on both (B27, B81)
       break;
     }
@@ -1154,13 +1156,21 @@ function handleTap(target, x, y, shift) {
         }
         break;
       }
-      surfaceNote(node);                                        // B27
-      // Engaging a note raises its toolbar (B84): an active note enters edit
-      // (its text takes focus), a completed one takes focus on the note itself
-      // — either way the note is :focus-within, so the row shows. A completed
-      // note never edits (§4.3), so focusing the frame is how it engages.
-      if (note.state === 'active') editNoteText(node, x, y);
-      else node.focus({ preventScroll: true });
+      // Mobile two-tap grammar (issue #136, B90): a first tap ENGAGES the note —
+      // its toolbar shows (via the `.engaged` class), with no focus, no keyboard,
+      // and no write (B22, so no surfaceNote on this tap). A second tap on the
+      // already-engaged active note EDITS it, synchronously inside pointerup so the
+      // keyboard rises (B27a), caret at the END (no coords → caretToEnd, overriding
+      // B14 on mobile; the desktop precedent is B26). A completed note never edits
+      // (§4.3), so it only ever engages.
+      if (isEditing(document.activeElement)) document.activeElement.blur();
+      if (note.state === 'active' && engaged === note.id) {
+        clearEngaged();
+        surfaceNote(node);                                      // editing raises it (B27)
+        editText(node.querySelector('.note-text'));             // no coords → caret at end
+      } else {
+        setEngaged(node);
+      }
       break;
     }
     case 'lot-item': {
@@ -1206,9 +1216,6 @@ function editText(textNode, clientX, clientY) {
   textNode.focus();
   if (clientX != null) placeCaretAtPoint(textNode, clientX, clientY);
   else caretToEnd(textNode);
-}
-function editNoteText(noteNode, clientX, clientY) {
-  editText(noteNode.querySelector('.note-text'), clientX, clientY);
 }
 
 /* Create a note in edit mode at the tapped point (PRD §6.2).
@@ -1619,6 +1626,23 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 let selected = null;                 // { kind: 'note'|'lot', id }
 let lastTap = { key: null, t: 0 };   // double-click pairing across taps
 let selEl = null;                     // the resize-frame overlay (ring + edges + handles); actions live on the note's toolbar (B84)
+// Mobile-only "engaged" note (issue #136, B90): the note whose toolbar is shown
+// after a first tap — WITHOUT a keyboard. It is the select step desktop already
+// has via `selected`, which mobile lacked (there, engaging a note WAS editing it).
+// A second tap on the engaged active note edits it. No focus and no write (B22):
+// the toolbar is revealed by a `.engaged` class, not by :focus-within.
+let engaged = null;                   // id of the mobile-engaged note, or null
+function setEngaged(node) {
+  const prev = el.board && el.board.querySelector('.note.engaged');
+  if (prev) prev.classList.remove('engaged');
+  engaged = node.dataset.id;
+  node.classList.add('engaged');
+}
+function clearEngaged() {
+  const prev = el.board && el.board.querySelector('.note.engaged');
+  if (prev) prev.classList.remove('engaged');
+  engaged = null;
+}
 
 /* Multi-selection (issue #55, B41): desktop NOTES only — lot rows stay
    single-select by design (their inline buttons live on the row, and a lot
@@ -1909,6 +1933,7 @@ function deleteNotes(ids) {
   });
   if (!snap.length) return;
   clearSelection();
+  if (engaged && wanted.has(engaged)) clearEngaged();   // the engaged note is leaving (issue #136, B90)
   for (let i = snap.length - 1; i >= 0; i--) {       // descending: indices stay valid
     const s = snap[i];
     current.notes.splice(s.index, 1);

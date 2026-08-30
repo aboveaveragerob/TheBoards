@@ -759,6 +759,7 @@ body {
    mobile engages by focus (an active note edits, a completed one takes frame
    focus — either way :focus-within). */
 html.desktop .note.selected:not(.pressed) .note-toolbar,
+html:not(.desktop) .note.engaged:not(.pressed) .note-toolbar,
 html:not(.desktop) .note:focus-within:not(.pressed) .note-toolbar {
   opacity: 1; visibility: visible;
   transition: opacity 200ms cubic-bezier(0.22, 0.61, 0.36, 1), visibility 0s;
@@ -766,6 +767,7 @@ html:not(.desktop) .note:focus-within:not(.pressed) .note-toolbar {
 /* A selected note rises so its toolbar clears any note overlapping its top edge
    (mobile surfaces the engaged note; desktop selection does not, B22). */
 html.desktop .note.selected { z-index: 3; }
+html:not(.desktop) .note.engaged { z-index: 3; }   /* the engaged note rises so its toolbar clears overlaps, without a write (issue #136, B90) */
 
 /* Pressed (drag/pinch engaged): border thickens to 3px, padding compensates so
    nothing reflows — the "picked up" / "I have this" confirmation (§4.2). */
