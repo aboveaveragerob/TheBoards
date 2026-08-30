@@ -64,6 +64,7 @@
      from the three cool note families (blue/green/violet), carrying --ink-dark
      text at >12:1 (UIUX §2.6.1). */
   --highlight:       #F2D64B;
+  --accent-copy:     #698ebf;   /* the Copy tab's fixed identity fill — a fixed blue, never board-rotating (issue #131, B85) */
   --elevation:       0 2px 8px rgb(0 0 0 / 0.45);
   --elevation-inset: inset -3px 0 8px rgb(0 0 0 / 0.16), inset 0 2px 4px rgb(0 0 0 / 0.10);
 }
@@ -183,22 +184,26 @@
   --card:        #260e12;
 }
 .board-cat[data-cat="todo"],
-.card-drag-ghost[data-cat="todo"] {
+.card-drag-ghost[data-cat="todo"],
+.cat-button[data-cat="todo"] {
   --water-top:   #34697f;
   --water-mid:   #255265;
 }
 .board-cat[data-cat="idea"],
-.card-drag-ghost[data-cat="idea"] {
+.card-drag-ghost[data-cat="idea"],
+.cat-button[data-cat="idea"] {
   --water-top:   #486b49;
   --water-mid:   #345439;
 }
 .board-cat[data-cat="unsorted"],
-.card-drag-ghost[data-cat="unsorted"] {
+.card-drag-ghost[data-cat="unsorted"],
+.cat-button[data-cat="unsorted"] {
   --water-top:   #6d5b83;
   --water-mid:   #534769;
 }
 .board-cat[data-cat="learning"],
-.card-drag-ghost[data-cat="learning"] {
+.card-drag-ghost[data-cat="learning"],
+.cat-button[data-cat="learning"] {
   --water-top:   #855562;
   --water-mid:   #6a414c;
 }
@@ -463,9 +468,9 @@ body {
   position: absolute;
   z-index: 1;                          /* furniture plane; notes (z-2) stay above */
   left: 0; right: 0;
-  bottom: calc(var(--lot-h, 122px) + 8px);
+  bottom: var(--lot-h, 122px);         /* flush ON the lot's top edge, no gap (issue #133, B87) */
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;         /* left-anchored, not centred (issue #134, B88) */
   gap: 8px;
   pointer-events: none;
 }
@@ -475,13 +480,13 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 6px;                    /* the band label's box (UIUX §3.1) */
+  padding: 8px 12px;                   /* the band label's box (UIUX §3.1), grown for finger size (issue #132, B86) */
   border: none;
   border-radius: 3px;                  /* symmetric — it hangs beneath no rule */
   background: var(--frame);            /* the band tab's own fill (B76) */
   color: var(--ink);                   /* --ink-dark, rebound by .on-light on the button */
   font: inherit;
-  font-size: 13px; font-weight: 600; line-height: 1.3;
+  font-size: 14px; font-weight: 600; line-height: 1.3;   /* grown for finger size (issue #132, B86) */
   text-align: center;
   white-space: nowrap;
   cursor: pointer;
@@ -490,7 +495,7 @@ body {
 /* Drawn marks (UIUX §13.3): the GLYPH SVG in currentColor, sized to sit with
    the 13px label rather than the menu's 16px. */
 .board-action .glyph { display: flex; }
-.board-action .glyph svg { display: block; width: 14px; height: 14px; }
+.board-action .glyph svg { display: block; width: 16px; height: 16px; }   /* finger size (issue #132, B86) */
 /* Decoupled hit area (UIUX §6, B7): --hit is set on #board-actions in JS so
    hit x renderScale clears the floor — 44px on touch, 24px on desktop — and the
    flat tab's own box never grows to meet it. Spent entirely UPWARD, onto the
@@ -694,9 +699,8 @@ body {
    13px/600, 3px radius — NOT a pill. Drawn always; shown only on select/focus. */
 .note-toolbar {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 12px);           /* clear of the resize frame's north edge */
-  transform: translateX(-50%);
+  left: 0;                             /* left-anchored, far left (issue #134, B88) */
+  bottom: 100%;                        /* flush ON the note's top edge, no gap (issue #133, B87) */
   display: flex;
   gap: 3px;
   z-index: 3;                          /* above the note's text and scratch */
@@ -713,19 +717,27 @@ body {
 .note-tb-btn {
   position: relative;
   display: inline-flex; align-items: center; justify-content: center;
-  padding: 2px 6px;                    /* the band-label tab (§3.1) */
+  padding: 7px 6px;                    /* the band-label tab (§3.1), grown for finger size (issue #132, B86) */
   border: 0; border-radius: 3px;
   background: var(--frame);            /* the board's own frame hue; rotates per type (B67) */
   color: var(--ink);                   /* --ink-dark, rebound by .on-light — 5.70:1 (B76) */
   font-size: 13px; font-weight: 600; line-height: 1.3;
   cursor: pointer;
 }
+/* Finger-size glyph: the mark grows from its intrinsic 16px (issue #132, B86). */
+.note-tb-btn svg { width: 18px; height: 18px; }
 /* The destructive tab wears the warm hue as a FILL, not as text: --danger is a
    fill carrying --ink-dark (8.83:1, UIUX §2.6), and an accent is never a text
    colour on the note (the water/note placement rule, §2.6). Its mark stays
    --ink-dark, so the tab differs from the other three by fill + glyph, not colour
    alone (§1) — Delete last and distinct, the menu's B43 order. */
 .note-tb-delete { background: var(--danger); }
+/* Highlight and Copy wear their own fixed identity fills, so the four tabs differ
+   by fill + glyph, not colour alone (§1): amber and blue are button chrome (which
+   action), never the note's state. The highlight STATE stays the wash + the inset
+   rule below; Copy's blue (--accent-copy) is fixed, not board-rotating (issue #131, B85). */
+.note-tb-highlight { background: var(--highlight); }
+.note-tb-copy      { background: var(--accent-copy); }
 /* Highlight's "on" state is a geometry, not colour alone (§1): an inset border
    while the note wears the amber wash. The wash is the real signal; this only
    labels the toggle and flips its aria-label (updateNoteToolbar). */
@@ -735,7 +747,7 @@ body {
 .note-tb-btn::before {
   content: "";
   position: absolute;
-  left: 0; right: 0; top: -24px; bottom: 0;
+  left: 0; right: 0; top: -12px; bottom: 0;   /* 44px tap target over the taller tab (issue #132, B86) */
 }
 .note-tb-btn:focus-visible {           /* the two-tone ring (§2.7), same as the note */
   outline: 2px solid var(--ink-light);
@@ -747,6 +759,7 @@ body {
    mobile engages by focus (an active note edits, a completed one takes frame
    focus — either way :focus-within). */
 html.desktop .note.selected:not(.pressed) .note-toolbar,
+html:not(.desktop) .note.engaged:not(.pressed) .note-toolbar,
 html:not(.desktop) .note:focus-within:not(.pressed) .note-toolbar {
   opacity: 1; visibility: visible;
   transition: opacity 200ms cubic-bezier(0.22, 0.61, 0.36, 1), visibility 0s;
@@ -754,6 +767,7 @@ html:not(.desktop) .note:focus-within:not(.pressed) .note-toolbar {
 /* A selected note rises so its toolbar clears any note overlapping its top edge
    (mobile surfaces the engaged note; desktop selection does not, B22). */
 html.desktop .note.selected { z-index: 3; }
+html:not(.desktop) .note.engaged { z-index: 3; }   /* the engaged note rises so its toolbar clears overlaps, without a write (issue #136, B90) */
 
 /* Pressed (drag/pinch engaged): border thickens to 3px, padding compensates so
    nothing reflows — the "picked up" / "I have this" confirmation (§4.2). */
@@ -991,7 +1005,7 @@ html:not(.desktop):has(#list-view.show) #board { pointer-events: none; }
   text-align: center;
   min-height: 44px;                    /* the touch floor (UIUX §6) */
   padding: 12px;
-  background: var(--card);             /* the family's tray ground (B72) */
+  background: linear-gradient(180deg, var(--water-top), var(--water-mid));  /* the family's water field, as its list cards (issue #135, B89) */
   outline: 2px solid var(--frame);     /* the family's inset frame (B72) */
   outline-offset: -2px;
   border: 0;
