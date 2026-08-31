@@ -1322,10 +1322,10 @@ note renders through one uniform ratio `k = min(LOGICAL_W/rw, LOGICAL_H/rh)`
 a fold, a rotation or a window drag maps the arrangement as a figure: pairwise
 angles and distance ratios are preserved, and `min` keeps every authored
 position on the page by construction. The figure is anchored top-left, never
-centred; slack falls to the right and bottom as open canvas. Legacy notes
-(no `rh`) keep B32's rescue exactly — width-ratio `x` and size, `y` through
-`LEGACY_H` with the render-time clamp. This supersedes B40's anisotropic
-mapping and B21's width-only multiplier (B64).
+centred; slack falls to the right and bottom as open canvas. Pre-B32 notes
+carry no legacy branch: B93's one-time boot migration adopts every rh-less
+note onto this path by writing the position it already renders, so no note
+reaching the renderer lacks `rh` (B93).
 
 ---
 

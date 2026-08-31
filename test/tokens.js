@@ -586,8 +586,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v37 — the bump that ships B92 (import/export, issue #140)',
-    /const CACHE = 'todo-boards-v37';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v38 — the bump that ships B93 (legacy adoption, issue #141)',
+    /const CACHE = 'todo-boards-v38';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   // --- Issue #140 / B92: import/export and the retired anchor menu ---
   ok('the board-action row carries the third tab (import)', /id="action-import"/.test(html) &&
     /actionImport: document\.getElementById\('action-import'\)/.test(app));

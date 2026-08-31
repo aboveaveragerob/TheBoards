@@ -24,7 +24,10 @@
 let   LOGICAL_W = 900;               // mobile: = vw, the sheet is the viewport (B32); desktop: derived per layout (B20)
 let   LOGICAL_H = 1000;              // responsive: recomputed each layout to fill the viewport
 let   LEGACY_H = 1000;               // the LOGICAL_H the pre-B32 build would have produced
-                                     // on this device; places notes that predate `rh`.
+                                     // on this device. Read ONLY by migrateLegacyBoards
+                                     // (B93): the render path no longer branches on it —
+                                     // boot adopts every rh-less note onto the single
+                                     // B64 path before first paint.
 const NOTE_MIN_W = 132;              // real minimum rendered note width (UIUX §4.5, B84):
                                      // wide enough to seat the 4-button on-select toolbar.
                                      // One number does three jobs — the wrap-cap floor
@@ -257,6 +260,57 @@ async function idbPut(rec) {
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);
   });
+}
+
+/* --- Legacy-frame adoption (B93, issue #141) ------------------------------
+   The one-time migration that collapses B32's two-path rendering. Notes
+   authored before B32 carry no `rh`; B32 mapped their `y` through LEGACY_H —
+   the height the pre-B32 build would have produced on this device — and
+   clamped into the page at render time only, while every note since runs
+   B64's single min-k path. Two paths forever means every future rendering
+   change pays for both, so at boot each legacy note is written onto the
+   single path by adopting the frame it already renders in — the same
+   rebaseNote performs at every grab.
+
+   Render-silence — why P3 (positions are permanent, PRD §3) holds. What the
+   note renders today is: x and size on the width ratio LOGICAL_W/(rw‖900),
+   y through clamp(y·(LOGICAL_H/LEGACY_H), 0, LOGICAL_H − HIT_FLOOR). The
+   migration writes exactly those values into storage and stamps
+   rw = LOGICAL_W, rh = LEGACY_H's frame height (LOGICAL_H), after which
+   noteK ≡ 1 and the single path renders the stored values verbatim. The
+   ratios agree by construction: on mobile LEGACY_H = 900·vh/vw, so the
+   legacy y-ratio LOGICAL_H/LEGACY_H = vw/900 — precisely the width ratio —
+   and min(LOGICAL_W/rw, LOGICAL_H/LEGACY_H) picks that same value; on
+   desktop LEGACY_H = LOGICAL_H, the ratio is 1, and B20's min-anchored
+   renderScale keeps the note where it rendered. The scale fold mirrors
+   rebaseNote: effScale before = (scale‖1)·widthRatio = scale after. The
+   stored-y clause of B21/B32 ("never mutated") is waived for THIS write
+   alone — it existed to stop incidental clamps from silently moving notes;
+   this is a deliberate, user-visible-identical adoption requested by
+   issue #141, recorded as B93. */
+async function migrateLegacyBoards(all) {
+  const adopt = (n) => {
+    const wRatio = LOGICAL_W / (n.rw || 900);             // B32's legacy width ratio
+    return {                                              // renderY's legacy branch,
+      ...n,                                               // verbatim, incl. the clamp
+      x: n.x * wRatio,                                    // that is what renders today
+      y: clamp(n.y * (LOGICAL_H / LEGACY_H),
+               0, Math.max(0, LOGICAL_H - HIT_FLOOR)),
+      scale: (n.scale || 1) * wRatio,                     // rebaseNote's fold (B40/B64)
+      rw: LOGICAL_W,
+      rh: LOGICAL_H,                                      // noteK ≡ 1 for this note, forever
+    };
+  };
+  let adopted = 0;
+  for (const rec of all) {
+    if (!Array.isArray(rec.notes)) continue;
+    const legacy = rec.notes.filter((n) => n && !Number.isFinite(n.rh));
+    if (!legacy.length) continue;
+    rec.notes = rec.notes.map((n) => (n && !Number.isFinite(n.rh)) ? adopt(n) : n);
+    await idbPut(rec);                    // direct, not scheduleSave: boot owns the
+    adopted += legacy.length;             // store — nothing is open or debounced yet
+  }
+  return adopted;
 }
 async function idbDelete(id) {
   const db = await dbPromise;
@@ -510,22 +564,20 @@ const toLogical = (clientX, clientY) => ({
    clamped — MIN/MAX_SCALE bound the *authored* scale at gesture time, not
    this frame mapping.
 
-   Legacy notes (no rh, pre-B32) keep that ruling's rescue verbatim: x and
-   size on the width ratio alone, y mapped through the height the old build
-   would have produced here (LEGACY_H) and clamped into the page AT RENDER
-   TIME ONLY — the authoring height is device-dependent and unrecoverable,
-   so there is no second ratio to take a min against. The clamp stays on the
-   legacy branch alone: applied to live notes it would fight createNote's own
-   LOGICAL_H − 4 bottom clamp and rebaseNote would write the pulled-up value
-   back — the silent mutation B21 forbids. */
-const noteK = (note) => note.rh
-  ? Math.min(LOGICAL_W / (note.rw || 900), LOGICAL_H / note.rh)
-  : LOGICAL_W / (note.rw || 900);
+   B93 (issue #141) collapsed B32's two-path rescue: at boot, migrateLegacyBoards
+   adopts every rh-less (pre-B32) note onto this single path by writing the
+   position it already renders — x and size on the width ratio, y through
+   LEGACY_H with the render-time clamp — into storage and stamping
+   rw = LOGICAL_W, rh = LOGICAL_H, the same fold rebaseNote performs at every
+   grab. After adoption noteK ≡ 1 and the stored values render verbatim, so
+   P3 holds (render-silent). The clamp's old scope warning — it fought
+   createNote's bottom clamp and would have been written back by rebaseNote —
+   is moot: it now runs once, inside the migration, on the notes it is
+   adopting. No note reaching this function lacks rh. */
+const noteK = (note) => Math.min(LOGICAL_W / (note.rw || 900), LOGICAL_H / note.rh);
 const renderX  = (note) => note.x * noteK(note);
-const effScale = (note) => (note.scale || 1) * noteK(note);   // ‖1: heal a scale-less legacy record
-const renderY  = (note) => note.rh
-  ? note.y * noteK(note)
-  : clamp(note.y * (LOGICAL_H / LEGACY_H), 0, Math.max(0, LOGICAL_H - HIT_FLOOR));
+const effScale = (note) => (note.scale || 1) * noteK(note);
+const renderY  = (note) => note.y * noteK(note);
 
 function rebaseNote(note) {
   // Fold the similarity ratio into the authored scale (B40's fold, on B64's
@@ -2869,14 +2921,12 @@ const exportLotH = (rec) => {
 // mixed-cohort board can relate its cohorts differently here than on a given
 // screen — inherent to min-k and owned in B64's costs. Stored x/y are read
 // only — B21's "committed positions are permanent" is not ours to break.
-// Legacy notes (no rh) keep B32's rescue against LEGACY_H, as on screen.
-const exportK = (n) => n.rh
-  ? Math.min(EXPORT_W / (n.rw || 900), EXPORT_H / n.rh)
-  : EXPORT_W / (n.rw || 900);
+// Legacy notes never reach here: B93's boot migration adopted every rh-less
+// note onto the single min-k path before first paint, so the export reads
+// the same unified geometry the screen renders (issue #141).
+const exportK = (n) => Math.min(EXPORT_W / (n.rw || 900), EXPORT_H / n.rh);
 const exportX = (n) => n.x * exportK(n);
-const exportY = (n) => n.rh
-  ? n.y * exportK(n)
-  : clamp(n.y * (EXPORT_H / LEGACY_H), 0, Math.max(0, EXPORT_H - HIT_FLOOR));
+const exportY = (n) => n.y * exportK(n);
 
 // Border box of a note, before its own scale — `width: max-content` capped at
 // the export sheet's right edge, height from however many lines that width
@@ -4114,7 +4164,13 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', onVi
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(applyLayout);
 
 async function boot() {
+  applyLayout();                 // establishes LEGACY_H before the migration reads it —
+                                 // the first applyLayout otherwise fires inside openBoardObj,
+                                 // after storage is already being rendered (B93)
   const all = await idbGetAll();
+  const adopted = await migrateLegacyBoards(all);   // B93: legacy notes onto the single path,
+                                                    // written straight to IDB — nothing is
+                                                    // open or debounced yet
   let board;
   if (!all.length) { board = newBoardRecord(); await idbPut(board); }
   else { board = all.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a)); }  // launch → most recent

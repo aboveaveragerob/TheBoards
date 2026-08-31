@@ -1769,6 +1769,92 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
+  console.log('\n[D23] Legacy-frame adoption — B93 one-time migration (issue #141)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    // Two boards, each holding a pre-B32 note (no rh; n-b also lacks rw, the
+    // ‖900 default path) beside a modern note. Both must be adopted at boot.
+    await page.evaluate(() => {
+      const a = newBoardRecord(); a.title = 'Migrate alpha';
+      a.notes = [
+        { id: 'legacy-a', text: 'LEGACYA', x: 120, y: 700, scale: 1, state: 'active' },
+        { id: 'modern-a', text: 'MODERNA', x: 300, y: 300, rw: 900, rh: 1000, scale: 1, state: 'active' },
+      ];
+      const b = newBoardRecord(); b.title = 'Migrate beta'; b.updatedAt = Date.now() - 1;
+      b.notes = [{ id: 'legacy-b', text: 'LEGACYB', x: 60, y: 200, scale: 1.5, state: 'active' }];
+      return Promise.all([idbPut(a), idbPut(b)]);
+    });
+    await page.reload();
+    await page.waitForTimeout(600);
+
+    // The adoption is render-silent by construction: expected stored values are
+    // exactly what the legacy branch rendered — x on the width ratio, y through
+    // LEGACY_H with the clamp — computed here from the live frame constants.
+    const got = await page.evaluate(() => {
+      const all = idbGetAll().then((recs) => {
+        const a = recs.find((r) => r.title === 'Migrate alpha');
+        const b = recs.find((r) => r.title === 'Migrate beta');
+        return {
+          W: LOGICAL_W, H: LOGICAL_H,
+          a: a.notes.find((n) => n.id === 'legacy-a'),
+          b: b.notes.find((n) => n.id === 'legacy-b'),
+          modern: a.notes.find((n) => n.id === 'modern-a'),
+          nodes: { legacyA: !!document.querySelector('[data-id="legacy-a"]'),
+                   modernA: !!document.querySelector('[data-id="modern-a"]') },
+        };
+      });
+      return all;
+    });
+    const wRatio = got.W / 900;                       // B32's legacy width ratio
+    const yClamp = (y) => Math.max(0, Math.min(y * (got.H / got.H), got.H - 44));
+    ok('legacy note a adopted onto the single path (rh stamped)',
+       Number.isFinite(got.a.rh) && got.a.rh === got.H, JSON.stringify(got.a));
+    ok('legacy note a carries rw = LOGICAL_W',
+       Number.isFinite(got.a.rw) && got.a.rw === got.W, 'rw=' + got.a.rw);
+    ok('stored x is the position the legacy branch rendered',
+       Math.abs(got.a.x - 120 * wRatio) < 1e-6, got.a.x + ' vs ' + 120 * wRatio);
+    ok('stored y is the clamped render position (P3: render-silent)',
+       Math.abs(got.a.y - yClamp(700)) < 1e-6, got.a.y + ' vs ' + yClamp(700));
+    ok('scale fold mirrors rebaseNote (effScale preserved)',
+       Math.abs(got.a.scale - 1 * wRatio) < 1e-6, got.a.scale);
+    ok('second board migrated too — the sweep is all-boards',
+       Number.isFinite(got.b.rh) && Math.abs(got.b.scale - 1.5 * wRatio) < 1e-6,
+       JSON.stringify(got.b));
+    ok('modern notes pass through untouched',
+       got.modern.rw === 900 && got.modern.rh === 1000 && got.modern.x === 300 &&
+       got.modern.y === 300, JSON.stringify(got.modern));
+
+    // Render-silence on screen: the DOM sits exactly where the legacy branch
+    // put it, and the migrated note renders through k ≡ 1 (style = stored).
+    const ren = await page.evaluate(() => {
+      const el = document.querySelector('[data-id="legacy-a"]');
+      return { left: parseFloat(el.style.left), top: parseFloat(el.style.top) };
+    });
+    ok('rendered left = legacy renderX', Math.abs(ren.left - 120 * wRatio) < 0.5,
+       ren.left + ' vs ' + 120 * wRatio);
+    ok('rendered top = legacy renderY (clamp included)',
+       Math.abs(ren.top - yClamp(700)) < 0.5, ren.top + ' vs ' + yClamp(700));
+    ok('both notes drawn on the board',
+       got.nodes.legacyA && got.nodes.modernA, JSON.stringify(got.nodes));
+
+    // One-time: a second boot finds nothing left to adopt and changes nothing.
+    await page.reload();
+    await page.waitForTimeout(600);
+    const again = await page.evaluate(async () => {
+      const recs = await idbGetAll();
+      const a = recs.find((r) => r.title === 'Migrate alpha');
+      const n = a.notes.find((x) => x.id === 'legacy-a');
+      return { x: n.x, y: n.y, scale: n.scale, rw: n.rw, rh: n.rh };
+    });
+    ok('migration is one-time — second boot is a no-op',
+       Math.abs(again.x - got.a.x) < 1e-9 && Math.abs(again.y - got.a.y) < 1e-9 &&
+       Math.abs(again.scale - got.a.scale) < 1e-9 &&
+       again.rw === got.a.rw && again.rh === got.a.rh, JSON.stringify(again));
+
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== desktop: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);

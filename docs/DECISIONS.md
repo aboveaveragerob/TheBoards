@@ -3444,3 +3444,59 @@ and `§14`; `sw.js`'s `CACHE` bumps to **v37** and `test/tokens.js` pins it.
 the retired anchor branch; the Playwright suites gain the Export choice menu,
 a JSON round-trip (export → wipe storage → import → restored), the bad-file
 path, and the anchor long-press/right-click asserting nothing opens.
+
+### B93. Legacy-frame adoption — a one-time boot migration writes every pre-B32 note onto the single B64 path, retiring B32's two-path rescue (issue #141; waives B32/B21's "stored `y` is never mutated" for this one deliberate write alone — incidental clamps remain as forbidden as ever)
+
+B32's admission — a pre-B32 note's authoring height is device-dependent and
+unrecoverable, so its `y` maps through `LEGACY_H` and clamps at render time —
+was correct, but it priced every future rendering change at two paths: `noteK`,
+`renderY`, `exportK` and `exportY` each carried the branch, and #141 asks the
+only question that ends the meter. The rescue exists to place the note where
+the old build left it. That place is computable once, at boot — so compute it
+once, write it down, and let the note live on the same path as everything else.
+
+**The ruling.** `boot()` runs `applyLayout()` (which alone knows this device's
+`LEGACY_H`) and then `migrateLegacyBoards()` over the full `idbGetAll()`
+snapshot: every note lacking a finite `rh`, on every board, is adopted — `x`
+and `scale` through the legacy width ratio (`LOGICAL_W/(rw ‖ 900)`), `y`
+through `clamp(y · (LOGICAL_H/LEGACY_H), 0, LOGICAL_H − HIT_FLOOR)` (the old
+render branch verbatim), `rw = LOGICAL_W`, `rh = LOGICAL_H`. Boards that
+changed are written straight to IDB — nothing is open yet, so the debounced
+save queue plays no part. Migration completes before first paint; the unified
+path renders from frame one. The branch is then deleted from all four mapping
+functions, and `LEGACY_H` survives only as the migration's input (read by
+nothing else).
+
+**Render-silence is the proof of P3, not a hope.** The two ratios agree by
+construction: on mobile `LEGACY_H = 900·vh/vw`, so the legacy `y`-ratio
+`LOGICAL_H/LEGACY_H` is exactly `vw/900` — the width ratio itself — and B64's
+`min()` picks the very value the legacy branch used; on desktop
+`LEGACY_H = LOGICAL_H`, the ratio is 1, which B20's min-anchored scale already
+guaranteed. The scale fold mirrors `rebaseNote` (B40/B64): `effScale` before
+equals `scale` after. A migrated note therefore renders at the same position
+and size the moment after adoption as the moment before — the screen cannot
+tell the migration happened, which is what "positions are permanent" demands.
+
+**The waiver is narrow.** B21/B32's "stored `y` is never mutated" exists to
+stop incidental clamps — a resize, a redraw — from silently moving notes. B93
+is a deliberate, one-time, user-requested write (issue #141) of the exact
+position the user has been seeing, recorded here so the clause's exception has
+a name. Nothing else may write without a gesture owning it. `normalizeImportedBoard`
+(B92) already stamps `rh`, so imported boards never meet the migration.
+
+**Costs, owned as B32 and B64 owned theirs.** A legacy note adopted on one
+device is thereafter an ordinary frame-stamped note: it maps as a figure under
+B64 with every other note, its `rh` is this device's `LOGICAL_H` at adoption
+time, and a *second* device's render of the same record is the B64 cross-frame
+cost all modern notes already carry. The migration runs at every boot but is
+idempotent — a second boot adopts nothing and writes nothing. The clamp now
+runs once, inside the migration, where B32's scope warning (it would fight
+`createNote`'s bottom clamp and be written back) is moot by construction.
+
+**The record.** `sw.js`'s `CACHE` bumps to **v38**. `test/desktop.js` gains
+`[D23]` — adoption values checked against the live frame, render position
+recomputed from the legacy math, modern notes untouched, second boot a no-op;
+`test/mobile.js`'s `[13]` swaps B32's "rescued, not mutated" contract for the
+B93 contract (stored `y` becomes 640 at the 384×846 test viewport, exactly
+where B32 drew it). `UIUX §11`'s legacy sentence now names the migration, not
+the rescue.
