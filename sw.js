@@ -1,6 +1,6 @@
 /* Service worker — cache-first app shell, fully offline (PRD §3 / §6.8).
    Version-stamped cache; old caches are cleaned on activate. */
-const CACHE = 'todo-boards-v38';       // bump on every shipped app.js/styles.css change
+const CACHE = 'todo-boards-v39';       // bump on every shipped app.js/styles.css change
 const ASSETS = [
   '.',
   'index.html',
@@ -13,6 +13,10 @@ const ASSETS = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-512-maskable.png',
+  'favicon.ico',
+  'icons/favicon-16.png',
+  'icons/favicon-32.png',
+  'icons/favicon-48.png',
 ];
 
 self.addEventListener('install', (e) => {

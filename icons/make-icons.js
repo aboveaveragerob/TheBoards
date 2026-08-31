@@ -157,12 +157,42 @@ function png(size, rgba) {
   ]);
 }
 
+/* The favicon set (issue #148 item 6, B94): B1's full motif at sizes the
+   browser actually draws tabs at. Same water ground, same supersampled SDF
+   rasterizer — these are the shipped icons re-derived, not browser-side
+   downscales. A root favicon.ico is a PNG-in-ICO wrap of the 32. */
+const FAVICONS = [
+  ['favicon-16.png', 16, false],
+  ['favicon-32.png', 32, false],
+  ['favicon-48.png', 48, false],
+];
+
+function icoWrap(size32) {
+  /* ICO container: 6-byte header + one directory entry + the PNG's own bytes
+     (Vista+ ICOs carry PNG payloads directly). */
+  const dir = Buffer.alloc(16);
+  dir.writeUInt8(32, 0);              // width
+  dir.writeUInt8(32, 1);              // height
+  dir.writeUInt8(0, 2);               // palette
+  dir.writeUInt8(0, 3);               // reserved
+  dir.writeUInt16LE(1, 4);            // color planes
+  dir.writeUInt16LE(32, 6);           // bits per pixel
+  dir.writeUInt32LE(size32.length, 8);
+  dir.writeUInt32LE(22, 12);          // data offset: header (6) + entry (16)
+  return Buffer.concat([Buffer.from([0, 0, 1, 0, 1, 0]), dir, size32]);
+}
+
 for (const [name, size, maskable] of [
   ['icon-192.png', 192, false],
   ['icon-512.png', 512, false],
   ['icon-512-maskable.png', 512, true],
+  ...FAVICONS,
 ]) {
   const file = path.join(OUT, name);
   fs.writeFileSync(file, png(size, render(size, maskable)));
   console.log('wrote', file, GROUND);
 }
+fs.writeFileSync(path.join(OUT, '..', 'favicon.ico'),
+  icoWrap(png(32, render(32, false))));
+console.log('wrote', path.join(OUT, '..', 'favicon.ico'), GROUND);
+

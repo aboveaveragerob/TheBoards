@@ -764,10 +764,26 @@ function applyBoardCat() {
   el.board.dataset.cat = catOf(current);
 }
 
+/* The tab/OS-window title follows the view (issue #148 item 2). Chrome only —
+   nothing on the canvas reads or renders it; the views themselves stay exactly
+   as UIUX §10/§6 draw them. Board view shows the board's own title text (the
+   anchor's copy, 'What's up?' when untitled — the same rule renderBoard
+   applies to the anchor); the picker and a drilled category name themselves. */
+function syncViewTitle() {
+  const s = history.state;
+  if (s && s.v === 'cat') document.title = `${COPY['cat' + s.cat[0].toUpperCase() + s.cat.slice(1)] || s.cat} · To-Do Boards`;
+  else if (s && s.v === 'list') document.title = `All boards · To-Do Boards`;
+  else {
+    const titled = current && !!(current.title && current.title.trim().length);
+    document.title = titled ? `${current.title} · To-Do Boards` : 'To-Do Boards';
+  }
+}
+
 function renderBoard() {
   clearSelection();                  // note DOM is about to be rebuilt
   applyBoardCat();
   if (sanitizeBoard(current)) scheduleSave();
+  syncViewTitle();
   // Anchors.
   for (const key of ['title', 'components', 'requirements']) {
     const node = anchorEls[key];
@@ -1578,6 +1594,7 @@ el.board.addEventListener('input', (e) => {
     current[t.dataset.anchor] = t.textContent;
     t.classList.toggle('filled', !!t.textContent.length);
     if (t.dataset.anchor === 'title' && isDesktop) updateActiveCardTitle();
+    if (t.dataset.anchor === 'title') syncViewTitle();   // the tab carries the board's name, live (issue #148 item 2)
     // The band sizes to its tallest zone, live (B47) — and the title now has a
     // geometry consequence of its own: the compartment's handle rides its
     // bottom edge, so a title that grows past the floor moves it (B65). One
@@ -4050,6 +4067,7 @@ function goToList() {
 async function showList() {
   listOpen = true;
   catView = null;
+  syncViewTitle();                    // the picker names itself (issue #148 item 2)
   syncBoardActions();                 // mobile keeps the tab visible above the grid — flip it to "This board" (B83)
   if (!isDesktop) { openLotMenu(); return; }
   // Unhide FIRST: catPageCap() measures #list-rows, and a `hidden` element
@@ -4069,6 +4087,7 @@ function drillCat(cat) {
 async function showCat(cat) {
   listOpen = true;
   catView = cat;
+  syncViewTitle();                    // the drill names itself (issue #148 item 2)
   if (!isDesktop) closeLotMenu();     // the drill is a screen; the grid steps aside
   el.listView.classList.remove('show'); // mobile: start below the fold; inert on desktop
   el.listView.hidden = false;
