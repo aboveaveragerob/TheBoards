@@ -10,7 +10,13 @@ GitHub: https://github.com/aboveaveragerob
 Purpose: To-Do Boards — a spatial, offline-first PWA. A fixed, bounded page
 where any thought becomes a framed, movable, scalable note the instant it is
 typed; structure is asserted after capture by where things sit and how big
-they are. Built for neurodivergent users: flat, visible, zero learning.
+they are. Built for neurodivergent users and spatial reasoners specifically: 
+prioritizing working memory and a constant field of vision for relevant features
+and information by avoiding screen switching, hidden buttons, and dense rows of 
+buttons. A single bounded page where any thought becomes a framed, movable, 
+scalable note the instant it's typed — capture precedes structure, always.
+Form and function are intertwined at the seams, no decision is made in
+isolation to prioritize coherence and user cognitive load.
 Stack: Vanilla HTML/CSS/JS. No frameworks, no build step, no dependencies,
 no backend. All data lives client-side in IndexedDB.
 Design: The design system's authority is docs/UIUX.md; every interaction
