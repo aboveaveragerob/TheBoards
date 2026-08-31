@@ -2,7 +2,7 @@
 # (the humans.txt convention: https://humanstxt.org)
 
 /* Team */
-Name: Robert Azgregory
+Name: Robert A.Z. Gregory
 Site: https://aboveaveragerob.github.io/TheBoards/
 GitHub: https://github.com/aboveaveragerob
 
