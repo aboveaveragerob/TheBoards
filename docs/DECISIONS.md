@@ -3500,3 +3500,32 @@ recomputed from the legacy math, modern notes untouched, second boot a no-op;
 B93 contract (stored `y` becomes 640 at the 384×846 test viewport, exactly
 where B32 drew it). `UIUX §11`'s legacy sentence now names the migration, not
 the rescue.
+
+---
+
+### B94. The favicon is B1's full motif, purpose-rasterized at 16/32/48 on the water; the tab title is chrome that names the current view (issue #148; leaves B1's icon motif, B58's ground, and UIUX §1's identity law untouched — the favicon is the identity re-derived for the one surface it had never been drawn for)
+
+**The favicon.** Browsers were handed `icon-192.png` and squeezed it to 16px
+themselves — identity by browser-side downsampling. The motif never changed:
+`icons/make-icons.js` now also rasterizes B1's full note (frame, two text
+bars, completion stroke) on the water fall at 16/32/48 — the settled tokens
+at the sizes a tab actually draws — plus a root `favicon.ico` (a PNG-in-ICO
+wrap of the 32) for browsers that ask blindly for it. Candidate directions
+that removed the bars (B1-skeleton), enlarged the stroke alone, or floated a
+chip on the deep were mocked at true size and set aside: at 16px the full
+motif survives intact, so no mark needed to be sacrificed. The three shipped
+icons are byte-identical before and after.
+
+**The title.** `document.title` follows the view — the board's own title text
+(the anchor's copy, bare `To-Do Boards` when untitled), `All boards ·` on the
+picker, the category's own name on a drill — as browser and OS-window chrome
+only. Nothing on the canvas renders or reads it; the views stay exactly as
+UIUX §10/§6 draw them. It is a re-statement of where you are, not a new
+surface: no tab bar, no header, no mode.
+
+**The record.** `sw.js`'s `CACHE` bumps to **v39**; the favicon files join
+`ASSETS`. `index.html` declares the three PNG sizes, the `.ico`, and
+`humans.txt`; `robots.txt`/`sitemap.xml` state the one crawlable URL.
+`syncViewTitle()` is the single writer, called from `renderBoard`,
+`showList`, `showCat`, and the title anchor's input branch.
+
