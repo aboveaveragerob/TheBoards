@@ -954,8 +954,8 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
-  // ---- 13. pre-B32 notes stay reachable, and are not rewritten -------------
-  console.log('\n[13] Legacy note (no rh) is rescued, not mutated');
+  // ---- 13. pre-B32 notes stay reachable; B93 adopts them onto the single path
+  console.log('\n[13] Legacy note (no rh) is adopted onto the single path (B93, issue #141)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     await page.evaluate(() => new Promise((res, rej) => {
@@ -975,21 +975,31 @@ async function openCat(page, cat) {
     }));
     await page.reload();
     await page.waitForTimeout(700);
+    // B93 adopts the note at boot: it writes the position the legacy branch
+    // rendered — x on the width ratio (384/900), y through LEGACY_H
+    // (900·846/384 = 1982.8125) with the clamp — and stamps rw/rh, the same
+    // fold rebaseNote performs. Render-silent: 300·384/900 = 128 and
+    // 1500·846/1982.8125 = 640 are exactly where B32 drew it (P3 holds);
+    // the supersedence of B32's "stored y is never mutated" is the ruling.
     const top = await page.evaluate(() => {
       const n = document.querySelector('[data-id="legacy-1"]');
       return n ? n.getBoundingClientRect().top : null;
     });
-    ok('legacy note renders on the sheet', top !== null && top >= 0 && top <= 846 - 44, String(top));
-    ok('stored y is untouched', await page.evaluate(() => new Promise(res => {
-      const rq = indexedDB.open('boards-db');
-      rq.onsuccess = () => {
-        const all = rq.result.transaction('boards', 'readonly').objectStore('boards').getAll();
-        all.onsuccess = () => {
-          const n = all.result.flatMap(b => b.notes).find(n => n.id === 'legacy-1');
-          res(!!n && n.y === 1500 && n.rh === undefined);
-        };
-      };
-    })));
+    ok('legacy note renders on the sheet at the legacy position',
+       top !== null && Math.abs(top - 640) < 0.5, String(top));
+    ok('note adopted onto the single path — frame stamped, y written',
+       await page.evaluate(() => new Promise(res => {
+         const rq = indexedDB.open('boards-db');
+         rq.onsuccess = () => {
+           const all = rq.result.transaction('boards', 'readonly').objectStore('boards').getAll();
+           all.onsuccess = () => {
+             const n = all.result.flatMap(b => b.notes).find(n => n.id === 'legacy-1');
+             const okRatio = (v, want) => Math.abs(v - want) < 1e-6;
+             res(!!n && okRatio(n.x, 128) && okRatio(n.y, 640) &&
+                 okRatio(n.scale, 384 / 900) && n.rw === 384 && n.rh === 846);
+           };
+         };
+       })));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
