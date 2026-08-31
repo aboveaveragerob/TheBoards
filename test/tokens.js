@@ -586,8 +586,31 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v36 — the bump that ships B91 (note links)',
-    /const CACHE = 'todo-boards-v36';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v37 — the bump that ships B92 (import/export, issue #140)',
+    /const CACHE = 'todo-boards-v37';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  // --- Issue #140 / B92: import/export and the retired anchor menu ---
+  ok('the board-action row carries the third tab (import)', /id="action-import"/.test(html) &&
+    /actionImport: document\.getElementById\('action-import'\)/.test(app));
+  ok('the hidden import input exists with a json accept (the mechanism, not a control)',
+    /<input type="file" id="import-file" accept="\.json,application\/json" hidden>/.test(html));
+  ok('the import mark is the export mark read the other way (down into the tray)',
+    /import:\s+MARK\(16, '<path d="M8 9\.5V1\.5M5 6\.5L8 9\.5 11 6\.5"\/><path d="M2 12\.5h12"\/>'\)/.test(app));
+  ok('Export opens the PDF · JSON choice, leaves anchored at the tab',
+    /actionExport\.addEventListener\('click'[\s\S]*?buildMenu\(/.test(app) &&
+    /COPY\.exportPdf/.test(app) && /COPY\.exportJson/.test(app));
+  ok('each export leaf commits; the choice itself runs raw (B81)',
+    /action: \(\) => commitAction\(\(\) => exportBoardPdf\(current\)\)/.test(app) &&
+    /action: \(\) => commitAction\(exportAllJson\)/.test(app));
+  ok('exportAllJson flushes the debounce and backs up every board under the app tag',
+    /async function exportAllJson/.test(app) && /flushSave\(\);\s*\n\s*const boards = await idbGetAll\(\)/.test(app) &&
+    /app: 'the-boards'/.test(app) && /boards-backup-/.test(app));
+  ok('import is a merge: overwrite by id, add new (the owner\'s ruling)',
+    /async function importBoardsJson/.test(app) && /normalizeImportedBoard/.test(app));
+  ok('import sweeps husks at the door and rejects files that are not the app\'s shape',
+    /payload\.app !== 'the-boards'/.test(app) && /IMPORT_CATS/.test(app));
+  ok('the anchor menu is retired: openMenuFor answers notes alone',
+    /HAS_MENU = new Set\(\['note'\]\)/.test(app) &&
+    !/if \(target\.type !== 'anchor'\) return;\s*\n\s*buildMenu/.test(app));
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));

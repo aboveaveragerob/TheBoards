@@ -13,6 +13,7 @@
      9. Complete / restore / delete + Undo toast (PRD §6.4/§6.6, UIUX §9)
     10. Long-press menu (UIUX §7)
     10.5 PDF export (issue #43)
+    10.6 JSON backup: export all, import merged (issue #140, B92)
     11. Board list + routing (PRD §6.7, UIUX §10)
     12. Boot + service worker
    ========================================================================== */
@@ -109,12 +110,20 @@ const COPY = {
   linkHintTap: 'Tap another note to link',
   linkHintClick: 'Click another note to link',
   linked: 'Linked', unlinked: 'Unlinked',
-  // One word, no ellipsis, no object noun — the menu's existing grammar. There
-  // is exactly one export, so "to what?" has one answer; the day a second
-  // format exists this has to become a submenu with PDF as the leaf.
+  // Export is a CHOICE since issue #140 / B92 — the tab opens PDF · JSON — so
+  // the old "there is exactly one export" argument is retired with the anchor
+  // menu that carried it. The leaves keep the menu's one-word grammar: PDF is
+  // the sheet the board-card menu shares, JSON is the whole-library backup.
   export: 'Export',
+  exportPdf: 'PDF',
+  exportJson: 'JSON',
   exportError: 'Couldn’t export.',
   exportLossy: 'Some characters aren’t in the PDF font.',
+  // Import (issue #140 / B92): the third board-level tab. The file dialog it
+  // opens is the hidden input's mechanism; these words state the act.
+  import: 'Import',
+  importError: 'Couldn’t import that file.',
+  imported: 'Boards imported',
   saveError: 'Couldn’t save — retrying.',
   untitled: 'What’s up?',
   // "Last Updated" on every board card (issue #125 / B82): read from the record's
@@ -155,6 +164,11 @@ const GLYPH = {
   restore:  MARK(16, '<path d="M1.5 2.5v4h4"/><path d="M2.3 10a6 6 0 1 0 1.4-6.2L1.5 6.5"/>'),
   boards:   MARK(16, '<rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M8 1.5V14.5M1.5 8H14.5"/>'),
   export:   MARK(16, '<path d="M8 1.5V9M5 6.5L8 9.5 11 6.5"/><path d="M2 12.5h12"/>'),
+  // Import (issue #140 / B92): the export mark read the other way — the arrow
+  // comes DOWN INTO the tray. Same voice, same hand, so the pair reads as one
+  // family pointing opposite directions, and the import tab is never mistaken
+  // for a second export.
+  import:   MARK(16, '<path d="M8 9.5V1.5M5 6.5L8 9.5 11 6.5"/><path d="M2 12.5h12"/>'),
   copy:     MARK(16, '<path d="M3 10.5V3.5a2 2 0 0 1 2-2h7"/><rect x="5.5" y="5.5" width="9" height="9" rx="2"/>'),
   // A marker pen laid over its stroke (issue #105): the broad nib at top-right,
   // the drawn line it leaves below — "colour is laid onto this", in the board's
@@ -283,7 +297,9 @@ const el = {
   paneCards: document.getElementById('pane-cards'),
   boardActions: document.getElementById('board-actions'),   // the board-action row (B83)
   actionBoards: document.getElementById('action-boards'),   // All Boards ⇄ This board toggle
-  actionExport: document.getElementById('action-export'),   // Export this board
+  actionExport: document.getElementById('action-export'),   // Export this board (PDF · JSON, B92)
+  actionImport: document.getElementById('action-import'),   // Import a JSON backup (issue #140, B92)
+  importFile: document.getElementById('import-file'),       // the import tab's file dialog
 };
 const anchorEls = {
   title: document.getElementById('anchor-title'),
@@ -1034,7 +1050,7 @@ let swallowTap = false;              // the pointerdown that dismissed a menu is
    bare canvas and the lot background — carry no menu: they have no item to act
    on, so no timer is armed and the press stays a pending tap (hold as long as
    you like on empty paper and the release still captures a note; B5). */
-const HAS_MENU = new Set(['anchor', 'note']);
+const HAS_MENU = new Set(['note']);   // anchors lost theirs to B92 (issue #140)
 
 function classifyTarget(target) {
   // Selection chrome first: action buttons (notes and lot rows share .sel-btn),
@@ -2263,32 +2279,27 @@ let menuOpen = false, menuKeyHandler = null, menuOutsideHandler = null;
 let menuInvoker = null;              // desktop contextmenu: focus returns here on close
 let menuReturnFocus = false;         // true only inside closeMenu's synchronous focus return
 
-/* Two menus open here now (B84 + B91): the board's own (on an anchor — All
-   boards · Export, issue #43, so the board you're looking at exports directly),
-   and a note's single Link item (issue #142) — the lot still has none. All items
-   are non-destructive, so no separator — same rule as everywhere else. */
+/* One menu opens here now (B91): a note's single Link item. The anchor's own
+   menu (All boards · Export) is gone (issue #140, B92) — both of its actions
+   had long since been declared on the board-action row (B83), and the row is
+   now the only route to them: a hidden menu whose every item sits on a visible
+   tab one gesture away is chrome without a job. The lot still has none. All
+   items are non-destructive, so no separator — same rule as everywhere else. */
 function openMenuFor(target, clientX, clientY) {
-  if (target.type === 'note') {
-    // A note's one relational action (issue #142, B91): Link arms link mode, then
-    // the next note tapped is connected (handleTap's linkSource branch). beginLink
-    // runs inside buildMenu's commitAction wrapper — arming is idempotent, fine.
-    const id = target.node.dataset.id;
-    buildMenu([{ label: COPY.link, glyph: GLYPH.link, action: () => beginLink(id), raw: true }], clientX, clientY);
-    return;
-  }
-  if (target.type !== 'anchor') return;   // lot / canvas have nothing to open here
-  buildMenu([
-    { label: COPY.boards, glyph: GLYPH.boards, action: goToList },
-    { label: COPY.export, glyph: GLYPH.export, action: () => exportBoardPdf(current) },
-  ], clientX, clientY);
+  if (target.type !== 'note') return;   // anchors lost their menu (B92); lot / canvas have none
+  // A note's one relational action (issue #142, B91): Link arms link mode, then
+  // the next note tapped is connected (handleTap's linkSource branch). beginLink
+  // runs inside buildMenu's commitAction wrapper — arming is idempotent, fine.
+  const id = target.node.dataset.id;
+  buildMenu([{ label: COPY.link, glyph: GLYPH.link, action: () => beginLink(id), raw: true }], clientX, clientY);
 }
 
-/* The board-action row (issue #126, B83): the two board-level actions the
-   anchor menu carries — All boards and Export — declared as flat tabs above the
-   Parking Lot instead of hidden behind a gesture. This is the door B65 opened
-   with the `Menu` handle, re-homed onto controls that state their own act.
-   Long-press and right-click still open the anchor menu; only the handle is
-   gone. */
+/* The board-action row (issue #126, B83; three tabs since issue #140, B92): the
+   board-level actions declared as flat tabs above the Parking Lot instead of
+   hidden behind a gesture. This is the door B65 opened with the `Menu` handle,
+   re-homed onto controls that state their own act. The anchor long-press /
+   right-click menu is gone entirely (B92): every item it carried sits on a
+   visible tab, so the hidden route was chrome without a job. */
 
 /* Fill a tab with its drawn mark (UIUX §13.3) and label. Built once at boot;
    the toggle only restates its label text afterwards (syncBoardActions). */
@@ -2300,6 +2311,7 @@ function fillBoardAction(btn, glyph, label) {
 }
 fillBoardAction(el.actionBoards, GLYPH.boards, COPY.boards);
 fillBoardAction(el.actionExport, GLYPH.export, COPY.export);
+fillBoardAction(el.actionImport, GLYPH.import, COPY.import);
 
 /* The toggle wears the act it will perform (B43/B71's grammar, not a fixed
    noun): on the board it offers All boards; while the All-Boards surface is up
@@ -2320,10 +2332,38 @@ el.actionBoards.addEventListener('click', () => {
   if (listOpen || lotMenuOpen) returnToBoard();
   else goToList();
 });
-/* Export DOES commit — a file leaves the device — so it takes commitAction's
-   drop-guard, the same guard the anchor menu's Export item runs under. It reads
-   `current`, exactly the anchor-menu call site (issue #43). */
-el.actionExport.addEventListener('click', () => commitAction(() => exportBoardPdf(current)));
+/* Export is now a CHOICE (issue #140, B92): the tab opens the app's one menu
+   species — buildMenu, the same popup the note's Link item wears, anchored at
+   the pressed tab — with PDF · JSON as its two leaves. The choice itself is
+   navigation ("to what?"), so it runs raw; each LEAF commits (a file leaves
+   the device) and takes the drop-guard itself, exactly where the anchor menu's
+   Export item and the old tab used to hold it (B81). PDF reads `current`, the
+   one board you're looking at (issue #43); JSON backs up every board.
+   Anchored at the button, not the pointer: the menu is the tab's own next
+   state, not a context menu that happens to be nearby. */
+el.actionExport.addEventListener('click', (e) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  buildMenu([
+    { label: COPY.exportPdf, glyph: GLYPH.export, action: () => commitAction(() => exportBoardPdf(current)) },
+    { label: COPY.exportJson, glyph: GLYPH.boards, action: () => commitAction(exportAllJson) },
+  ], r.left, r.bottom);
+});
+/* Import commits too — boards can be overwritten — so its one step (opening
+   the file dialog) runs under the same drop-guard. The dialog itself is the
+   hidden input's mechanism (issue #140): the visible control is the tab, the
+   platform's own picker does the choosing, and nothing is named twice. The
+   input is reset before each open so picking the SAME file twice still fires
+   change — a browser fires it only when the value changes. */
+el.actionImport.addEventListener('click', () => {
+  commitAction(() => {
+    el.importFile.value = '';
+    el.importFile.click();
+  });
+});
+el.importFile.addEventListener('change', () => {
+  const file = el.importFile.files && el.importFile.files[0];
+  if (file) importBoardsJson(file);
+});
 
 /* The tabs are focusable things inside #board, and the desktop keyboard grammar
    (Enter edits the selection, Delete destroys it) listens on document and keys
@@ -3124,6 +3164,144 @@ async function exportBoardPdf(board) {
   } catch (e) {
     showNotice(COPY.exportError, 'export', UNDO_MS);
   }
+}
+
+/* --- 10.6 JSON backup: export all, import merged (issue #140, B92) -------- */
+
+/* The whole library leaves as one file. PDF is a sheet ABOUT a board; JSON is
+   the board itself, so this is full fidelity: links (B91) ride along, nothing
+   is projected onto paper, nothing is swept. flushSave() first — saves are
+   debounced by SAVE_DEBOUNCE, so idbGetAll() alone could read the open board
+   some keystrokes stale (the same staleness exportBoardPdf's `current` rule
+   answers, one board wide). The stamp lands only if an edit is pending, so
+   exporting does not reorder the list (B69's law, flushSave's own reading). */
+async function exportAllJson() {
+  try {
+    flushSave();
+    const boards = await idbGetAll();
+    const payload = {
+      app: 'the-boards',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      boards,
+    };
+    const d = new Date();
+    const pad = (n) => (n < 10 ? '0' : '') + n;
+    const stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    downloadBlob(new Blob([JSON.stringify(payload)], { type: 'application/json' }),
+      'boards-backup-' + stamp + '.json');
+  } catch (e) {
+    showNotice(COPY.exportError, 'export', UNDO_MS);
+  }
+}
+
+/* What a backup file may name as a board category. Anything else reads as the
+   read-site default (B21/B67: 'unsorted') — a file from a future version with
+   a fifth category must still import, landing where the list already files
+   unknown cats, rather than being rejected wholesale. */
+const IMPORT_CATS = new Set(['todo', 'idea', 'unsorted', 'learning']);
+
+/* One imported board, normalized to this app's record shape. Every field is
+   coerced, not trusted: a backup is data that has been OUT of the device, and
+   the import must not hand a hostile or hand-edited file a live record. ids
+   are re-stamped when absent or not strings, notes/lots/links are rebuilt
+   field-by-field, and whitespace husks are swept HERE (the B8/B31 choke that
+   renderBoard would otherwise apply on first sight — swept at the door, they
+   never enter storage at all). Returns null for a board with no surviving
+   content — an empty shell has nothing to restore. */
+function normalizeImportedBoard(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const now = Date.now();
+  const text = (v) => (typeof v === 'string' ? v : '');
+  const keep = (r) => r.text.trim().length > 0;
+  const notes = (Array.isArray(raw.notes) ? raw.notes : [])
+    .map((n) => (n && typeof n === 'object') ? {
+      id: typeof n.id === 'string' && n.id ? n.id : uuid(),
+      text: text(n.text).trimEnd(),
+      x: Number.isFinite(n.x) ? n.x : 0,
+      y: Number.isFinite(n.y) ? n.y : 0,
+      rw: Number.isFinite(n.rw) ? n.rw : LOGICAL_W,
+      rh: Number.isFinite(n.rh) ? n.rh : LOGICAL_H,
+      scale: Number.isFinite(n.scale) && n.scale > 0 ? n.scale : 1.0,
+      state: n.state === 'complete' ? 'complete' : 'active',
+      highlighted: n.highlighted === true,
+    } : null)
+    .filter((n) => n && keep(n));
+  const parkingLot = (Array.isArray(raw.parkingLot) ? raw.parkingLot : [])
+    .map((r) => (r && typeof r === 'object') ? {
+      id: typeof r.id === 'string' && r.id ? r.id : uuid(),
+      text: text(r.text).trimEnd(),
+      state: r.state === 'complete' ? 'complete' : 'active',
+    } : null)
+    .filter((r) => r && keep(r));
+  if (!notes.length && !parkingLot.length &&
+      !text(raw.title).trim() && !text(raw.requirements).trim() && !text(raw.components).trim()) {
+    return null;                       // nothing survived; nothing to restore
+  }
+  const noteIds = new Set(notes.map((n) => n.id));
+  const links = (Array.isArray(raw.links) ? raw.links : [])
+    .filter((l) => l && typeof l === 'object' &&
+      typeof l.a === 'string' && typeof l.b === 'string' &&
+      noteIds.has(l.a) && noteIds.has(l.b) && l.a !== l.b)
+    .map((l) => ({ id: typeof l.id === 'string' && l.id ? l.id : uuid(), a: l.a, b: l.b }));
+  const createdAt = Number.isFinite(raw.createdAt) ? raw.createdAt : now;
+  return {
+    id: typeof raw.id === 'string' && raw.id ? raw.id : uuid(),
+    createdAt,
+    updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt : createdAt,
+    category: IMPORT_CATS.has(raw.category) ? raw.category : 'unsorted',
+    title: text(raw.title),
+    requirements: text(raw.requirements),
+    components: text(raw.components),
+    notes,
+    parkingLot,
+    links,
+  };
+}
+
+/* Merge-import (the owner's ruling, issue #140): a board whose id already
+   exists is OVERWRITTEN by the file's copy; new ids are ADDED. A backup-
+   restore in miniature — the file's board is the truth for that id, the
+   device keeps every board the file never mentions. Everything lands in
+   storage first; only then does the visible surface re-read. If the open
+   board was overwritten, renderBoard draws the file's copy; if it was not
+   touched, current is still authoritative and nothing about it changes. */
+async function importBoardsJson(file) {
+  let payload;
+  try {
+    payload = JSON.parse(await file.text());
+  } catch (e) {
+    showNotice(COPY.importError, 'import', UNDO_MS);
+    return;
+  }
+  if (!payload || typeof payload !== 'object' || payload.app !== 'the-boards' ||
+      !Array.isArray(payload.boards)) {
+    showNotice(COPY.importError, 'import', UNDO_MS);
+    return;
+  }
+  const incoming = payload.boards
+    .map(normalizeImportedBoard)
+    .filter(Boolean);
+  if (!incoming.length) {
+    showNotice(COPY.importError, 'import', UNDO_MS);
+    return;
+  }
+  flushSave();                          // the debounce must not write over the import
+  let overwrittenCurrent = false;
+  for (const rec of incoming) {
+    await idbPut(rec);
+    if (current && rec.id === current.id) {
+      current = rec;                    // the open board's new self is the file's copy
+      overwrittenCurrent = true;
+    }
+  }
+  if (overwrittenCurrent) {
+    dirty = false;                      // current was replaced wholesale, exactly ensureCurrentValid's reading
+    renderBoard();
+  }
+  if (listOpen) await renderListSurface();
+  else if (isDesktop) renderPane();     // the rail re-reads; the sheet is already right
+  showNotice(COPY.imported, 'import', UNDO_MS);
 }
 
 /* --- 11. Board list + routing -------------------------------------------- */

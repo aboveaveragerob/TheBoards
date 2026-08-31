@@ -1,5 +1,7 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const URL = process.env.BOARDS_URL || 'http://localhost:8000/index.html';
 // Point at a specific Chromium with CHROMIUM_PATH; otherwise Playwright's own.
 const launchOpts = process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {};
@@ -1319,6 +1321,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       const hit = parseFloat(getComputedStyle(row).getPropertyValue('--hit')) || 0;
       const collar = getComputedStyle(btns[0], '::before');
       const boards = btns[0].getBoundingClientRect(), exp = btns[1].getBoundingClientRect();
+      const imp = btns[2].getBoundingClientRect();
       return {
         gone: document.querySelector('#title-menu') === null,
         shown: getComputedStyle(row).display !== 'none',
@@ -1326,31 +1329,47 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
         collarTop: collar.top, collarBottom: collar.bottom,
         boards: { x: boards.x + boards.width / 2, y: boards.y + boards.height / 2, w: boards.width, h: boards.height },
         exp: { x: exp.x + exp.width / 2, y: exp.y + exp.height / 2, w: exp.width, h: exp.height },
+        imp: { x: imp.x + imp.width / 2, y: imp.y + imp.height / 2, w: imp.width, h: imp.height },
       };
     });
     ok('the row is drawn on desktop and the #title-menu handle is gone',
        geo.shown && geo.gone, JSON.stringify([geo.shown, geo.gone]));
-    ok('two tabs: All boards, Export', geo.labels.length === 2 &&
-       /All boards/.test(geo.labels[0]) && /Export/.test(geo.labels[1]), JSON.stringify(geo.labels));
+    ok('three tabs: All boards, Export, Import (issue #140, B92)',
+       geo.labels.length === 3 &&
+       /All boards/.test(geo.labels[0]) && /Export/.test(geo.labels[1]) &&
+       /Import/.test(geo.labels[2]), JSON.stringify(geo.labels));
     // B23's 24px pointer floor, measured in PHYSICAL px — the collar is what
     // makes it hold at the board's renderScale (width stands on its own).
-    ok('both tabs clear the 24px desktop floor (B23)',
-       geo.boards.w >= 24 && geo.exp.w >= 24 &&
-       geo.boards.h + 2 * geo.hit * geo.rs >= 24 && geo.exp.h + 2 * geo.hit * geo.rs >= 24,
-       JSON.stringify([geo.boards.w, geo.boards.h + 2 * geo.hit * geo.rs, geo.hit, geo.rs]));
+    ok('all three tabs clear the 24px desktop floor (B23)',
+       geo.boards.w >= 24 && geo.exp.w >= 24 && geo.imp.w >= 24 &&
+       geo.boards.h + 2 * geo.hit * geo.rs >= 24 && geo.exp.h + 2 * geo.hit * geo.rs >= 24 &&
+       geo.imp.h + 2 * geo.hit * geo.rs >= 24,
+       JSON.stringify([geo.boards.w, geo.exp.w, geo.imp.w, geo.hit, geo.rs]));
     ok('the collar reaches up, never down into the lot',
        geo.collarBottom === '0px' && parseFloat(geo.collarTop) <= 0,
        JSON.stringify([geo.collarTop, geo.collarBottom]));
 
-    // Export commits straight from the tab (issue #43); the recognizer never
-    // sees the click, so no note lands under it.
+    // Export is now a choice (B92): the tab opens the PDF · JSON menu anchored
+    // at the tab; the PDF leaf commits — a file leaves the device. The
+    // recognizer never sees any of these clicks, so no note lands under them.
     const before = await noteCount(page);
+    await page.mouse.click(geo.exp.x, geo.exp.y);
+    await page.waitForTimeout(250);
+    const choice = await page.evaluate(() =>
+      [...document.querySelectorAll('#menu button')].map(b => b.textContent));
+    ok('the Export tab opened the PDF · JSON choice menu (B92)',
+       choice.length === 2 && /PDF/.test(choice[0]) && /JSON/.test(choice[1]), JSON.stringify(choice));
+    const pdfBtn = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')].find(x => /PDF/.test(x.textContent));
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
     const [dl] = await Promise.all([
       page.waitForEvent('download'),
-      page.mouse.click(geo.exp.x, geo.exp.y),
+      page.mouse.click(pdfBtn.x, pdfBtn.y),
     ]);
     const s = fs.readFileSync(await dl.path()).toString('latin1');
-    ok('the Export tab produced a PDF', s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
+    ok('the choice menu PDF leaf produced a PDF', s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
     ok('and created no note under it', (await noteCount(page)) === before);
 
     // All boards raises the picker overlay (the desktop All-Boards surface, B74).
@@ -1366,9 +1385,9 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
        await page.evaluate(() => document.querySelector('#list-view').hidden === true &&
          /All boards/.test(document.querySelector('#action-boards .label').textContent)));
 
-    // Right-click on a note now opens its Link menu (B91): the note's relational
-    // action. Its STATE actions (Complete/Highlight/Copy/Delete) stay on the
-    // note's own toolbar (B84). Escape dismisses it before the guard case below.
+    // Right-click on a note opens its Link menu (B91) — the ONLY menu a
+    // right-click can still open on the board (B92): an anchor, the canvas, or
+    // the lot keeps the browser's own menu / opens nothing.
     await page.mouse.click(900, 600);
     await page.waitForTimeout(500);
     await page.keyboard.type('RIGHTCLICKPATH');
@@ -1384,6 +1403,17 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(150);
     ok('Escape dismisses the Link menu', await page.evaluate(() =>
        document.querySelector('#menu').hidden !== false && linkSource === null));
+    // The anchor route is gone (B92): a right-click on the title anchor must
+    // NOT open the app menu — the browser's own menu shows instead. (The rail's
+    // board-card menu, B24, is a different element and stays.)
+    const anchorPt = await page.evaluate(() => {
+      const r = document.querySelector('#anchor-title').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await page.mouse.click(anchorPt.x, anchorPt.y, { button: 'right' });
+    await page.waitForTimeout(200);
+    ok('right-click on the title anchor opens no app menu (B92)',
+       await page.evaluate(() => document.querySelector('#menu').hidden !== false));
 
     // The tabs are focusable inside #board, so their keys must not reach the
     // desktop grammar underneath: Delete there destroys the selection (B83's
@@ -1425,6 +1455,115 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('Enter on a focused tab does not edit the selected note underneath',
        await page.evaluate(() => !document.activeElement ||
          !document.activeElement.classList.contains('note-text')));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- D21b. JSON backup: full-fidelity export, merge-import, bad file -----
+  // (issue #140, B92) Export writes every board under the app tag — links ride
+  // along. Import merges: a board whose id exists is overwritten by the file's
+  // copy, new ids are added, boards the file never mentions survive. A file
+  // that is not the app's shape writes nothing and says so.
+  console.log('\n[D21b] JSON backup round-trip (issue #140, B92)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    // Fixture: the open board stays as-is; a second board carries a note pair
+    // joined by a link (B91's relational plane must survive the round trip).
+    await page.evaluate(async () => {
+      const b = newBoardRecord();
+      b.title = 'BACKUPME';
+      const n1 = { id: 'bn1', text: 'first', x: 10, y: 10, rw: 900, rh: 1000, scale: 1, state: 'active', highlighted: false };
+      const n2 = { id: 'bn2', text: 'second', x: 10, y: 80, rw: 900, rh: 1000, scale: 1, state: 'active', highlighted: false };
+      b.notes = [n1, n2];
+      b.links = [{ id: 'bl1', a: 'bn1', b: 'bn2' }];
+      await idbPut(b);
+      renderPane();
+    });
+    await page.waitForTimeout(300);
+
+    // Export the whole library through the Export tab's JSON leaf.
+    const expBtn = await page.evaluate(() => {
+      const r = document.querySelector('#action-export').getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await page.mouse.click(expBtn.x, expBtn.y);
+    await page.waitForTimeout(250);
+    const jsonBtn = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')].find(x => /JSON/.test(x.textContent));
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.mouse.click(jsonBtn.x, jsonBtn.y),
+    ]);
+    ok('the JSON leaf names a dated backup file',
+       /^boards-backup-\d{4}-\d{2}-\d{2}\.json$/.test(dl.suggestedFilename()), dl.suggestedFilename());
+    const backup = JSON.parse(fs.readFileSync(await dl.path()).toString('utf8'));
+    ok('the payload is the app\'s shape, version 1', backup.app === 'the-boards' && backup.version === 1);
+    ok('every board rode along', Array.isArray(backup.boards) &&
+       backup.boards.some(b => b.title === 'BACKUPME'), String(backup.boards.length));
+    const backedUp = backup.boards.find(b => b.title === 'BACKUPME');
+    ok('notes AND links ride along at full fidelity (B91 survives the trip)',
+       backedUp && backedUp.notes.length === 2 && backedUp.links.length === 1 &&
+       backedUp.links[0].a === 'bn1' && backedUp.links[0].b === 'bn2',
+       JSON.stringify(backedUp && { n: backedUp.notes.length, l: backedUp.links.length }));
+
+    // Merge-import: edit the file's copy of BACKUPME (proves overwrite-by-id)
+    // and add a third board (proves add-new), then import through the tab.
+    const countBefore = backup.boards.length;
+    backedUp.title = 'IMPORTED TITLE';
+    backup.boards.push({
+      id: 'imported-board-c', createdAt: 1, updatedAt: 1, category: 'learning',
+      title: 'FRESH ARRIVAL', requirements: '', components: '',
+      notes: [{ id: 'cn1', text: 'from file', x: 5, y: 5, rw: 900, rh: 1000, scale: 1, state: 'active', highlighted: false }],
+      parkingLot: [], links: [],
+    });
+    const importPath = path.join(os.tmpdir(), 'boards-import-test.json');
+    fs.writeFileSync(importPath, JSON.stringify(backup));
+    await page.setInputFiles('#import-file', importPath);
+    await page.waitForTimeout(500);
+    ok('import shows its notice', await page.evaluate(() => {
+      const t = document.querySelector('#toast');
+      return t.classList.contains('show') && /Boards imported/.test(t.textContent);
+    }));
+    const after = await page.evaluate(async () => {
+      const all = await idbGetAll();
+      return {
+        count: all.length,
+        overwritten: all.find(b => b.id === (all.find(x => x.notes.some(n => n.id === 'bn1')) || {}).id),
+        fresh: all.find(b => b.id === 'imported-board-c'),
+      };
+    });
+    ok('a new board was added', !!after.fresh && after.fresh.title === 'FRESH ARRIVAL' &&
+       after.fresh.category === 'learning', JSON.stringify(after.fresh || {}));
+    ok('the same-id board was overwritten by the file\'s copy',
+       !!after.overwritten && after.overwritten.title === 'IMPORTED TITLE' &&
+       after.overwritten.notes.length === 2 && after.overwritten.links.length === 1,
+       JSON.stringify(after.overwritten && after.overwritten.title));
+    ok('the merge is exact: nothing lost, nothing duplicated', after.count === countBefore + 1,
+       String(after.count) + ' vs ' + countBefore);
+
+    // A file that is not the app's shape writes nothing and says so.
+    const badPath = path.join(os.tmpdir(), 'boards-import-bad.json');
+    fs.writeFileSync(badPath, '{ this is not json');
+    await page.setInputFiles('#import-file', badPath);
+    await page.waitForTimeout(400);
+    const badCount = await page.evaluate(async () => (await idbGetAll()).length);
+    ok('a malformed file shows the error and writes nothing',
+       (await page.evaluate(() => {
+         const t = document.querySelector('#toast');
+         return t.classList.contains('show') && /Couldn.t import/.test(t.textContent);
+       })) && badCount === countBefore + 1, 'count=' + badCount);
+    const wrongApp = path.join(os.tmpdir(), 'boards-import-other.json');
+    fs.writeFileSync(wrongApp, JSON.stringify({ app: 'something-else', boards: [{ id: 'x' }] }));
+    await page.setInputFiles('#import-file', wrongApp);
+    await page.waitForTimeout(400);
+    ok('a foreign app\'s backup is rejected', await page.evaluate(async (expected) => {
+      const all = await idbGetAll();
+      return all.length === expected && !all.some(b => b.id === 'x');
+    }, countBefore + 1));
+
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
