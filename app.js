@@ -101,6 +101,14 @@ const COPY = {
   highlightAll: 'Highlight all', unhighlightAll: 'Remove highlights',
   deleted: 'Deleted', undo: 'Undo',
   copy: 'Copy', copied: 'Copied', copyError: 'Couldn’t copy.',
+  // Note linking (issue #142, B91): a relationship the user asserts between two
+  // notes by connecting them — long-press/right-click a note → Link → the next
+  // note tapped. The hint states the act while the mode is armed; linked/unlinked
+  // caption the 5s undo toast (re-linking an already-linked pair removes it).
+  link: 'Link',
+  linkHintTap: 'Tap another note to link',
+  linkHintClick: 'Click another note to link',
+  linked: 'Linked', unlinked: 'Unlinked',
   // One word, no ellipsis, no object noun — the menu's existing grammar. There
   // is exactly one export, so "to what?" has one answer; the day a second
   // format exists this has to become a submenu with PDF as the leaf.
@@ -152,6 +160,9 @@ const GLYPH = {
   // the drawn line it leaves below — "colour is laid onto this", in the board's
   // own hand. Redrawn, not code-point-swapped, if it fails to read at 16px.
   highlight: MARK(16, '<path d="M9.5 2.5l4 4-6 6-4 1 1-4z"/><path d="M2 14.5h6"/>'),
+  // Two nodes joined by a line (issue #142, B91): the mark IS the thing it makes —
+  // a connection between two notes, no arrowhead, in the board's own hand.
+  link:     MARK(16, '<circle cx="4" cy="12" r="1.6"/><circle cx="12" cy="4" r="1.6"/><path d="M5.3 10.7l5.4-5.4"/>'),
   delete:   MARK(16, '<path d="M2 4.5h12M5.5 4.5V3a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 10.5 3v1.5M3.8 4.5l.6 8.6a1.5 1.5 0 0 0 1.5 1.4h4.2a1.5 1.5 0 0 0 1.5-1.4l.6-8.6"/>'),
   pageFirst: MARK(14, '<path d="M12.5 2.5L7 8l5.5 5.5"/><path d="M8 2.5L2.5 8 8 13.5"/>'),
   pagePrev:  MARK(14, '<path d="M10 2.5L4.5 8 10 13.5"/>'),
@@ -291,7 +302,7 @@ const anchorEls = {
 function newBoardRecord() {
   const now = Date.now();
   return { id: uuid(), createdAt: now, updatedAt: now, category: 'todo',
-           title: '', requirements: '', components: '', notes: [], parkingLot: [] };
+           title: '', requirements: '', components: '', notes: [], parkingLot: [], links: [] };
 }
 
 // Single-flight persist with exponential backoff; capture is never blocked.
@@ -395,6 +406,7 @@ function applyLayout() {
     }
   });
   if (selected) updateSelectionUI();
+  updateLinks();                     // links ride the notes' new geometry (B91)
   // Capacity check (issue #58, replacing the #pane-more overflow check B42
   // supersedes): the per-page card budget is measured from the surface's
   // height, so a resize that changes it must re-render — and re-paginate.
@@ -667,7 +679,9 @@ function sanitizeBoard(board) {
   const n = board.notes.length, l = board.parkingLot.length;
   board.notes = board.notes.filter(keep);
   board.parkingLot = board.parkingLot.filter(keep);
-  return board.notes.length !== n || board.parkingLot.length !== l;
+  // A note swept here (an empty husk) takes its links with it (issue #142, B91).
+  const linksChanged = pruneLinks(board);
+  return board.notes.length !== n || board.parkingLot.length !== l || linksChanged;
 }
 
 /* The ladder rotates with the board type (issue #96 / B67). This attribute is
@@ -878,23 +892,149 @@ function applyCompleteA11y(node, complete) {
   }
 }
 
+/* --- 6.6 Note links (issue #142, B91) ------------------------------------
+   A relationship the user ASSERTS between two notes — the board's first
+   inter-note structure, resolved against "relationships asserted not inferred"
+   (PRD §1). Stored per board as unordered {id,a,b} pairs; drawn as a 1px
+   --frame SVG line between the two notes' centres, BELOW the notes (the layer
+   is pointer-events:none, so it never intercepts a tap). Long-press (mobile) or
+   right-click (desktop) a note → Link → the next note tapped is connected; a tap
+   on an already-linked note removes that link (toggle, B91). Deleting a note
+   removes its links, and note-undo restores them (deleteNotes). */
+
+// The source note while a link is being armed (its id, or null). Modeled on the
+// mobile `engaged` idiom (B90): a single-id transient mode, cleared on resolve,
+// cancel, a drag, Escape, and any selection change / board swap (clearSelection).
+let linkSource = null;
+
+const boardLinks = () => (current && current.links) || [];   // B21 read-default for legacy boards
+const findLink = (a, b) =>
+  boardLinks().find(l => (l.a === a && l.b === b) || (l.a === b && l.b === a));
+
+/* Create the link, or remove it if the pair is already linked (B91 toggle-to-
+   unlink). A committing consequence — the caller wraps it in commitAction so a
+   double-tap can't double-fire — and either direction offers a 5s Undo, the
+   app's one reversal idiom (UIUX §9). The Undo closures read current.links
+   directly, exactly as deleteNotes reads current.notes (same board-binding). */
+function toggleLink(a, b) {
+  if (!current || a === b) return;
+  if (!current.links) current.links = [];
+  const existing = findLink(a, b);
+  if (existing) {
+    current.links = current.links.filter(l => l !== existing);
+    saveNow(); updateLinks();
+    showUndo(() => { current.links.push(existing); saveNow(); updateLinks(); }, 'item', COPY.unlinked);
+  } else {
+    const link = { id: uuid(), a, b };
+    current.links.push(link);
+    saveNow(); updateLinks();
+    showUndo(() => { current.links = boardLinks().filter(l => l.id !== link.id); saveNow(); updateLinks(); }, 'item', COPY.linked);
+  }
+}
+
+// Drop links referencing an id (a deleted note); returns the removed links so a
+// caller's Undo can restore them (exact prior state, UIUX §9).
+function removeLinksForNote(id) {
+  if (!current || !current.links || !current.links.length) return [];
+  const removed = current.links.filter(l => l.a === id || l.b === id);
+  if (removed.length) current.links = current.links.filter(l => l.a !== id && l.b !== id);
+  return removed;
+}
+
+// Drop links whose endpoints no longer exist (a swept husk, B31/B8). Called from
+// sanitizeBoard; returns whether anything changed so the board re-saves.
+function pruneLinks(board) {
+  if (!board.links || !board.links.length) return false;
+  const ids = new Set(board.notes.map(n => n.id));
+  const before = board.links.length;
+  board.links = board.links.filter(l => ids.has(l.a) && ids.has(l.b));
+  return board.links.length !== before;
+}
+
+/* Arming the mode is navigation — it commits nothing a stray tap could
+   duplicate (B81) — so it runs raw (and, from a menu item, is already inside
+   commitAction). A persistent hint states the act; clearLink retracts it. */
+function beginLink(id) {
+  linkSource = id;
+  showNotice(isDesktop ? COPY.linkHintClick : COPY.linkHintTap, 'link');
+}
+function clearLink() {
+  if (linkSource === null) return;
+  linkSource = null;
+  if (el.toast.dataset.mode === 'link') hideToast();
+}
+
+/* The link layer: one <svg> in board space, a sibling of the notes like
+   #selection, so it rides #board's translate+scale and needs no screen-space
+   math. pointer-events:none (CSS) — hit-testing is target.closest()-based, so a
+   hittable line would steal note taps. z-index:1 (CSS): below the z:2 notes, and
+   — appended after the static furniture — above the z:1 furniture, the valid-
+   integer realization of the issue's "z-index: 1.5" (B91). */
+const SVGNS = 'http://www.w3.org/2000/svg';
+let linkLayer = null;
+const linkLineEls = new Map();       // link.id -> <line>
+function ensureLinkLayer() {
+  if (linkLayer) return;
+  linkLayer = document.createElementNS(SVGNS, 'svg');
+  linkLayer.id = 'link-layer';
+  linkLayer.setAttribute('aria-hidden', 'true');
+  el.board.appendChild(linkLayer);
+}
+// A note's centre in current board-logical px — the same math updateSelectionUI
+// uses (renderX + offsetWidth·effScale/2), read from the live DOM node.
+function noteCenter(note, node) {
+  return { x: renderX(note) + node.offsetWidth * effScale(note) / 2,
+           y: renderY(note) + node.offsetHeight * effScale(note) / 2 };
+}
+/* Redraw every link line from the notes' current geometry. Called from every
+   site that moves a note (applyLayout, the drag/pinch/resize tails) and after
+   any link add/remove. A missing endpoint is skipped, not drawn — dangling-safe
+   until sanitizeBoard prunes it. Cheap no-op on a board that has never linked. */
+function updateLinks() {
+  const links = boardLinks();
+  if (!links.length && !linkLayer) return;
+  ensureLinkLayer();
+  const live = new Set();
+  for (const link of links) {
+    const na = current.notes.find(n => n.id === link.a);
+    const nb = current.notes.find(n => n.id === link.b);
+    const ea = noteEls.get(link.a), eb = noteEls.get(link.b);
+    if (!na || !nb || !ea || !eb) continue;
+    const ca = noteCenter(na, ea), cb = noteCenter(nb, eb);
+    let line = linkLineEls.get(link.id);
+    if (!line) {
+      line = document.createElementNS(SVGNS, 'line');
+      linkLineEls.set(link.id, line);
+      linkLayer.appendChild(line);
+    }
+    line.setAttribute('x1', ca.x); line.setAttribute('y1', ca.y);
+    line.setAttribute('x2', cb.x); line.setAttribute('y2', cb.y);
+    live.add(link.id);
+  }
+  for (const [id, line] of linkLineEls) {
+    if (!live.has(id)) { line.remove(); linkLineEls.delete(id); }
+  }
+}
+
 /* --- 7. Gesture recognizer ----------------------------------------------- */
 // One recognizer over the board. Targets: note | anchor | lot-item | lot | canvas.
 const pointers = new Map();          // pointerId -> {x,y,startX,startY}
 let g = null;                        // active gesture context
 let swallowTap = false;              // the pointerdown that dismissed a menu is inert (B30)
 
-/* Only the anchors still carry a long-press menu (B84, issue #126): it is the
-   board's own menu — All boards · Export — and the board is reachable through
-   its title/Components/Requirements before its card is. Notes lost their
-   long-press menu when they gained the on-select toolbar (B84); the lot's
-   mobile item menu went with it (accepted gap — desktop lot rows keep their
-   inline actions). The creation surfaces — bare canvas and the lot background —
-   never carried one: they have no item to act on, so no timer is armed and the
-   press stays a pending tap (hold as long as you like on empty paper and the
-   release still captures a note; B5). Boards is unaffected — it lives here, on
-   the anchors. */
-const HAS_MENU = new Set(['anchor']);
+/* The anchors and, since B91, notes carry a long-press menu (mobile) — the
+   anchor's is the board's own menu (All boards · Export, B84/B75); the note's is
+   a single item, Link (issue #142). Notes had lost their long-press menu when
+   they gained the on-select toolbar (B84); B91 revives it as the home for
+   inter-note RELATIONAL actions (Link), kept distinct from the toolbar's per-note
+   STATE actions (Complete/Highlight/Copy/Delete) — so the two planes don't
+   compete. Desktop reaches the note's Link menu by right-click instead (its own
+   contextmenu listener, §10); the lot's mobile item menu is still gone (accepted
+   gap — desktop lot rows keep their inline actions). The creation surfaces —
+   bare canvas and the lot background — carry no menu: they have no item to act
+   on, so no timer is armed and the press stays a pending tap (hold as long as
+   you like on empty paper and the release still captures a note; B5). */
+const HAS_MENU = new Set(['anchor', 'note']);
 
 function classifyTarget(target) {
   // Selection chrome first: action buttons (notes and lot rows share .sel-btn),
@@ -1075,6 +1215,23 @@ function commitAction(fn) {
    drop-guard, so B18(d) holds exactly where a consequence fires — while inert
    taps (select, deselect) and navigation stay live regardless. */
 function handleTap(target, x, y, shift) {
+  // Pending link (issue #142, B91): while a source note is armed, the next tap
+  // resolves it — a DIFFERENT note is linked, or unlinked if the pair is already
+  // linked (toggle). Anything else — empty canvas, the lot, an anchor, the source
+  // note itself — cancels. Either way the tap is CONSUMED (return), so no note is
+  // created, selected or edited underneath. The write is a consequence, so it and
+  // its mode-exit run together inside commitAction's drop-guard (B81); the cancel
+  // commits nothing, so it runs raw.
+  if (linkSource !== null) {
+    const src = linkSource;
+    if (target.type === 'note' && target.node.dataset.id !== src) {
+      const dst = target.node.dataset.id;
+      commitAction(() => { toggleLink(src, dst); clearLink(); });
+    } else {
+      clearLink();
+    }
+    return;
+  }
   switch (target.type) {
     case 'sel-btn': {
       // Lot rows only now (B84): notes act through their own top-edge toolbar
@@ -1304,6 +1461,9 @@ document.addEventListener('focusin', (e) => {
    selection underneath an open menu (issue #10). */
 document.addEventListener('keydown', (e) => {
   if (!isDesktop || menuOpen) return;
+  // While a link is armed, Escape cancels it and every other key is inert (B91) —
+  // no selection exists to Delete/Enter into, and this must win over the grammar.
+  if (linkSource !== null) { if (e.key === 'Escape') clearLink(); return; }
   const editing = isEditing(document.activeElement);
   if (e.key === 'Escape') {
     if (editing) { document.activeElement.blur(); }    // commit-on-blur path runs
@@ -1372,6 +1532,9 @@ function removeNoteSilently(note, node) {
   const i = current.notes.indexOf(note);
   if (i >= 0) current.notes.splice(i, 1);
   node.remove(); noteEls.delete(note.id);
+  // A husk discard takes its links with it — emptying a note deletes it (B8), and
+  // deleting a note deletes its links (issue #142, B91). Silent, so no Undo.
+  if (removeLinksForNote(note.id).length) updateLinks();
   saveNow();
 }
 function commitLot(node) {
@@ -1399,6 +1562,7 @@ function commitAnchor(node) {
 
 /* Drag (PRD §6.3): free overlap, no snap, clamp to page bounds only. */
 function startDrag() {
+  if (linkSource !== null) clearLink();   // dragging a note exits link mode (issue #142, B91)
   g.mode = 'drag';
   g.target.node.classList.add('pressed');
   surfaceNote(g.target.node);
@@ -1494,6 +1658,7 @@ function settleDragFoot(note, node, force) {
   note.y = Math.min(note.y, Math.max(g.dragMinY, LOGICAL_H - footH + g.dragOverY));
   node.style.left = note.x + 'px';
   node.style.top = note.y + 'px';
+  updateLinks();                     // a dragged note's links follow it live (B91)
 }
 
 function updateDrag(e) {
@@ -1507,6 +1672,7 @@ function updateDrag(e) {
       m.node.style.left = m.note.x + 'px';
       m.node.style.top = m.note.y + 'px';
     }
+    updateLinks();                   // group members' links follow too (B91)
     return;
   }
   const note = g.note, node = g.target.node;
@@ -1527,6 +1693,7 @@ function endDrag() {
     }
     g.target.node.classList.remove('pressed');
     saveNow();
+    updateLinks();                   // final settle: links land on the dropped notes (B91)
     if (isDesktop) updateSelectionUI();
     return;
   }
@@ -1577,6 +1744,7 @@ function applyNoteScale(note, node, scale) {
   node.style.left = note.x + 'px';
   node.style.top = note.y + 'px';
   setHitInset(node, note);
+  updateLinks();                     // a scaled note's links track its new centre (B91)
 }
 
 /* The widened gesture clamp (issue #57, B40): bounds admit the start value, so
@@ -1773,6 +1941,7 @@ function selectLot(id) {
 }
 
 function clearSelection() {
+  if (linkSource !== null) clearLink();   // a board swap / new selection ends link mode (B91)
   // Rings first: the whole set goes when the selection goes (issue #55) —
   // applyMode's teardown and renderBoard's rebuild both land here.
   if (multiSel.size) {
@@ -1932,6 +2101,11 @@ function deleteNotes(ids) {
     if (wanted.has(n.id)) snap.push({ note: JSON.parse(JSON.stringify(n)), index: i });
   });
   if (!snap.length) return;
+  // The deleted notes take their links with them (issue #142, B91). Capture them
+  // FIRST so the one Undo restores exact prior state — the notes AND their
+  // relationships (UIUX §9) — then drop them from the live board.
+  const removedLinks = boardLinks().filter(l => wanted.has(l.a) || wanted.has(l.b));
+  if (removedLinks.length) current.links = current.links.filter(l => !wanted.has(l.a) && !wanted.has(l.b));
   clearSelection();
   if (engaged && wanted.has(engaged)) clearEngaged();   // the engaged note is leaving (issue #136, B90)
   for (let i = snap.length - 1; i >= 0; i--) {       // descending: indices stay valid
@@ -1940,6 +2114,7 @@ function deleteNotes(ids) {
     const node = noteEls.get(s.note.id);
     if (node) leave(node, () => { node.remove(); noteEls.delete(s.note.id); });
   }
+  if (removedLinks.length) updateLinks();            // drop the lines to the leaving notes
   saveNow();
   showUndo(() => {
     for (const s of snap) {                          // ascending: exact z-order back
@@ -1947,6 +2122,11 @@ function deleteNotes(ids) {
       el.board.appendChild(makeNoteEl(s.note));
     }
     reorderNotesDOM();
+    if (removedLinks.length) {                       // relationships come back with the notes
+      if (!current.links) current.links = [];
+      for (const l of removedLinks) current.links.push(l);
+      updateLinks();
+    }
     saveNow();
   });
 }
@@ -1991,12 +2171,13 @@ function leave(node, done) {
 
 /* Undo toast (UIUX §9): 5s, restores exact state; a new delete finalizes prior. */
 let undoTimer = null;
-function showUndo(undoFn, scope) {
+function showUndo(undoFn, scope, label) {
   clearTimeout(undoTimer);
   el.toast.dataset.mode = 'undo';                      // capture priority over save-error
   el.toast.dataset.scope = scope || 'item';            // 'item' undo is current-bound (finding 1)
   el.toast.textContent = '';
-  const msg = document.createElement('span'); msg.className = 'msg'; msg.textContent = COPY.deleted;
+  // The caption defaults to "Deleted"; link create/toggle pass "Linked"/"Unlinked" (B91).
+  const msg = document.createElement('span'); msg.className = 'msg'; msg.textContent = label || COPY.deleted;
   const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = COPY.undo;
   // Clear the finalize timer on the click itself, not at the end of the action
   // window, so a late Undo (≈4.6s+) can't be finalized out from under it.
@@ -2082,13 +2263,20 @@ let menuOpen = false, menuKeyHandler = null, menuOutsideHandler = null;
 let menuInvoker = null;              // desktop contextmenu: focus returns here on close
 let menuReturnFocus = false;         // true only inside closeMenu's synchronous focus return
 
-/* Only the board's own menu remains here (B84, issue #126): notes and lot items
-   lost their long-press/right-click menus when notes gained the on-select
-   toolbar. Long-press on the board you're looking at (issue #43) exports it
-   directly rather than routing through the list; both items are non-destructive,
-   so no separator — same rule as everywhere else. */
+/* Two menus open here now (B84 + B91): the board's own (on an anchor — All
+   boards · Export, issue #43, so the board you're looking at exports directly),
+   and a note's single Link item (issue #142) — the lot still has none. All items
+   are non-destructive, so no separator — same rule as everywhere else. */
 function openMenuFor(target, clientX, clientY) {
-  if (target.type !== 'anchor') return;   // a note/lot target has nothing to open here anymore
+  if (target.type === 'note') {
+    // A note's one relational action (issue #142, B91): Link arms link mode, then
+    // the next note tapped is connected (handleTap's linkSource branch). beginLink
+    // runs inside buildMenu's commitAction wrapper — arming is idempotent, fine.
+    const id = target.node.dataset.id;
+    buildMenu([{ label: COPY.link, glyph: GLYPH.link, action: () => beginLink(id), raw: true }], clientX, clientY);
+    return;
+  }
+  if (target.type !== 'anchor') return;   // lot / canvas have nothing to open here
   buildMenu([
     { label: COPY.boards, glyph: GLYPH.boards, action: goToList },
     { label: COPY.export, glyph: GLYPH.export, action: () => exportBoardPdf(current) },
@@ -2153,12 +2341,29 @@ el.boardActions.addEventListener('keydown', (e) => {
   if (e.repeat) e.preventDefault();
 });
 
-/* Desktop right-click on a note no longer opens an app menu (B84, issue #126):
-   a note's actions live on its on-select toolbar, reached by the same click that
-   selects it, and by the keyboard grammar (Enter/Delete/Escape). Right-click
-   falls through to the browser's own menu, exactly as it already did on the
-   canvas and the lot. The board card's own contextmenu listener (its delete
-   menu, B24) is a different element and is untouched. */
+/* Desktop right-click on a note opens its Link menu (issue #142, B91) — the
+   desktop parallel to the mobile long-press, and the note's one relational
+   action. B84 had removed the note's desktop contextmenu (its Complete/Copy/
+   Delete moved to the on-select toolbar); B91 re-adds one scoped to a single
+   Link item. A right-click on the canvas, an anchor, the lot, or an editing note
+   still falls through to the browser's own menu, as before; the board card's own
+   contextmenu listener (its delete menu, B24) is a different element, untouched. */
+el.board.addEventListener('contextmenu', (ev) => {
+  if (!isDesktop) return;                           // mobile arms Link by long-press
+  if (linkSource) { ev.preventDefault(); return; }  // already arming: left-click a note to finish
+  const noteNode = ev.target.closest('.note');
+  if (!noteNode || isEditing(ev.target)) return;    // non-note / text edit keeps the native menu
+  ev.preventDefault();
+  let x = ev.clientX, y = ev.clientY;
+  if (!x && !y) {                                   // Shift+F10 fires contextmenu at 0,0
+    const r = noteNode.getBoundingClientRect();
+    x = r.left + r.width / 2; y = r.top + r.height / 2;
+  }
+  // No menuInvoker: closeMenu's focus-return would run the focusin Tab-selects
+  // rule (issue #55) and stray-select the source note. The mouse user finishes
+  // the link by clicking the target, so no focus return is needed.
+  openMenuFor({ type: 'note', node: noteNode }, x, y);
+});
 
 function buildMenu(items, clientX, clientY) {
   closeMenu();
@@ -2175,8 +2380,14 @@ function buildMenu(items, clientX, clientY) {
     const lb = document.createElement('span'); lb.textContent = it.label;
     b.appendChild(g1); b.appendChild(lb);
     // The menu closes and acts on release, with a drop-guard so a double-tap
-    // fires once. One site covers every menu action, board rows included.
-    b.addEventListener('click', () => commitAction(() => { closeMenu(); it.action(); }));
+    // fires once. One site covers every menu action, board rows included — except
+    // an item flagged `raw` (Link, B91): arming a mode is navigation, not a
+    // consequence (B81), so it must NOT hold the 400ms guard, or a quick tap on
+    // the link target inside that window would be dropped by the same guard.
+    b.addEventListener('click', () => {
+      if (it.raw) { closeMenu(); it.action(); }
+      else commitAction(() => { closeMenu(); it.action(); });
+    });
     el.menu.appendChild(b); buttons.push(b);
   }
   el.menu.hidden = false;
@@ -2195,7 +2406,10 @@ function buildMenu(items, clientX, clientY) {
   if (buttons[0]) buttons[0].focus();
 
   menuKeyHandler = (ev) => {
-    if (ev.key === 'Escape') { ev.preventDefault(); closeMenu(); }
+    // Escape pops the menu ONLY (B91): stopPropagation keeps it from reaching the
+    // desktop keydown grammar underneath, which — now that a note's Link menu can
+    // open over a live selection — would otherwise also clear that selection.
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); closeMenu(); }
     else if (ev.key === 'Tab') {                        // trap focus while open
       ev.preventDefault();
       const i = buttons.indexOf(document.activeElement);
@@ -2580,6 +2794,7 @@ const EXPORT_GEO = {
   lotSize: 16, lotLH: 23.2,            // 16px / 1.45
   noteSize: 17, noteLH: 23.8,          // 17px / 1.4
   border: 2, radius: 3, notePadX: 12, notePadY: 10,   // radius mirrors B49 by hand
+  linkWidth: 1.5,                      // the note-link hairline (issue #142, B91)
 };
 
 /* The band sizes to its tallest zone (B47), on the export's own frame: line
@@ -2740,6 +2955,23 @@ function exportBoardPage(rec) {
     ly += rowH;
   }
   p.Q();
+
+  // Links UNDER the notes (issue #142, B91): a thin line between two note centres,
+  // drawn in sheet space (not the per-note transform), so it sits below the cards
+  // it joins — the same z-order as the screen (the link layer is below notes). A
+  // neutral hairline suits the export's paper/ink/shade palette better than a
+  // board-hue line; a dangling link (endpoint gone) is skipped, as on screen.
+  const noteCentre = (n) => {
+    const box = exportNoteBox(n), s = (n.scale || 1) * exportK(n);
+    return { x: exportX(n) + box.w * s / 2, y: exportY(n) + box.h * s / 2 };
+  };
+  for (const link of rec.links || []) {
+    const na = (rec.notes || []).find(n => n.id === link.a);
+    const nb = (rec.notes || []).find(n => n.id === link.b);
+    if (!na || !nb) continue;
+    const a = noteCentre(na), b = noteCentre(nb);
+    p.q().strokeColor(PDF_SHADE).lineWidth(g.linkWidth).line(a.x, a.y, b.x, b.y).raw('S').Q();
+  }
 
   // Notes last: array order is z-order, and DOM order mirrors it.
   for (const note of rec.notes || []) {

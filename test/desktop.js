@@ -1107,14 +1107,22 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
        Math.abs(d1.x - d2.x) < 1 && Math.abs(d1.y - d2.y) < 1, JSON.stringify({ d1, d2 }));
     ok('and the delta is the drag (~60px)', d1.x > 45 && d1.x < 75, JSON.stringify(d1));
 
-    // Right-click a note no longer opens an app menu (B84): a multi-selection is
-    // acted on through the PRIMARY note's toolbar (the primary leads — 'two').
+    // Right-click a note now opens its Link menu (B91) — the relational plane,
+    // separate from the multi-selection's state actions on the primary's toolbar.
+    // It must not disturb the selection; Escape dismisses it before the toolbar
+    // test below.
     const m1 = await rectOf('one');
     await page.mouse.click(m1.cx, m1.cy, { button: 'right' });
     await page.waitForTimeout(150);
-    ok('right-click on a note opens no app menu (B84)', await page.evaluate(() =>
-      document.querySelector('#menu').hidden !== false));
+    ok('right-click on a note opens its Link menu (B91)', await page.evaluate(() =>
+      document.querySelector('#menu').hidden === false &&
+      [...document.querySelectorAll('#menu button')].some(b => /Link/.test(b.textContent))));
     ok('the right-click left the selection intact', await page.evaluate(() =>
+      document.querySelectorAll('.note.selected, .note.multi-selected').length === 2));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(120);
+    ok('Escape dismisses the Link menu, selection kept', await page.evaluate(() =>
+      document.querySelector('#menu').hidden !== false && linkSource === null &&
       document.querySelectorAll('.note.selected, .note.multi-selected').length === 2));
 
     // The primary's toolbar buttons; each acts on the whole selection.
@@ -1358,8 +1366,9 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
        await page.evaluate(() => document.querySelector('#list-view').hidden === true &&
          /All boards/.test(document.querySelector('#action-boards .label').textContent)));
 
-    // Right-click on a note no longer opens an app menu (B84): its actions are on
-    // the note's own toolbar, reached by the click that selects it.
+    // Right-click on a note now opens its Link menu (B91): the note's relational
+    // action. Its STATE actions (Complete/Highlight/Copy/Delete) stay on the
+    // note's own toolbar (B84). Escape dismisses it before the guard case below.
     await page.mouse.click(900, 600);
     await page.waitForTimeout(500);
     await page.keyboard.type('RIGHTCLICKPATH');
@@ -1367,8 +1376,14 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(200);
     await page.mouse.click(905, 605, { button: 'right' });
     await page.waitForTimeout(200);
-    ok('right-click on a note opens no app menu (B84)',
-       await page.evaluate(() => document.querySelector('#menu').hidden !== false));
+    ok('right-click on a note opens its one-item Link menu (B91)',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
+         [...document.querySelectorAll('#menu button')].length === 1 &&
+         /Link/.test(document.querySelector('#menu button').textContent)));
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    ok('Escape dismisses the Link menu', await page.evaluate(() =>
+       document.querySelector('#menu').hidden !== false && linkSource === null));
 
     // The tabs are focusable inside #board, so their keys must not reach the
     // desktop grammar underneath: Delete there destroys the selection (B83's
@@ -1522,6 +1537,95 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('back again returns to the board (list hidden, rail intact)', await page.evaluate(() =>
       document.querySelector('#list-view').hidden === true &&
       document.querySelectorAll('#pane-cards .board-cat').length === 4));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- D-link. Note linking (issue #142, B91) ------------------------------
+  // Right-click a note → a one-item Link menu → click another note draws the
+  // line; the completing click does NOT select the target; the line sits below
+  // notes and is click-through; the link persists and reaches the PDF.
+  console.log('\n[D-link] Note linking: right-click → Link → click target (issue #142, B91)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    await page.evaluate(() => {
+      current.notes.length = 0; if (current.links) current.links.length = 0;
+      current.notes.push({ id:'la', text:'Alpha', x:90,  y:250, rw:LOGICAL_W, rh:LOGICAL_H, scale:1, state:'active' });
+      current.notes.push({ id:'lb', text:'Bravo', x:200, y:640, rw:LOGICAL_W, rh:LOGICAL_H, scale:1, state:'active' });
+      renderBoard();
+    });
+    await page.waitForTimeout(150);
+    const c = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.note')].map(n => {
+      const r = n.getBoundingClientRect(); return [n.dataset.id, { x: r.x + r.width / 2, y: r.y + r.height / 2 }];
+    })));
+    const links = () => page.evaluate(() => (current.links || []).length);
+    const lines = () => page.evaluate(() => document.querySelectorAll('#link-layer line').length);
+
+    // Right-click Alpha → a one-item Link menu; the desktop hint reads "Click...".
+    await page.mouse.click(c.la.x, c.la.y, { button: 'right' });
+    await page.waitForTimeout(150);
+    ok('right-click opens a one-item Link menu', await page.evaluate(() =>
+      document.querySelector('#menu').hidden === false &&
+      [...document.querySelectorAll('#menu button')].length === 1 &&
+      /Link/.test(document.querySelector('#menu button').textContent)));
+    await page.evaluate(() => document.querySelector('#menu button').click());
+    await page.waitForTimeout(80);
+    ok('Link arms the mode with a "Click…" hint', await page.evaluate(() =>
+      linkSource !== null && /Click/i.test((document.querySelector('#toast .msg') || {}).textContent || '')));
+
+    // Click Bravo → one link, one line; Bravo is NOT selected by the click.
+    await page.mouse.click(c.lb.x, c.lb.y);
+    await page.waitForTimeout(120);
+    ok('clicking the second note creates one link', (await links()) === 1, 'links=' + await links());
+    ok('and draws one line', (await lines()) === 1, 'lines=' + await lines());
+    ok('the completing click did not select the target', await page.evaluate(() => selected === null));
+    ok('link mode cleared', await page.evaluate(() => linkSource === null));
+
+    // The line is below notes (z-order) and pointer-events:none.
+    ok('link layer z(1) is below notes z(2), pointer-events:none', await page.evaluate(() => {
+      const ls = getComputedStyle(document.querySelector('#link-layer'));
+      const zn = Number(getComputedStyle(document.querySelector('.note')).zIndex);
+      return ls.pointerEvents === 'none' && Number(ls.zIndex) < zn;
+    }));
+
+    // Persist + reload: the link survives and redraws.
+    await page.waitForTimeout(400);
+    await page.reload();
+    await page.waitForFunction(() => !!document.querySelector('#board'));
+    await page.waitForTimeout(500);
+    ok('the link persists across reload', (await links()) === 1, 'links=' + await links());
+    ok('and its line redraws', (await lines()) === 1, 'lines=' + await lines());
+
+    // The PDF carries the link: one extra stroke op vs the same board unlinked,
+    // and the file stays structurally valid (%PDF-…%%EOF, every xref resolves).
+    const pdf = await page.evaluate(() => {
+      const dec = (o) => typeof o === 'string' ? o : new TextDecoder('latin1').decode(o);
+      const withLink = dec(buildBoardPdf(current));
+      const saved = current.links.slice();
+      current.links = [];
+      const without = dec(buildBoardPdf(current));
+      current.links = saved;
+      const strokes = (s) => (s.match(/[\n ]S[\n ]/g) || []).length;
+      return { withLink, sWith: strokes(withLink), sWithout: strokes(without) };
+    });
+    const pdfValid = (s) => {
+      if (!s.startsWith('%PDF-') || !s.trimEnd().endsWith('%%EOF')) return 'head/tail';
+      const m = /startxref\s+(\d+)/.exec(s); if (!m) return 'no startxref';
+      const sx = Number(m[1]); if (s.slice(sx, sx + 4) !== 'xref') return 'startxref off table';
+      const head = /xref\n0 (\d+)\n/.exec(s.slice(sx)); if (!head) return 'no xref head';
+      const count = Number(head[1]); const at = sx + head[0].length;
+      if (s.slice(at, at + 20) !== '0000000000 65535 f \n') return 'free entry';
+      for (let i = 1; i < count; i++) {
+        const e = s.substr(at + i * 20, 20);
+        if (!/^\d{10} \d{5} n \n$/.test(e)) return 'entry ' + i;
+        if (s.substr(Number(e.slice(0, 10)), (i + ' 0 obj').length) !== i + ' 0 obj') return 'object ' + i;
+      }
+      return '';
+    };
+    ok('the linked board still exports a well-formed PDF', pdfValid(pdf.withLink) === '', pdfValid(pdf.withLink));
+    ok('the link adds exactly one stroke to the PDF', pdf.sWith === pdf.sWithout + 1,
+       'with=' + pdf.sWith + ' without=' + pdf.sWithout);
+
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

@@ -242,13 +242,11 @@ async function openCat(page, cat) {
       const r = document.querySelector('.note').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
-    // A note no longer carries a long-press menu (B84): a 500ms+ hold is just a
-    // slow tap. On mobile the FIRST tap SELECTS — it reveals the toolbar with no
-    // keyboard and no edit (B90) — and opens NO menu.
-    await tap(page, box.x, box.y, 700);
+    // On mobile the FIRST tap SELECTS a note — it reveals the toolbar with no
+    // keyboard and no edit (B90). (A long-press now arms the Link menu, B91 —
+    // covered in [24]; here a short tap engages the note.)
+    await tap(page, box.x, box.y);
     await page.waitForTimeout(200);
-    ok('a note long-press opens no menu (B84)',
-       await page.evaluate(() => document.querySelector('#menu').hidden !== false));
     // The engaged note shows its toolbar via the .engaged class, not by editing.
     const tb = await page.evaluate(() => {
       const note = document.querySelector('.note');
@@ -1921,6 +1919,101 @@ async function openCat(page, cat) {
     ok('the next tap creates a new note (no dead first tap)', (await noteCount(page)) === 2,
        'count=' + await noteCount(page));
     ok('the new note holds focus', await activeIsNoteText(page));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
+  // ---- 24. Note linking (issue #142, B91) ----------------------------------
+  // Long-press a note → a single-item Link menu → tap another note draws a
+  // --frame line between their centres, below the notes and click-through;
+  // re-linking the pair removes it; a stray tap cancels; deleting a note prunes.
+  console.log('\n[24] Note linking: long-press → Link → tap target (issue #142, B91)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(() => {
+      current.notes.length = 0; if (current.links) current.links.length = 0;
+      current.notes.push({ id:'la', text:'Alpha', x:80,  y:250, rw:LOGICAL_W, rh:LOGICAL_H, scale:1, state:'active' });
+      current.notes.push({ id:'lb', text:'Bravo', x:190, y:600, rw:LOGICAL_W, rh:LOGICAL_H, scale:1, state:'active' });
+      renderBoard();
+    });
+    await page.waitForTimeout(120);
+    const c = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.note')].map(n => {
+      const r = n.getBoundingClientRect(); return [n.dataset.id, { x: r.x + r.width / 2, y: r.y + r.height / 2 }];
+    })));
+    const links = () => page.evaluate(() => (current.links || []).length);
+    const lines = () => page.evaluate(() => document.querySelectorAll('#link-layer line').length);
+    const chooseLink = () => page.evaluate(() =>
+      [...document.querySelectorAll('#menu button')].find(b => /Link/.test(b.textContent)).click());
+
+    // Long-press Alpha → a one-item Link menu.
+    await tap(page, c.la.x, c.la.y, 700);
+    await page.waitForTimeout(120);
+    ok('a note long-press opens a menu (B91)',
+       await page.evaluate(() => document.querySelector('#menu').hidden === false));
+    const items = await page.evaluate(() => [...document.querySelectorAll('#menu button')].map(b => b.textContent.trim()));
+    ok('its only item is Link', items.length === 1 && /Link/.test(items[0]), JSON.stringify(items));
+
+    // Choose Link → the mode arms with a hint; tap Bravo → one link + one line.
+    await chooseLink();
+    await page.waitForTimeout(80);
+    ok('Link arms the mode and shows a hint toast', await page.evaluate(() =>
+      linkSource !== null && document.querySelector('#toast').dataset.mode === 'link'));
+    await tap(page, c.lb.x, c.lb.y);
+    await page.waitForTimeout(120);
+    ok('tapping the second note creates one link', (await links()) === 1, 'links=' + await links());
+    ok('and draws one line', (await lines()) === 1, 'lines=' + await lines());
+    ok('the link records both note ids', await page.evaluate(() => {
+      const l = current.links[0]; return (l.a === 'la' && l.b === 'lb') || (l.a === 'lb' && l.b === 'la');
+    }));
+    ok('link mode cleared after completing', await page.evaluate(() => linkSource === null));
+
+    // The line sits BELOW notes, is --frame, non-scaling, and click-through.
+    ok('the line is a non-scaling --frame stroke below notes, pointer-events:none',
+       await page.evaluate(() => {
+         const line = document.querySelector('#link-layer line');
+         const layer = document.querySelector('#link-layer');
+         const cs = getComputedStyle(line), ls = getComputedStyle(layer);
+         const znote = Number(getComputedStyle(document.querySelector('.note')).zIndex);
+         return ls.pointerEvents === 'none' &&
+                cs.getPropertyValue('vector-effect') === 'non-scaling-stroke' &&
+                Number(ls.zIndex) < znote;
+       }));
+
+    // Re-linking the same pair removes the link (toggle, B91). Wait out the
+    // create's re-fire guard (ACTION_DELAY 400ms) first.
+    await page.evaluate(() => hideToast());
+    await page.waitForTimeout(450);
+    await tap(page, c.la.x, c.la.y, 700);
+    await page.waitForTimeout(100);
+    await chooseLink();
+    await page.waitForTimeout(80);
+    await tap(page, c.lb.x, c.lb.y);
+    await page.waitForTimeout(120);
+    ok('re-linking the pair removes the link', (await links()) === 0, 'links=' + await links());
+    ok('and its line', (await lines()) === 0, 'lines=' + await lines());
+
+    // A tap on empty paper while armed cancels — and creates no note under it.
+    await page.evaluate(() => hideToast());
+    await page.waitForTimeout(450);
+    await tap(page, c.la.x, c.la.y, 700);
+    await page.waitForTimeout(100);
+    await chooseLink();
+    await page.waitForTimeout(80);
+    ok('armed again', await page.evaluate(() => linkSource !== null));
+    await tap(page, 40, 460);                              // empty paper between the notes
+    await page.waitForTimeout(100);
+    ok('an empty-paper tap cancels link mode', await page.evaluate(() => linkSource === null));
+    ok('and creates no link', (await links()) === 0, 'links=' + await links());
+    ok('and no stray note', (await noteCount(page)) === 2, 'count=' + await noteCount(page));
+
+    // Deleting a linked note prunes its link (persist-level integrity, B91).
+    await page.evaluate(() => { current.links = [{ id:'lk', a:'la', b:'lb' }]; updateLinks(); });
+    ok('link re-seeded', (await links()) === 1);
+    await page.evaluate(() => deleteNote(noteEls.get('la')));
+    await page.waitForTimeout(150);
+    ok('deleting a linked note drops its links', (await links()) === 0, 'links=' + await links());
+    ok('and the line goes with it', (await lines()) === 0, 'lines=' + await lines());
+
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
