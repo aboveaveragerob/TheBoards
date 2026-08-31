@@ -66,21 +66,26 @@
            role="textbox" aria-multiline="true" aria-label="Title"></div>
 
       <!-- The board's own actions, declared where a gesture used to hide them
-           (issue #126, B83): a flat-tab row hovering just above the Parking Lot
-           — the mirror, at the sheet's other end, of the band's header tabs.
-           "All Boards" toggles the list / mobile lot-grid; "Export" leaves the
-           board as a PDF. Native buttons with their own clicks: the recognizer
-           ignores #board-actions through the onPointerDown passthrough (the
-           #lot-menu precedent), so it earns no classifyTarget branch. The
-           container is pointer-events:none like a .band-zone, so bare canvas
-           beside the tabs still captures a note; only the tabs (and their §6
-           hit collars) are live. Glyph + label are filled from app.js's
-           GLYPH/COPY, and the toggle's label is re-stated by syncBoardActions.
-           .on-light rebinds the ink to --ink-dark on the --frame fill. -->
+           (issue #126, B83; three tabs since issue #140, B92): a flat-tab row
+           hovering just above the Parking Lot — the mirror, at the sheet's
+           other end, of the band's header tabs. "All Boards" toggles the list /
+           mobile lot-grid; "Export" opens the PDF · JSON choice; "Import"
+           opens the file picker for a JSON backup. Native buttons with their
+           own clicks: the recognizer ignores #board-actions through the
+           onPointerDown passthrough (the #lot-menu precedent), so it earns no
+           classifyTarget branch. The container is pointer-events:none like a
+           .band-zone, so bare canvas beside the tabs still captures a note;
+           only the tabs (and their §6 hit collars) are live. Glyph + label are
+           filled from app.js's GLYPH/COPY, and the toggle's label is re-stated
+           by syncBoardActions. .on-light rebinds the ink to --ink-dark on the
+           --frame fill. The import input is the mechanism, never a control:
+           display:none by nature of its work, driven only by the Import tab. -->
       <div id="board-actions" role="group" aria-label="Board actions">
         <button type="button" class="board-action on-light" id="action-boards"></button>
         <button type="button" class="board-action on-light" id="action-export"></button>
+        <button type="button" class="board-action on-light" id="action-import"></button>
       </div>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
 
       <!-- Parking Lot zone (PRD §6.5). Unframed stacked lines on the water
            (B58); .on-dark keeps the light pole at the section's edge

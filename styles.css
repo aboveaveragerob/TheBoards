@@ -448,12 +448,13 @@ body {
   font-size: 15px; font-weight: 600; line-height: 1.3;
 }
 
-/* The board-action row (issue #126 / B83, UIUX §3.3 / §14). The two board-level
-   actions the anchor menu carries — All boards and Export — declared as flat
+/* The board-action row (issue #126 / B83, UIUX §3.3 / §14; three tabs since
+   issue #140 / B92). The board-level actions declared as flat
    tabs hovering just above the Parking Lot: the mirror, at the sheet's other
    end, of the band's header tabs. They are the FLAT-tab species (the owner's
    call): the band label's own box, deliberately NOT §14's tactile signature —
-   All boards navigates and Export leaves the device, neither acts on a note, so
+   All boards navigates and Export/Import move files off and onto the device,
+   none acts on a note, so
    they wear the sheet's furniture rather than a control that says "I have your
    content." --frame rotates with #board[data-cat] (B67), so the row inside
    board scope takes the board's hue for free.

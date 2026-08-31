@@ -731,13 +731,17 @@ canvas; content past it is clipped (`#lot-items { overflow: hidden }`). **This
 supersedes B37's whole-row budget and B47/B57's row-count ceiling** (B73),
 which sized the lot by item *count* at a fixed 44px each and cut wrapped lines.
 
-### §3.3 The board-action row (B83)
+### §3.3 The board-action row (B83; three tabs since B92, issue #140)
 
-The board's two board-level actions — **All boards** and **Export** — are
-declared as a row of flat tabs **hovering just above the Parking Lot**, the
-mirror at the sheet's other end of the band's header tabs. This replaces the
-`Menu` handle of B65, whose only route was still a control the reader had to
-notice; the actions now name themselves, in place, on both platforms.
+The board's board-level actions — **All boards**, **Export**, and, since
+issue #140, **Import** — are declared as a row of flat tabs **hovering just
+above the Parking Lot**, the mirror at the sheet's other end of the band's
+header tabs. This replaced the `Menu` handle of B65, whose only route was
+still a control the reader had to notice; the actions now name themselves, in
+place, on both platforms. B92 retires the anchor long-press/right-click menu
+outright: with Import joining the row, every board-level route is a visible
+tab, and the hidden menu duplicated doors the reader was already standing in
+front of.
 
 **Placement.** `#board-actions` is `left: 0; right: 0`, a **left-anchored** flex
 cluster (`gap: 8px`, `justify-content: flex-start`, B88) at `bottom: var(--lot-h)`
@@ -760,6 +764,21 @@ recognizer and captures a note; only the tabs are live.
   gap: 6px;                        /* the drawn mark to its label; mark at 16px (B86) */
 }
 ```
+
+**The import input is a mechanism, not a control.** Import opens the platform
+file explorer through a hidden `<input type="file"
+accept=".json,application/json">`. The input is never visible, never focusable
+as a route, and never named in copy — the visible tab declares the act, the
+dialog is what "Import" does (B92).
+
+**The Export choice menu (B92).** Pressing **Export** opens the app's one menu
+species (`buildMenu`/`#menu`, §7) **anchored at the pressed tab** — the tab's
+own bounding box (`r.left`, `r.bottom`), not the pointer, because the menu is
+the tab's next state rather than a context menu that happens to be nearby. Two
+leaves, the menu's one-word grammar: **PDF** (the board you're looking at, as
+§15's sheet) and **JSON** (the whole-library backup). The choice itself
+commits nothing (it runs raw, B81's navigation side); each leaf commits — a
+file leaves the device — and takes `commitAction`'s drop-guard itself.
 
 **The hit collar.** The flat tab is well under §6's floor, so it carries the
 note's decoupled `--hit` collar (B7) — set on `#board-actions` in

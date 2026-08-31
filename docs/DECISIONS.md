@@ -3344,3 +3344,103 @@ cards) as a neutral hairline, from the same export-geometry centres the notes us
 
 Rendered values (stroke, layer z-order, hint/menu copy, the `link` mark, PDF weight)
 in UIUX §4.6/§13.3; `CACHE` → v36.
+
+## AC. Export chooses, Import joins the row, the anchor menu retires (issue #140)
+
+### B92. The board-action row grows a third tab, Import; Export opens a PDF · JSON choice menu; the anchor long-press/right-click menu is retired outright (issue #140; supersedes B83's "exactly two board-level actions" clause and the anchor-menu survival that B83/B84 carried forward from B75; leaves B75's board-card menu, B24's lot menu on desktop, and B91's note Link menu untouched)
+
+**The principle: a hidden route whose every destination sits on a declared
+control is chrome without a job.** B83 put `All boards` and `Export` on the
+board-action row and left the anchor long-press/right-click menu standing
+behind them — defensible then, because B75's anchor menu was the older
+institution and nothing had replaced its *route*. Issue #140 asks the row to
+grow, and in doing so names the end-state: with **Import** joining as a third
+flat tab, every item the anchor menu ever carried (and its own two actions)
+lives on a visible, labelled tab one glance away. The menu's remaining job was
+to duplicate a door the reader is already standing in front of, invisibly. It
+is retired outright — `HAS_MENU` drops `'anchor'`, `openMenuFor` answers
+notes alone, and a long-press or right-click on an anchor/canvas/lot now does
+what B5 already says an unfinished gesture does: nothing. The owner's
+correction is recorded as the ruling: the row's tabs exist precisely so no
+hidden menu is needed, and the leftover was an omission from B84's sweep, not
+a live decision. **The note Link menu (B91) is untouched** — its item exists
+nowhere else, so its hidden route is still the only route.
+
+**Ruling — three flat tabs, `All boards` · `Export` · `Import`, and Export
+opens a two-item choice.** Import takes the third position (right of Export,
+issue's own words), the row's exact `.board-action` flat-tab species, the
+`GLYPH.import` mark — the export arrow read the other way, arriving *into*
+the tray, so the pair reads as one family with opposite directions — and the
+same asymmetric `--hit` collar (the row's measurement in `updateBoardGeometry`
+is unchanged; it reads the row's height, which three tabs of one species do
+not alter).
+
+**Export's tab becomes a choice, and the choice is navigation while the leaves
+commit.** Pressing `Export` opens the app's ONE menu species — `buildMenu` /
+`#menu`, the popup the note's Link item wears — anchored at the pressed tab
+(the tab's own bounding box, not the pointer: the menu is the tab's next
+state, not a context menu that happens to be nearby). Its two items are
+**PDF** (leaf: `exportBoardPdf(current)`, issue #43's sheet of the board
+you're looking at) and **JSON** (leaf: the whole-library backup below). The
+B81 line runs through the middle: *choosing a format commits nothing a stray
+tap could duplicate*, so the tab opens the menu raw; *a file leaving the
+device is a consequence*, so each leaf runs under `commitAction`'s drop-guard
+itself. The guard moves with the consequence rather than wrapping the chooser
+— the same reading that lets `All boards` run raw. This is the day §10.5's
+comment reserved for: "there is exactly one export, so 'to what?' has one
+answer; the day a second format exists this has to become a submenu." The day
+arrived; the submenu is the app's own menu species, no new pattern minted.
+
+**JSON is a backup, not a print — full fidelity, nothing swept.** PDF is a
+sheet ABOUT a board; JSON is the board itself. `exportAllJson` therefore
+writes every record exactly as stored — `notes`, `parkingLot`, `links` (B91's
+relational plane rides along), `category`, the stamps — under
+`{ app: 'the-boards', version: 1, exportedAt, boards: [...] }`, to
+`boards-backup-YYYY-MM-DD.json` through the existing `downloadBlob`. One
+precondition: `flushSave()` first, because saves are debounced and
+`idbGetAll()` alone could read the open board some keystrokes stale — the
+same staleness `exportBoardPdf`'s `current` rule answers, one board wide. The
+flush stamps `updatedAt` only if an edit is actually pending, so exporting
+never reorders the list (B69's law, by flushSave's own reading).
+
+**Import is the reverse door, and it trusts nothing.** The visible control is
+the third tab; the platform file explorer is opened by a hidden
+`<input type="file" accept=".json,application/json">` — the input is the
+mechanism, never a second control (UIUX: the reader declares intent once, on
+the tab). Import is a merge, by the owner's ruling: **a board whose `id`
+already exists is overwritten by the file's copy; new ids are added**; boards
+the file never mentions are untouched. This is a backup-restore in miniature —
+the file is the truth for the ids it carries, the device keeps the rest. Every
+imported record passes `normalizeImportedBoard`: fields coerced (not trusted —
+a backup has been OUT of the device and may be hostile or hand-edited), ids
+re-stamped when absent, unknown categories reading as the B21/B67 read-site
+default, links kept only when both endpoints survived, and the **B8/B31 husk
+sweep applied at the door** — a whitespace husk in the file never enters
+storage at all, rather than waiting for renderBoard to heal it on first sight.
+A file that will not parse, is not the app's shape, or yields no surviving
+board shows `Couldn't import that file.` and writes nothing; a success shows
+`Boards imported`. Import commits (boards can be overwritten), so opening the
+dialog runs under `commitAction` too; the input is reset before each open so
+choosing the same file twice still fires `change`.
+
+**The row's own question, answered as B83 predicted.** B83 closed: "The row is
+a home for exactly two board-level actions. The day a third is asked for…
+this becomes a question about what the row is for." The answer is now on
+record: the row is the home of *board-level* actions — acts on the library or
+the sheet, never on a note — and Import qualifies as exactly PDF did. The
+clause is superseded, the row's purpose stated in its place.
+
+**What is removed.** The anchor branch of `openMenuFor`, the `'anchor'` entry
+in `HAS_MENU`, and with them the last readers of the anchor-menu route. B75's
+board-card menu (right-click a card in the rail, its own element) is untouched;
+B24's lot menu is untouched; the note Link menu (B91) is untouched. Nothing
+else loses a route: `All boards` has been a tab since B83, and Export remains
+one — its tab now *choosing* before it acts.
+
+**The record.** The rendering values — the three-tab row, the choice menu
+anchored at the tab, the hidden import input — live in `UIUX §3.3` (updated)
+and `§14`; `sw.js`'s `CACHE` bumps to **v37** and `test/tokens.js` pins it.
+`test/tokens.js` gains asserts for the import mark, the new COPY strings, and
+the retired anchor branch; the Playwright suites gain the Export choice menu,
+a JSON round-trip (export → wipe storage → import → restored), the bad-file
+path, and the anchor long-press/right-click asserting nothing opens.

@@ -1072,8 +1072,12 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
-  // ---- 16. long-press the board itself exports it, no detour through the list
-  console.log('\n[16] Long-press an anchor exports the open board (issue #43)');
+  // ---- 16. long-press an anchor opens no menu (B92, issue #140) ------------
+  // The anchor menu (All boards · Export) is retired: both of its actions have
+  // lived on the board-action row since B83, and B92 removes the hidden route
+  // outright. A long press on an anchor is now a spent gesture — no menu, no
+  // fallback; the row above the lot is the only route.
+  console.log('\n[16] Long-press an anchor opens no menu (issue #140, B92)');
   {
     const { ctx, page, errors } = await newMobilePage(browser);
     const t = await page.evaluate(() => {
@@ -1097,27 +1101,12 @@ async function openCat(page, cat) {
 
     await tap(page, t.x, t.y, 700);                       // long-press the title card
     await page.waitForTimeout(200);
-    ok('menu opened on anchor long-press', await page.evaluate(() =>
-      document.querySelector('#menu').hidden === false));
-    const shape = await page.evaluate(() =>
-      [...document.querySelectorAll('#menu button')].map(b => b.textContent));
-    ok('anchor menu is All boards then Export', shape.length === 2 &&
-       /All boards/.test(shape[0]) && /Export/.test(shape[1]), JSON.stringify(shape));
-    ok('still on the board — no navigation yet',
-       await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
-
-    const btn = await page.evaluate(() => {
-      const b = [...document.querySelectorAll('#menu button')].find(x => /Export/.test(x.textContent));
-      const r = b.getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-    });
-    const [dl] = await Promise.all([page.waitForEvent('download'), tap(page, btn.x, btn.y)]);
-    const s = fs.readFileSync(await dl.path()).toString('latin1');
-    ok('touch export from the anchor menu produced a PDF',
-       s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
-    ok('the open board — not a stale snapshot — was exported', s.includes('(ANCHORPATHMARKER)'));
-    ok('exporting did not navigate to the list',
-       await page.evaluate(() => document.querySelector('#list-view').hidden !== false));
+    ok('long-press on an anchor opens no menu (B92)', await page.evaluate(() =>
+      document.querySelector('#menu').hidden !== false));
+    ok('the gesture spent itself on nothing: the board is unchanged',
+       await page.evaluate(() =>
+         document.querySelector('#anchor-title').textContent === 'Board in hand' &&
+         [...document.querySelectorAll('.note-text')].some(n => n.textContent === 'ANCHORPATHMARKER')));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
@@ -1676,9 +1665,10 @@ async function openCat(page, cat) {
       };
     });
     ok('the old #title-menu handle is gone', geo.gone);
-    ok('the row is a labelled group of two tabs: All boards, Export',
-       geo.role === 'group' && geo.labels.length === 2 &&
-       /All boards/.test(geo.labels[0]) && /Export/.test(geo.labels[1]), JSON.stringify(geo.labels));
+    ok('the row is a labelled group of three tabs: All boards, Export, Import (B92)',
+       geo.role === 'group' && geo.labels.length === 3 &&
+       /All boards/.test(geo.labels[0]) && /Export/.test(geo.labels[1]) &&
+       /Import/.test(geo.labels[2]), JSON.stringify(geo.labels));
     ok('each tab carries its drawn mark and rebinds ink via .on-light',
        geo.hasGlyph && geo.onLight);
     ok('the row sits above the lot\'s top edge', geo.rowBottom <= geo.lotTop + 0.5,
@@ -1740,26 +1730,38 @@ async function openCat(page, cat) {
     ok('and it landed back on the board', await page.evaluate(() =>
       !!document.querySelector('#board') && !listOpen && !lotMenuOpen));
 
-    // Export commits — a file leaves the device — straight from the tab (issue #43).
+    // Export is now a CHOICE (B92): the tab opens the PDF · JSON menu at the
+    // tab, and the PDF leaf commits (a file leaves the device).
     const beforeExport = await noteCount(page);
+    await tap(page, geo.exp.x, geo.exp.y);
+    await page.waitForTimeout(250);
+    const choice = await page.evaluate(() =>
+      [...document.querySelectorAll('#menu button')].map(b => b.textContent));
+    ok('the Export tab opened the PDF · JSON choice menu (B92)',
+       choice.length === 2 && /PDF/.test(choice[0]) && /JSON/.test(choice[1]), JSON.stringify(choice));
+    const pdfBtn = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('#menu button')].find(x => /PDF/.test(x.textContent));
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
     const [dl] = await Promise.all([
       page.waitForEvent('download'),
-      tap(page, geo.exp.x, geo.exp.y),
+      tap(page, pdfBtn.x, pdfBtn.y),
     ]);
     const s = fs.readFileSync(await dl.path()).toString('latin1');
-    ok('the Export tab produced a PDF', s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
+    ok('the choice menu PDF leaf produced a PDF', s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
     ok('exporting created no note under the tab', (await noteCount(page)) === beforeExport);
 
-    // The mobile anchor long-press menu is untouched (issue #125 owns its removal).
+    // The anchor long-press menu is retired (B92): a long-press on the title
+    // opens nothing — the row above the lot is the only route.
     const t = await page.evaluate(() => {
       const r = document.querySelector('#anchor-title').getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + 24 };
     });
     await tap(page, t.x, t.y, 700);
     await page.waitForTimeout(200);
-    ok('long-press on the title still opens the anchor menu, both items',
-       await page.evaluate(() => document.querySelector('#menu').hidden === false &&
-         [...document.querySelectorAll('#menu button')].length === 2));
+    ok('long-press on the title opens no menu (B92)',
+       await page.evaluate(() => document.querySelector('#menu').hidden !== false));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
