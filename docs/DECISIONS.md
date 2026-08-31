@@ -3292,3 +3292,55 @@ entering an editor commits a view, not a consequence). A completed note only eve
 (it never edits, §4.3). The engaged note rises in z-order like desktop selection; its id
 clears on tap-away and on delete, and the now-orphaned `editNoteText` wrapper is retired.
 Caret value in UIUX §5; `CACHE` → v35.
+
+### B91. Notes can be linked — a thin line the user draws between two notes, armed by a revived note long-press (mobile) / right-click (desktop) (issue #142; partially reverses B84's retirement of the note long-press/right-click menu, for a NEW relational plane only; extends B67's per-type `--frame`; keeps B84's toolbar for per-note state, B81's commit-on-release, B31/B8's husk sweep, UIUX §9's undo)
+
+Resolved against **relationships asserted not inferred** (PRD §1) — the board's
+first inter-note structure, and the first time it renders a relationship the user
+*asserts* rather than one it infers. A link is a 1px `--frame` line between two
+notes' centres; no label, no arrowhead — just the line the user drew on purpose,
+below the notes, consistent with "structure is asserted by where things sit."
+
+**How it is armed — and the B84 tension, owned.** The issue asks for *long-press a
+note → Link → tap another note*. But B84 (issue #126) had **retired** the note
+long-press menu on the principle *declared controls over hidden gestures*, moving a
+note's actions onto its on-select toolbar; B84/#4 also removed the desktop note
+right-click. The owner chose to revive the long-press exactly as the issue writes
+it. B91 scopes that revival honestly: the revived menu is a **new plane — inter-note
+RELATIONAL actions (Link)** — kept distinct from the toolbar's per-note **STATE
+actions** (Complete/Highlight/Copy/Delete), so the two do not compete and B84's
+discoverability win stands untouched for the state actions. Mobile arms Link by
+long-press (`HAS_MENU` regains `note`); desktop by right-click (a fresh `contextmenu`
+listener on `#board`, the parallel B84 removed) — one item each, `Link`. The revived
+gesture is hidden, so it is *named twice*: the menu item says "Link", and a persistent
+hint toast ("Tap/Click another note to link") states the mode while it is armed. The
+next tap on a **different** note connects it (through `commitAction`, B81 — a
+consequence); a tap on empty canvas / lot / anchor / the source, a drag, or Escape
+cancels; arming itself runs raw (navigation, B81 — and a menu item may now opt out of
+`buildMenu`'s drop-guard so a fast target tap inside the 400 ms window is not swallowed).
+
+**Removing a link — toggle-to-unlink (the owner's call).** Starting a link between two
+notes that are *already* linked removes their link instead of duplicating it. Same
+gesture, no new affordance, and — since the line is `pointer-events:none` (it must be:
+hit-testing is `target.closest()`-based, so a hittable line would steal a note's tap,
+the issue's "links shouldn't intercept taps") — nothing to hit on the line itself.
+Both directions offer the 5 s Undo (UIUX §9), captioned "Linked" / "Unlinked".
+
+**Data & integrity.** A board record gains `links: []` — unordered `{id,a,b}` note-id
+pairs. It persists with the whole record (`idbPut`), so no IndexedDB version bump; a
+legacy board reads `links` through the B21 default. Deleting a note removes its links,
+and the note's one Undo restores them with it (exact prior state, UIUX §9). A note
+swept as an empty husk (B8/B31) drops its links in `sanitizeBoard`.
+
+**Render & export.** The line lives on one `<svg>` layer in `#board` space, a sibling
+of the notes like `#selection`, so it rides the single render transform and its
+endpoints are plain board-logical centres — recomputed on every path that moves a note
+(drag, pinch, resize, relayout). Its z-order is the issue's "z-index: 1.5" made valid:
+integer `z-index: 1` (below the z:2 notes) plus DOM order after the static furniture
+(above the z:1 furniture), since fractional z-index is invalid CSS. The stroke is
+`--frame`, so it rotates hue per board type for free (B67), kept a crisp 1px at any
+render scale by `non-scaling-stroke`. The link travels into the PDF (page 1, under the
+cards) as a neutral hairline, from the same export-geometry centres the notes use.
+
+Rendered values (stroke, layer z-order, hint/menu copy, the `link` mark, PDF weight)
+in UIUX §4.6/§13.3; `CACHE` → v36.

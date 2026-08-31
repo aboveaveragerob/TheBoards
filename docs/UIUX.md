@@ -957,6 +957,41 @@ told apart by fill **and** glyph. Unlike Complete's rotating `--frame`, these tw
 not change with board type (on a To-Do board Copy's blue equals the frame, the
 owner's accepted call).
 
+### §4.6 Note links (B91)
+
+A **link** is a relationship the user asserts between two notes (issue #142): a
+thin line between their centres, no label and no arrowhead. It is the board's first
+inter-note structure — *relationships asserted not inferred* (PRD §1) made visible.
+
+**The line.** 1px `--frame` — the board's own rule idiom (§2.5), so it rotates hue
+per board type for free (B67, `#board[data-cat]`). It is held to a crisp 1px at any
+render scale by `vector-effect: non-scaling-stroke`, so it does not thin out under
+the desktop scale the way an ordinary scaled hairline would. No fill, no cap
+decoration, no marker.
+
+**Where it sits.** On one `<svg>` layer (`#link-layer`), a sibling of the notes in
+`#board` space, so it rides the single render transform (§11) and its endpoints are
+plain board-logical note centres. The layer is `pointer-events: none` — it must
+never take a hit, because a link is asserted by tapping the *notes*, not the *line*
+(the recognizer hit-tests by `target.closest()`, §5). It draws **below the notes and
+above the board furniture**: `z-index: 1` (notes are `z-index: 2`) plus DOM order
+after the static furniture. The issue's "z-index: 1.5" is that intent; a literal
+`1.5` is invalid CSS and is not used.
+
+**Arming and completing** (the gesture, B91): a note's long-press (mobile) or
+right-click (desktop) opens a one-item menu, **Link** (§7); the next tap on a
+*different* note connects it, a tap on an already-linked note removes it (toggle),
+and a tap elsewhere / a drag / Escape cancels. While armed, a persistent hint toast
+(§9) states the act. Creating or removing a link offers the 5s Undo (§9).
+
+**Export.** The line travels into the PDF (page 1, beneath the cards) as a neutral
+`PDF_SHADE` hairline (`EXPORT_GEO.linkWidth = 1.5` sheet units), between the same
+export-geometry centres the notes use — neutral, not the screen's `--frame` hue,
+because the export palette stays off `:root` (§15).
+
+**Copy.** `Link` (menu item); `Tap another note to link` / `Click another note to
+link` (the armed hint, mobile / desktop); `Linked` / `Unlinked` (the undo captions).
+
 ---
 
 ## §5 Gestures
@@ -1021,14 +1056,15 @@ Long-press (mobile) or right-click (desktop). The anchor menu's two items —
 **All boards** and **Export** — are *also* the **board-action row** (§3.3, B83):
 two flat tabs above the Parking Lot that invoke them directly, on both
 platforms. That row replaces the `Menu` handle of B65, and is why removing the
-handle costs desktop nothing — no long-press is armed there (B19/issue #4) and
-`contextmenu` routes notes alone, so the row is desktop's route to these two
-actions. The mobile anchor long-press still opens the menu below.
+handle costs desktop nothing — no long-press is armed there (B19/issue #4), and
+desktop `contextmenu` now opens a **note's** Link menu (B91, §4.6), so the
+board-action row — not a menu — is desktop's route to these two board actions. The
+mobile anchor long-press still opens the anchor menu below.
 
 | Menu | Items |
 |---|---|
-| Item | All boards · Complete/Restore · Highlight/Remove highlight · Copy · Delete |
 | Anchor | All boards · Export |
+| Note (B91) | Link |
 | Board row / rail card | Export · Delete |
 | Desktop selection | Complete/Restore · Highlight/Remove highlight · Delete |
 
@@ -1391,6 +1427,10 @@ Semantics carried forward, unchanged: `⇩` is "out of the app, down to the
 device," not `↓` (a borrowed browser-download convention) and not `📄` (which
 restates the noun). `⧉` is "this, again, elsewhere" — two frames, one content.
 Guillemets read as "page", not "play".
+
+The **link** mark (B91, §4.6) joins the set: two small nodes joined by a diagonal
+line — the mark *is* the thing it makes, a connection between two notes, in the
+same hand and stroke weight as the rest (no arrowhead, matching the line itself).
 
 ### §13.4 The icon
 

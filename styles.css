@@ -1421,6 +1421,24 @@ html.desktop .pager-btn + .pager-btn { margin-left: 0; }
   box-shadow: inset 0 0 0 4px var(--ink-dark);
 }
 
+/* ---- Note links (issue #142, B91): one SVG layer in board space, a sibling of
+   the notes like #selection below, so it rides #board's translate+scale and its
+   line endpoints are plain board-logical px. pointer-events:none — hit-testing is
+   target.closest()-based, so a hittable line would steal a note's tap. z-index:1
+   sits it BELOW the z:2 notes and, being appended after the static furniture,
+   ABOVE the z:1 furniture — the valid-integer realization of the issue's
+   "z-index: 1.5" (fractional z-index is invalid CSS). The line is the board's own
+   rule idiom, 1px --frame, so it rotates hue per board type for free (B67); kept a
+   crisp 1px at any render scale by non-scaling-stroke. ---- */
+#link-layer {
+  position: absolute; left: 0; top: 0;
+  width: var(--logical-w, 900px); height: var(--logical-h, 1000px);
+  pointer-events: none; z-index: 1; overflow: visible;
+}
+#link-layer line {
+  stroke: var(--frame); stroke-width: 1px; vector-effect: non-scaling-stroke;
+}
+
 /* ---- Selection chrome (issues #4/#12/#13): one overlay in board space.
    Container passes events through; only the ring band, handles and buttons
    are interactive, so the note's interior stays clickable for the second
