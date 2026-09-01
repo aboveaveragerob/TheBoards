@@ -3413,6 +3413,64 @@ function buildBoardPdf(rec) {
                      rec.title || COPY.untitled);
 }
 
+/* ---- The calendar's 7-day reference sheet (issue #145, R1's Export) ------
+   One text page: the rolling week as it renders — today first, one line per
+   event, completed events reading "— completed —" (§7's bytes property).
+   Built from the same primitives as exportTextPages; reads STORAGE (the
+   computed window, live events), never the squeezed frame (R6 clause 2). */
+async function exportCalPdf() {
+  try {
+    flushSave();
+    const all = await idbGetAll();
+    const events = eventsOf(all);
+    const L = PDF_MARGIN, R = A4_W - PDF_MARGIN, W = R - L;
+    const stream = (() => {
+      const p = pdfCanvas();
+      p.q().flip(A4_H);
+      p.fill(PDF_PAPER).rect(0, 0, A4_W, A4_H).raw('f');
+      let y = PDF_MARGIN;
+      const room = (h) => { if (y + h > A4_H - PDF_MARGIN) throw new Error('cal-pdf-overflow'); };
+      const para = (str, size, lh, bold, color) => {
+        for (const line of pdfWrap(str, bold, size, W)) {
+          room(lh);
+          if (line.length) p.text(line, L, pdfBaseline(y, lh, size), size, bold, color);
+          y += lh;
+        }
+      };
+      para(COPY.calTitle, 18, 24, true, PDF_INK);
+      para(formatDate(Date.now()), 9, 13, false, PDF_SHADE);
+      y += 6;
+      for (const day of calWindow()) {
+        room(30); y += 12;
+        para((day.today ? COPY.calToday + ' — ' : '') +
+          day.date.toLocaleDateString(undefined, { weekday: 'long' }) + ' ' + calMD(day.date),
+          11, 15, true, PDF_INK);
+        p.fill(PDF_SHADE).rect(L, y + 1, W, 0.5).raw('f');
+        y += 6;
+        const evs = calEventsOf(events, day.key);
+        if (!evs.length) continue;
+        for (const ev of evs) {
+          const done = ev.state === 'complete';
+          const color = done ? PDF_SHADE : PDF_INK;
+          for (const line of pdfWrap(done ? '— completed —' : ev.text, false, 10, W - 14)) {
+            room(14);
+            if (line.length) p.text(line, L + 14, pdfBaseline(y, 14, 10), 10, false, color);
+            y += 14;
+          }
+        }
+      }
+      return p.Q().stream();
+    })();
+    const bytes = pdfAssemble([stream], COPY.calTitle);
+    const d = new Date();
+    const pad = (n) => (n < 10 ? '0' : '') + n;
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }),
+      'calendar-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '.pdf');
+  } catch (e) {
+    showNotice(COPY.exportError, 'export', UNDO_MS);
+  }
+}
+
 /* ---- The menu action ---------------------------------------------------- */
 
 // A filename someone can find later: the board's own words, then the day it
