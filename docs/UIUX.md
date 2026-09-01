@@ -731,17 +731,20 @@ canvas; content past it is clipped (`#lot-items { overflow: hidden }`). **This
 supersedes B37's whole-row budget and B47/B57's row-count ceiling** (B73),
 which sized the lot by item *count* at a fixed 44px each and cut wrapped lines.
 
-### §3.3 The board-action row (B83; three tabs since B92, issue #140)
+### §3.3 The board-action row (B83; three tabs since B92; four since B95, issue #145)
 
-The board's board-level actions — **All boards**, **Export**, and, since
-issue #140, **Import** — are declared as a row of flat tabs **hovering just
-above the Parking Lot**, the mirror at the sheet's other end of the band's
-header tabs. This replaced the `Menu` handle of B65, whose only route was
-still a control the reader had to notice; the actions now name themselves, in
-place, on both platforms. B92 retires the anchor long-press/right-click menu
-outright: with Import joining the row, every board-level route is a visible
-tab, and the hidden menu duplicated doors the reader was already standing in
-front of.
+The board's board-level actions — **All** (the toggle), **Export**,
+**Import**, and, since issue #145, **Calendar** — are declared as a row of
+flat tabs **hovering just above the Parking Lot**, the mirror at the sheet's
+other end of the band's header tabs. This replaced the `Menu` handle of B65,
+whose only route was still a control the reader had to notice; the actions
+now name themselves, in place, on both platforms. B92 retires the anchor
+long-press/right-click menu outright: with Import joining the row, every
+board-level route is a visible tab, and the hidden menu duplicated doors the
+reader was already standing in front of. B95 re-grammars the labels so four
+tabs fit a phone (R7.2): side padding 12→6px and gap 8→6px — vertical
+padding and type are untouched, so B86's finger box and §6's collar-height
+math hold.
 
 **Placement.** `#board-actions` is `left: 0; right: 0`, a **left-anchored** flex
 cluster (`gap: 8px`, `justify-content: flex-start`, B88) at `bottom: var(--lot-h)`
@@ -756,7 +759,8 @@ recognizer and captures a note; only the tabs are live.
 
 ```css
 .board-action {
-  padding: 8px 12px;                /* the band label's box (§3.1), finger-size (B86) */
+  padding: 8px 6px;                 /* vertical: the band label's box (§3.1), finger-size (B86);
+                                       sides trimmed 12→6 for the four-tab row (B95, R7.2) */
   border: none; border-radius: 3px; /* symmetric — it hangs beneath no rule */
   background: var(--frame);         /* the band tab's fill (B76) — rotates per #board[data-cat] */
   color: var(--ink);               /* --ink-dark at 5.70:1, rebound by .on-light */
@@ -793,6 +797,31 @@ hover/press on §8's curve (the kill-switch drops it to instant), and §2.7's
 two-tone ring on focus. State is never colour (§1) — the **All boards ⇄ This
 board** toggle states its act in its label (B43/B71's grammar), so no
 `aria-pressed` rides alongside.
+
+### §3.4 The calendar view (B95, issue #145)
+
+The third screen. Full-screen on mobile; on desktop and tablet a panel
+docked to the right edge (320 unscaled px, `--frame` border) beside the
+board, which reflows — never covered. The room's own ground (`--chrome`).
+
+**The R1 top row.** Three `--frame` flat tabs in the row-control species,
+anchored left / center / right: **Back** (the board-action glyph mirrored —
+a page turn back), **All Boards**, **Export**. Back pops the view's pushed
+History state; it is the always-visible exit, with the OS gesture as the
+second route, never the only one.
+
+**The 7-day stack.** `#cal-stack` is a column of seven `#cal-day` cards,
+today first — computed at render (R4), never stored. A day card is a
+two-column grid: the date card (`--card`, the day's name over MM/DD) beside
+one timeline zone on the water's fall. Attention recedes with distance from
+now — today lit (the two-tone outline ring, full scale, `flex 1.6`), events
+near, empty days far (`brightness .6`, lines at .62 alpha). Scale and
+luminance, never icons.
+
+**Capture.** Each day's zone closes with the `+` row — the calendar edition
+of §6.2: tap and type, the caret arrives with the tap. Commit-on-blur writes
+the event and its linked board's mirror line together; an empty commit
+discards (B8). Completed events strike through at .55.
 
 ---
 
@@ -1163,9 +1192,11 @@ A save-failure toast must never clobber a pending Undo (B13).
 #112). Choosing "All boards" raises the four category buttons — To Do, Notes,
 Learning, Ideas — and a board list lives on that category's **own drilled
 screen**, reached by choosing its button. Routing is two levels of History API
-state (`{v:'list'}` the picker, `{v:'cat',cat}` a drill) specifically so the OS
-back gesture returns drill → picker → board (B9). Back is never intercepted,
-shadowed or disabled.
+state (`{v:'list'}` the picker, `{v:'cat',cat}` a drill, `{v:'cal'}` the calendar
+(B95)) specifically so the OS back gesture returns through every level
+(drill → picker → board; calendar → board). Back is never intercepted,
+shadowed or disabled — and B95's top row makes the calendar's route
+visible, so the gesture is a second way, never the only way.
 
 **Mobile:** the picker is not a screen of its own — it is the **Parking Lot
 turned into a 2×2 grid** of the four category buttons, drawn over the lot at its
@@ -1669,7 +1700,7 @@ Per surface, what would actually fail if the words above were violated today:
 |---|---|
 | §2 — every token, every ratio | `test/tokens.js` (`PRD §9.6`): every table here recomputed from the shipped hexes, each range at its worst extreme, plus the sync points, the accent placement rule, self-hosting and B53's pair |
 | §2.2.2 — four ladders, one axis | `test/tokens.js` [1b] parses the palette **per scope** (`:root`, `#board[data-cat="idea"]`, `#board[data-cat="unsorted"]`, `#board[data-cat="learning"]`), asserts each rung's luminance against the shared column, asserts the two spellings of the darkest stop agree (`--water-bot` / `--water-bot-a`), and asserts `--chrome`, the ink poles and the accents are *not* rebound. §2.3/§2.5/§2.7's tables are then run against all four ladders with one expected number each |
-| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines); `test/mobile.js` [21] and `test/desktop.js` [D21] pin the board-action row above the lot, prove its tabs clear the touch/pointer floor, open the list and export a PDF, and confirm the `#title-menu` handle is gone (B83) |
+| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines); `test/mobile.js` [21] and `test/desktop.js` [D21] pin the board-action row above the lot, prove its four tabs clear the touch/pointer floor (B95's re-grammar), open the list and export a PDF, and confirm the `#title-menu` handle is gone (B83); §3.4's calendar is pinned by `test/tokens.js`'s issue-#145 block (window computed at render, one mirror writer, link coercion, squeeze as render-time state) |
 | §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
 | §4 — wrap, similarity render, centred text | `test/mobile.js` (B39 scenarios; [12c] pins B64's fold/rotate similarity — shape held, size uniform, storage untouched, round trip exact; [18b] computes the alignment, editing and at rest) and `test/desktop.js` [D13] (the silent cross-frame grab folds k) and [D17b] — the computed style, plus the centring inset parsed out of page 1's content stream (B62) |
 | §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |
