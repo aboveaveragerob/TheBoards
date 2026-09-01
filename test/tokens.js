@@ -586,8 +586,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v39 — the bump that ships B94 (favicon set + view titles, issue #148)',
-    /const CACHE = 'todo-boards-v39';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v40 — the bump that ships the calendar (issue #145)',
+    /const CACHE = 'todo-boards-v40';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   // --- Issue #140 / B92: import/export and the retired anchor menu ---
   ok('the board-action row carries the third tab (import)', /id="action-import"/.test(html) &&
     /actionImport: document\.getElementById\('action-import'\)/.test(app));
@@ -611,6 +611,31 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
   ok('the anchor menu is retired: openMenuFor answers notes alone',
     /HAS_MENU = new Set\(\['note'\]\)/.test(app) &&
     !/if \(target\.type !== 'anchor'\) return;\s*\n\s*buildMenu/.test(app));
+  // --- Issue #145: the rolling temporal calendar (R1–R7) ---
+  ok('the board-action row carries the fourth tab (calendar)', /id="action-calendar"/.test(html) &&
+    /actionCalendar: document\.getElementById\('action-calendar'\)/.test(app));
+  ok('the tab opens the calendar as a history navigation (B9: pushed, never shadowed)',
+    /actionCalendar\.addEventListener\('click'[\s\S]*?history\.pushState\(\{ v: 'cal' \}, ''\)/.test(app));
+  ok('the calendar view is a real element with the R1 top row',
+    /id="cal-view"/.test(html) && /id="cal-back"/.test(html) &&
+    /id="cal-boards"/.test(html) && /id="cal-export"/.test(html));
+  ok('Back is the visible exit and pops the pushed state (R1: never gesture-only)',
+    /el\.calBack\.addEventListener\('click'[\s\S]*?goCalBack/.test(app) &&
+    /function goCalBack[\s\S]*?history\.back\(\)/.test(app));
+  ok('the 7-day window is computed at render — no midnight write, no stored rolling array (R4)',
+    /function calWindow\(\)/.test(app) && /for \(let i = 0; i < 7; i\+\+\)/.test(app) &&
+    !/calRoll|rollWindow|midnightTimer/.test(app));
+  ok('the 7-day window is today + 6 future, no past cards (R7.4)',
+    /function calWindow[\s\S]*?new Date\(now\.getFullYear\(\), now\.getMonth\(\), now\.getDate\(\) \+ i\)/.test(app));
+  ok('the mirror has one writer and a self-recorded span (R5\'s line identity)',
+    /function syncMirror\(board, events\)/.test(app) && /board\.calReq = mirrored\.length/.test(app));
+  ok('a linked board is ensured on the first event and titled MM/DD/YY To Do (R5)',
+    /function ensureLinkedBoard/.test(app) && /CAL_TITLE_SUFFIX/.test(app));
+  ok('import coercion carries the calendar link (cal strict key, calReq finite)',
+    /\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$/.test(app) && /calReq: Number\.isFinite/.test(app));
+  ok('the squeeze is render-time state: true frame kept, nothing stored (R6)',
+    /let calSqueeze = false/.test(app) && /LOGICAL_W_TRUE/.test(app) &&
+    /note\.rw = LOGICAL_W_TRUE \|\| LOGICAL_W/.test(app));
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));

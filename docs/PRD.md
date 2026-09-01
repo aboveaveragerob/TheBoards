@@ -220,6 +220,16 @@ A board:
 A note: `{ id, text, x, y, rw, rh, scale, state }`
 A parking-lot item: `{ id, text, state }`
 
+Since B95 (issue #145) a board record may also carry `cal` (the YYYY-MM-DD
+date key it serves as that day's To-Do board) and `calReq` (the count of
+Requirements lines the calendar mirror last wrote — the span that
+distinguishes the mirror's lines from the reader's own). Both are added at
+the read site, defaulted when absent (B21's idiom — no migration, no DB
+version move). Calendar events are records in the same store shaped
+`{ id, date, text, state, createdAt }`, identified by carrying `date` and
+no `title`; the 7-day window is computed from today's date at render, so no
+rolling array is stored and midnight writes nothing.
+
 `state` is `active` or `complete`. `text` is a plain string in every case.
 
 Two structural facts carry product meaning:

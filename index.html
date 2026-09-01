@@ -88,6 +88,7 @@
         <button type="button" class="board-action on-light" id="action-boards"></button>
         <button type="button" class="board-action on-light" id="action-export"></button>
         <button type="button" class="board-action on-light" id="action-import"></button>
+        <button type="button" class="board-action on-light" id="action-calendar"></button>
       </div>
       <input type="file" id="import-file" accept=".json,application/json" hidden>
 
@@ -116,6 +117,20 @@
        section's aria-label, for the readers that need one (issue #95, B66). -->
   <section id="list-view" class="on-dark" hidden aria-label="Boards">
     <div id="list-rows" role="list"></div>
+  </section>
+
+  <!-- Calendar view (issue #145): the 7-day rolling stack, the third screen.
+       The owner's top row (R1) is its visible way off — Back / All Boards /
+       Export, anchored left / center / right — so no surface of this app is
+       ever exited by an OS gesture alone. The stack renders one day card per
+       rolling date, today first (R4 computes the window; nothing stored). -->
+  <section id="cal-view" class="on-dark" hidden aria-label="Calendar">
+    <div id="cal-top" role="group" aria-label="Calendar actions">
+      <button type="button" class="cal-act on-light" id="cal-back"></button>
+      <button type="button" class="cal-act on-light" id="cal-boards"></button>
+      <button type="button" class="cal-act on-light" id="cal-export"></button>
+    </div>
+    <div id="cal-stack"></div>
   </section>
 
   <!-- Transient surfaces (elevation = "temporary, above the page", UIUX §2.4). -->

@@ -1675,10 +1675,10 @@ async function openCat(page, cat) {
       };
     });
     ok('the old #title-menu handle is gone', geo.gone);
-    ok('the row is a labelled group of three tabs: All boards, Export, Import (B92)',
-       geo.role === 'group' && geo.labels.length === 3 &&
-       /All boards/.test(geo.labels[0]) && /Export/.test(geo.labels[1]) &&
-       /Import/.test(geo.labels[2]), JSON.stringify(geo.labels));
+    ok('the row is a labelled group of four tabs: All, Export, Import, Calendar (B92 re-grammared by #145 R7.2)',
+       geo.role === 'group' && geo.labels.length === 4 &&
+       /All/.test(geo.labels[0]) && /Export/.test(geo.labels[1]) &&
+       /Import/.test(geo.labels[2]) && /Calendar/.test(geo.labels[3]), JSON.stringify(geo.labels));
     ok('each tab carries its drawn mark and rebinds ink via .on-light',
        geo.hasGlyph && geo.onLight);
     ok('the row sits above the lot\'s top edge', geo.rowBottom <= geo.lotTop + 0.5,
@@ -1717,10 +1717,10 @@ async function openCat(page, cat) {
     });
     await tap(page, back.x, back.y);
     await page.waitForTimeout(300);
-    ok('This board returns to the board — grid gone, label back to All boards',
+    ok('This board returns to the board — grid gone, label back to All (R7.2\'s short form)',
        await page.evaluate(() => document.querySelector('#lot-menu').hidden === true &&
          !lotMenuOpen && !listOpen &&
-         /All boards/.test(document.querySelector('#action-boards .label').textContent)));
+         /^All$/.test(document.querySelector('#action-boards .label').textContent)));
 
     // history.go is async and not idempotent, so a re-entrant returnToBoard (a
     // fast double-tap of "This board", where the tab is not blurred on mobile)

@@ -3529,3 +3529,78 @@ surface: no tab bar, no header, no mode.
 `syncViewTitle()` is the single writer, called from `renderBoard`,
 `showList`, `showCat`, and the title anchor's input branch.
 
+
+## AD. The rolling temporal calendar (issue #145)
+
+### B95. The calendar is a third screen: a computed 7-day rolling window over linked To-Do boards, entered by the board-action row's fourth tab, exited by the R1 top row; the mobile tab row re-grammars to fit; the desktop panel squeezes the frame and grabs write the true frame (issue #145; the owner's R1–R7 solutions of 2026-09-01 are the ruling's substance; keeps B9's back-gesture law as a route among visible routes, B81's commit-on-release, B8/B31's husk discipline, B64's similarity mapping, B21's read-site defaulting, B42's pager species, §8's closed motion set — and waives nothing)
+
+**The exits came first.** The gap audit's question — can you get off every
+surface this feature adds? — is answered before the feature is drawn. R1:
+the calendar carries a top row, Back · All Boards · Export, anchored left /
+center / right, visible on every platform. Back pops the calendar's own
+pushed History state — B9's route made visible, the gesture law never
+demoted to the only law. All Boards pushes the picker above the calendar,
+which compresses beneath it rather than being covered. R2: the Quickview
+stretch arrow does not ship — an unruled surface with no way off is exactly
+the shape this product forbids, so the surface does not exist.
+
+**The window is computed, not stored.** R4: the 7-day stack (today + 6
+future, no past cards — R7.4) is derived from today's date at render. No
+midnight write, so B93's "nothing writes without a gesture owning it" needs
+no waiver; no skip-forward problem, no undo firing to nobody at 12:00am, no
+stored rolling array, and the database stays at version 1.
+
+**The data model is the boards', extended at the read site.** R5: each date
+with events links to an ordinary To-Do board — created on the date's first
+event (the trigger), titled MM/DD/YY To Do, category todo, announced by the
+drawn calendar mark on its card and in the All-Boards views. The link is the
+board's `cal` field; the mirror's line count is `calReq`; both ride B21's
+read-site-default idiom, so no migration. The Requirements mirror has ONE
+writer (`syncMirror`) and a self-recorded span: the span's lines are the
+mirror's, everything after is the reader's own and survives every resync —
+a deletion shrinks the events but never demotes an old mirror line to a
+"hand" line. Deleting the linked board unlinks its date (events survive as
+calendar data; the next event re-creates a board). Import coercion carries
+`cal` (strict YYYY-MM-DD) and `calReq`, so a backup round-trips the link and
+an old build reading a new backup simply ignores the extra fields.
+
+**The row fits because its grammar says less.** R7.2: four tabs — All ·
+Export · Import · Calendar — at 6px side padding and 6px gap. Measured, not
+guessed: the natural grammar overflowed 390 and 360 viewports; the
+re-grammar is 346px. Vertical padding is untouched, so B86's finger box and
+§6's collar-height math hold; the resting toggle label reads "All" and its
+engaged face keeps "This board" — the one word that states the return. The
+combined Download fallback was retired unneeded.
+
+**Desktop squeezes; grabs write the truth.** R6: the open panel takes 320
+unscaled px and `applyLayout` removes that width from the frame — B20's own
+mechanism, on the other edge. The arrangement maps as a figure (B64),
+smaller and further left; overlap is accepted, the owner's word. Nothing is
+stored while squeezed; `LOGICAL_W_TRUE` holds the frame the board returns
+to, `toLogical` un-maps into it proportionally, and `rebaseNote` stamps
+against it — the one licensed write lands the note permanently where the
+user sees it land in the room the board returns to. On close the squeeze
+lifts and the board renders exactly where it was — probed bit-identical.
+Export reads storage, never the squeezed frame (R6's second clause).
+
+**Device classes gain a tablet path, by width.** R3: `min-width: 984px` —
+the unfolded Z Fold 7's CSS viewport — regardless of pointer; mouse
+capability still overrides into desktop, whose own MQ is untouched. iPad
+portrait reads as a cover-screen foldable (mobile); landscape clears 984
+(tablet). The tablet calendar arrangement is the desktop's (rail → panel →
+squeeze), so no viewport falls between grammars. `applyMode` closes the
+panel on a capability flip and pops its history entry — nothing typed is
+lost, because the calendar holds no drafts: its lines live in boards.
+
+**Export.** R1's Export control opens B92's existing PDF · JSON choice; the
+PDF leaf is a 7-day reference sheet drawn with the exporter's own
+primitives — today marked, one line per event, completed events reading
+"— completed —" (§7's bytes property). JSON is the unchanged whole-library
+backup.
+
+**The record.** `sw.js`'s `CACHE` bumps to **v40**; `test/tokens.js` pins it
+and gains the calendar's contract asserts (window computed, mirror writer,
+link coercion, squeeze state). `test/mobile.js` [21] and `test/desktop.js`
+[D21] re-read the row as four tabs. `UIUX §3.3` (tab padding), §3.4 (new:
+the calendar view), `§10` (the third screen), `PRD §4.1` (the extended
+record shape) move with it.

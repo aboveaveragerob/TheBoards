@@ -145,6 +145,16 @@ const COPY = {
   catNew: 'New board',
   pageFirst: 'First page', pagePrev: 'Previous page',
   pageNext: 'Next page', pageLast: 'Last page',
+  // The calendar (issue #145). The re-grammared tab label (R7.2 — "All", the
+  // short form, is what lets four tabs fit a phone: measured 346px of 390/360).
+  // The tab's toggle face mirrors B83's grammar: on the board it offers the
+  // calendar; while the calendar is showing, the day-stack's Back states the
+  // return, and the tab is not visible there.
+  calBoardTab: 'All', calendar: 'Calendar',
+  calToday: 'Today', calBack: 'Back', calAllBoards: 'All Boards', calExport: 'Export',
+  // A day card's header: "Today" then the long date; the future days read
+  // weekday + MM/DD (the mockups' own voice).
+  calTitle: 'Calendar Board',
 };
 /* The marks are drawn, not typed (UIUX §13.3, B50): inline SVG in
    currentColor, at the note's own stroke weight and corner radius, so the
@@ -185,6 +195,11 @@ const GLYPH = {
   pagePrev:  MARK(14, '<path d="M10 2.5L4.5 8 10 13.5"/>'),
   pageNext:  MARK(14, '<path d="M6 2.5L11.5 8 6 13.5"/>'),
   pageLast:  MARK(14, '<path d="M3.5 2.5L9 8l-5.5 5.5"/><path d="M8 2.5L13.5 8 8 13.5"/>'),
+  // The calendar (issue #145): the mockup's own mark — a framed page with a
+  // hanging rail — drawn in the app's hand. Back reads as the mirrored page
+  // pair (a page turn back), the same "page" semantics as the pager's marks.
+  calendar:  MARK(16, '<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5V4M10.5 1.5V4"/>'),
+  calBack:   MARK(16, '<path d="M9.5 3.5L5 8l4.5 4.5"/><path d="M5 8h6.5"/>'),
 };
 
 // contenteditable mode: prefer plaintext-only (Chromium/Samsung Internet — the
@@ -215,6 +230,15 @@ function applyMode() {
   pointers.clear();
   if (isDesktop && listOpen) returnToBoard();  // pop the whole list nav → board (B9 intact;
                                                // a drill is two levels deep, B74)
+  // The calendar across the flip (issue #145): the panel arrangement belongs
+  // to the desktop grammar, so a flip while it is open closes it and pops its
+  // history entry (nothing typed is lost — calendar lines live in linked
+  // boards, not in the view). A flip TO desktop re-enters via the tab.
+  if (calOpen) {
+    calOpen = false;
+    el.calView.hidden = true;
+    if (history.state && history.state.v === 'cal') history.back();
+  }
   applyLayout();
   if (isDesktop) renderPane();
 }
@@ -226,6 +250,144 @@ const uuid = () =>
         const r = Math.random() * 16 | 0;
         return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
       }));
+
+/* --- 1.7 The rolling temporal calendar (RTCB, issue #145) -----------------
+
+   The calendar is not a record of its own — it is a VIEW over the To-Do
+   boards (R5). Each date that carries at least one event is linked to an
+   ordinary To-Do board, created on the date's first event, titled
+   "MM/DD To Do" (the MM/DD of the date it serves), and the mirror is
+   bidirectional into that board's Requirements section: one line per event,
+   reading exactly as written in the calendar. The link is recorded on the
+   DATE, not on the board: `cal` (the date key) lives on the board record,
+   added at the read site (B21's idiom — no DB version bump; PRD §4.1).
+
+   Line identity (the ruling's mechanics): a Requirements line corresponds
+   to an event iff it was written by the mirror. Identity is positional in
+   the mirror's own order — the mirror knows the events for a date and
+   rewrites its lines wholesale on any change, so a hand-typed line is any
+   line outside the mirror's count. Hand lines are ordinary Requirements
+   text: they render, save, and are invisible to the mirror. Reordering is
+   presentation-only (the calendar reads events by identity, not position).
+   Deleting the linked board unlinks its date — the events survive as
+   calendar data (they live on the event records below) and the next event
+   added to that date re-creates a board. No blocking, no orphan.
+
+   The 7-day window is COMPUTED at render from today's date (R4): no stored
+   rolling array, no midnight write, no skip-forward problem, no undo
+   question — and the DB stays at version 1. An event is stored on its date
+   record: { id, date: 'YYYY-MM-DD', text, state } — plain strings, the
+   §4.1 shape. */
+
+const CAL_TITLE_SUFFIX = ' To Do';
+/* Date keys are local-time YYYY-MM-DD. formatMDY stays the card stamp's
+   formatter (§10); these two are the calendar's own — key for storage and
+   linking, long form for a day card's header. */
+function calKey(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function calKeyOf(dateKey) { return dateKey; }   // identity — reads clear at call sites
+
+/* The 7 rolling days: today + 6 future, today first (R7.4 — no past cards;
+   mockup 6's "yesterday deepest" line is dead). Each entry is
+   { key, date: Date, today: bool }. */
+function calWindow() {
+  const days = [];
+  const now = new Date();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    days.push({ key: calKey(d), date: d, today: i === 0 });
+  }
+  return days;
+}
+
+/* One event record. Plain strings + a state, the §4.1 shape; `date` is the
+   calendar link (calKey form) and `createdAt` the mirror's order key — the
+   positional identity the Requirements mirror rewrites around. */
+function newCalEvent(dateKey, text) {
+  return { id: uuid(), date: dateKey, text: text || '', state: 'active',
+           createdAt: Date.now() };
+}
+
+/* The linked board for a date, if it exists. The link is the board's `cal`
+   field (added at the read site — B21's idiom), so finding it is a scan of
+   the snapshot the caller already holds. `current` is authoritative for
+   itself (renderPane's stance). */
+function calBoardOf(all, dateKey) {
+  for (const b of all) {
+    const rec = (current && b.id === current.id) ? current : b;
+    if (rec.cal === dateKey) return rec;
+  }
+  return null;
+}
+
+/* The date's events, oldest first (creation order = the mirror's line order). */
+function calEventsOf(events, dateKey) {
+  return events.filter(e => e.date === dateKey)
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || (a.id < b.id ? -1 : 1));
+}
+
+/* Ensure a date's linked To-Do board exists; create it on the date's first
+   event (R5). Returns the board record (existing or new, already in `all`).
+   The new board writes category + calStamp explicitly (B63/B69) and lands
+   first in its section, like a drop. Creating a board is a consequence
+   (records are written), so every caller wraps this in commitAction. */
+function ensureLinkedBoard(all, dateKey) {
+  let board = calBoardOf(all, dateKey);
+  if (board) return { board, created: false };
+  board = newBoardRecord();
+  // "MM/DD To Do" (R5): MM and DD straight from the date key, 2-digit year's
+  // last pair follows formatMDY's reading. Zero-padded like the card stamp.
+  const p = dateKey.split('-');                       // [YYYY, MM, DD]
+  board.title = p[1] + '/' + p[2] + '/' + dateKey.slice(2, 4) + CAL_TITLE_SUFFIX;
+  board.cal = dateKey;
+  all.push(board);
+  return { board, created: true };
+}
+
+/* The Requirements mirror (R5): rewrite the linked board's Requirements so
+   the mirror's lines read exactly as the calendar's events do, preserving
+   every hand-typed line. The mirror's span is SELF-RECORDED: `calReq` on the
+   board (read-site defaulted, B21's idiom) counts the lines the mirror last
+   wrote, so a deletion shrinks the events but not the span — an old mirror
+   line can never be demoted to a "hand" line by an event's removal. The
+   span's lines are rewritten wholesale in event order; everything after
+   them is the reader's own and is carried through untouched. Editing either
+   side lands here — one writer, so the two surfaces can never disagree.
+
+   Requirements is one plain string (PRD §4.1): lines are \n-separated. */
+function syncMirror(board, events) {
+  const lines = (board.requirements || '').length
+    ? board.requirements.split('\n') : [];
+  const span = typeof board.calReq === 'number'
+    ? board.calReq
+    : Math.min(lines.length, events.length);   // first sync on a legacy pair
+  const hand = lines.slice(span);              // lines the reader wrote
+  const mirrored = events.map(e => e.text);
+  const next = mirrored.concat(hand).join('\n');
+  board.calReq = mirrored.length;              // the span moves to the new write
+  if (next !== (board.requirements || '')) {
+    board.requirements = next;
+    return true;
+  }
+  return false;
+}
+
+/* Read the mirror back: the events a board's Requirements implies, by
+   position (the first lines are the mirror's). Used when the READER edits a
+   line — the edit writes through to the event record it mirrors. */
+function mirrorEventsOf(board, events) {
+  const lines = (board.requirements || '').length
+    ? board.requirements.split('\n') : [];
+  if (!board.cal) return [];
+  const mine = calEventsOf(events, board.cal);
+  const span = typeof board.calReq === 'number'
+    ? Math.min(board.calReq, lines.length) : mine.length;
+  return lines.slice(0, span)
+    .map((text, i) => ({ event: mine[i], text }))     // event may be undefined
+    .filter(m => m.event);
+}
 
 /* --- 2. IndexedDB persistence -------------------------------------------- */
 const DB_NAME = 'boards-db', STORE = 'boards';
@@ -354,6 +516,13 @@ const el = {
   actionExport: document.getElementById('action-export'),   // Export this board (PDF · JSON, B92)
   actionImport: document.getElementById('action-import'),   // Import a JSON backup (issue #140, B92)
   importFile: document.getElementById('import-file'),       // the import tab's file dialog
+  calView: document.getElementById('cal-view'),             // calendar screen (issue #145)
+  calStack: document.getElementById('cal-stack'),
+  calTop: document.getElementById('cal-top'),
+  calBack: document.getElementById('cal-back'),
+  calBoards: document.getElementById('cal-boards'),
+  calExport: document.getElementById('cal-export'),
+  actionCalendar: document.getElementById('action-calendar'), // 4th board-action tab (R7.2)
 };
 const anchorEls = {
   title: document.getElementById('anchor-title'),
@@ -430,9 +599,16 @@ function applyLayout() {
     // Min-anchored scale — neither logical dimension ever drops below the
     // 900×1000 reference, so mobile-placed notes always fit and the top
     // furniture (~880 units) never collides, at any window shape.
-    renderScale = Math.min(vh / 1000, (vw - PANE_W) / 900);
+    // The calendar squeeze (R6): while the calendar panel is open the panel's
+    // width is removed here, exactly as the left rail's is — the frame narrows,
+    // the arrangement maps as a figure (B64), nothing is written.
+    const calW = calSqueeze ? CAL_PANEL_W : 0;
+    renderScale = Math.min(vh / 1000, (vw - PANE_W - calW) / 900);
     LOGICAL_H = vh / renderScale;
-    LOGICAL_W = (vw - PANE_W) / renderScale;
+    LOGICAL_W = (vw - PANE_W - calW) / renderScale;
+    LOGICAL_W_TRUE = calSqueeze
+      ? (vw - PANE_W) / renderScale    // the frame the board returns to on close
+      : null;
     offX = PANE_W;
     offY = 0;
     LEGACY_H = LOGICAL_H;            // desktop geometry is unchanged by B32
@@ -540,10 +716,42 @@ function onViewportResize() {
 }
 
 /* --- 5. Coordinate + caret helpers --------------------------------------- */
-const toLogical = (clientX, clientY) => ({
-  x: (clientX - offX) / renderScale,
-  y: (clientY - offY) / renderScale,
-});
+const toLogical = (clientX, clientY) => {
+  const x = (clientX - offX) / renderScale;
+  const y = (clientY - offY) / renderScale;
+  // The calendar squeeze (R6 clause 1): while the panel is open the frame is
+  // narrowed, so a raw read would write squeezed-frame coordinates that shift
+  // when the squeeze lifts. Un-map proportionally into the TRUE frame —
+  // the frame the board returns to on close — so a grab's rebaseNote (the one
+  // licensed write, B21) stamps where the user sees the note land in the room
+  // it returns to. y is untouched (the squeeze is horizontal).
+  return { x: LOGICAL_W_TRUE ? x * (LOGICAL_W_TRUE / LOGICAL_W) : x, y };
+};
+
+/* The calendar squeeze (R6): when the calendar panel is open on desktop or
+   tablet, the sheet is laid out with the panel's width removed from the
+   viewport — the SAME mechanism B20 already uses for the left rail, on the
+   right edge now. Every note's k changes with the frame, so the whole
+   arrangement renders smaller and further left, exactly as B64's similarity
+   law maps a frame change; nothing is written (P3 — the squeeze is a frame,
+   not an edit). The TRUE frame is kept in LOGICAL_W_TRUE while squeezed, and
+   toLogical un-maps a drag's client point into it proportionally, so a
+   grabbed note's rebaseNote writes TRUE-frame coordinates stamped rw/rh =
+   the true frame (the inverse-transform write, R6's first clause) — the note
+   lands permanently where the user sees it land, in the room the board
+   returns to when the panel closes. On close the squeeze lifts and the
+   board renders exactly where it was. Export ignores the squeeze entirely
+   (exportX/exportY read storage; R6's second clause). Overlap during the
+   squeeze is accepted (R6, the owner's word) — no auto-untangling. */
+let calSqueeze = false;
+let LOGICAL_W_TRUE = null;           // set only while squeezed
+const CAL_PANEL_W = 320;             // unscaled CSS px the panel takes (mockup 6's ~⅓)
+
+function setCalSqueeze(on) {
+  if (calSqueeze === on) return;
+  calSqueeze = on;
+  if (current) applyLayout();
+}
 
 /* The similarity transform (issues #65/#75, B64; supersedes B40's anisotropic
    mapping and B21's width-only multiplier). note.rw/note.rh record the
@@ -591,7 +799,11 @@ function rebaseNote(note) {
   note.x = renderX(note);
   note.y = renderY(note);
   note.scale = (note.scale || 1) * m;  // ‖1 mirrors effScale: never fold NaN into storage
-  note.rw = LOGICAL_W;
+  // The calendar squeeze (R6 clause 1): while the panel is open, stamp the
+  // grab against the TRUE frame — the one the board returns to on close —
+  // so the note lands permanently where the user sees it land. (toLogical
+  // has already un-mapped the drag's client point into true coordinates.)
+  note.rw = LOGICAL_W_TRUE || LOGICAL_W;
   note.rh = LOGICAL_H;
   // The wrap cap is NOT silent here, and that is deliberate (B64): under
   // min-k, rw = LOGICAL_W can exceed the old rw·k whenever the height ratio
@@ -743,7 +955,21 @@ function caretToEnd(node) {
    the right layer: it is the one choke point every board passes through, and
    it rebuilds the frames anyway. */
 function sanitizeBoard(board) {
-  const keep = r => (r.text || '').trim().length > 0;
+  /* The sweep must not eat what an open editor is still writing (issue #145
+     baseline prerequisite; review-2026-08-31.md finding #1). renderBoard runs
+     on flows that can land inside the 300ms save debounce — a board swap, a
+     rail re-read, a visibility flip — and a record whose text still lives only
+     in its DOM node reads as a whitespace husk from stale `current`. Skip the
+     record whose editor is open this render; the sweep is per-render, so the
+     husk (if it survives blur) is swept on the next one. Same id for notes and
+     lot rows: both records carry `id`. */
+  const editingId = (() => {
+    const ed = document.activeElement;
+    if (!isEditing(ed)) return null;
+    const host = ed.closest('.note, .lot-item');
+    return host && host.dataset.id ? host.dataset.id : null;
+  })();
+  const keep = r => (r.text || '').trim().length > 0 || r.id === editingId;
   const n = board.notes.length, l = board.parkingLot.length;
   board.notes = board.notes.filter(keep);
   board.parkingLot = board.parkingLot.filter(keep);
@@ -2378,20 +2604,23 @@ function fillBoardAction(btn, glyph, label) {
   const l = document.createElement('span'); l.className = 'label'; l.textContent = label;
   btn.append(g, l);
 }
-fillBoardAction(el.actionBoards, GLYPH.boards, COPY.boards);
+fillBoardAction(el.actionBoards, GLYPH.boards, COPY.calBoardTab);
 fillBoardAction(el.actionExport, GLYPH.export, COPY.export);
 fillBoardAction(el.actionImport, GLYPH.import, COPY.import);
+fillBoardAction(el.actionCalendar, GLYPH.calendar, COPY.calendar);
 
 /* The toggle wears the act it will perform (B43/B71's grammar, not a fixed
    noun): on the board it offers All boards; while the All-Boards surface is up
    — the desktop list overlay, or the mobile lot-grid — it offers the way back
    to this one. One mark (GLYPH.boards, the boards domain), the label alone
    flips, so state is never colour (UIUX §1). Called from renderBoard and every
-   list-state transition. */
+   list-state transition. R7.2's re-grammar shortens the resting label to "All"
+   (the four-tab row's fit); the toggle's other face keeps the full "This
+   board" — the one word that states the return, unchanged from B83. */
 function syncBoardActions() {
   const away = listOpen || lotMenuOpen;
   const l = el.actionBoards.querySelector('.label');
-  if (l) l.textContent = away ? COPY.thisBoard : COPY.boards;
+  if (l) l.textContent = away ? COPY.thisBoard : COPY.calBoardTab;
 }
 
 /* All Boards is pure navigation: it commits nothing a stray tap could
@@ -2434,6 +2663,16 @@ el.importFile.addEventListener('change', () => {
   if (file) importBoardsJson(file);
 });
 
+/* Calendar (issue #145): the fourth board-level tab. Navigation, like All
+   boards — it commits nothing a stray tap could duplicate (B81), so it runs
+   raw. The calendar view is a third screen, so it pushes its own history
+   state { v: 'cal' }: the OS back gesture returns from it (B9, unshadowed),
+   and its OWN Back button is the always-visible route (R1). */
+el.actionCalendar.addEventListener('click', () => {
+  if (calOpen) return;
+  history.pushState({ v: 'cal' }, '');
+  showCal();
+});
 /* The tabs are focusable things inside #board, and the desktop keyboard grammar
    (Enter edits the selection, Delete destroys it) listens on document and keys
    off `selected` alone, not focus — so a tab focused over a selected note would
@@ -3174,6 +3413,64 @@ function buildBoardPdf(rec) {
                      rec.title || COPY.untitled);
 }
 
+/* ---- The calendar's 7-day reference sheet (issue #145, R1's Export) ------
+   One text page: the rolling week as it renders — today first, one line per
+   event, completed events reading "— completed —" (§7's bytes property).
+   Built from the same primitives as exportTextPages; reads STORAGE (the
+   computed window, live events), never the squeezed frame (R6 clause 2). */
+async function exportCalPdf() {
+  try {
+    flushSave();
+    const all = await idbGetAll();
+    const events = eventsOf(all);
+    const L = PDF_MARGIN, R = A4_W - PDF_MARGIN, W = R - L;
+    const stream = (() => {
+      const p = pdfCanvas();
+      p.q().flip(A4_H);
+      p.fill(PDF_PAPER).rect(0, 0, A4_W, A4_H).raw('f');
+      let y = PDF_MARGIN;
+      const room = (h) => { if (y + h > A4_H - PDF_MARGIN) throw new Error('cal-pdf-overflow'); };
+      const para = (str, size, lh, bold, color) => {
+        for (const line of pdfWrap(str, bold, size, W)) {
+          room(lh);
+          if (line.length) p.text(line, L, pdfBaseline(y, lh, size), size, bold, color);
+          y += lh;
+        }
+      };
+      para(COPY.calTitle, 18, 24, true, PDF_INK);
+      para(formatDate(Date.now()), 9, 13, false, PDF_SHADE);
+      y += 6;
+      for (const day of calWindow()) {
+        room(30); y += 12;
+        para((day.today ? COPY.calToday + ' — ' : '') +
+          day.date.toLocaleDateString(undefined, { weekday: 'long' }) + ' ' + calMD(day.date),
+          11, 15, true, PDF_INK);
+        p.fill(PDF_SHADE).rect(L, y + 1, W, 0.5).raw('f');
+        y += 6;
+        const evs = calEventsOf(events, day.key);
+        if (!evs.length) continue;
+        for (const ev of evs) {
+          const done = ev.state === 'complete';
+          const color = done ? PDF_SHADE : PDF_INK;
+          for (const line of pdfWrap(done ? '— completed —' : ev.text, false, 10, W - 14)) {
+            room(14);
+            if (line.length) p.text(line, L + 14, pdfBaseline(y, 14, 10), 10, false, color);
+            y += 14;
+          }
+        }
+      }
+      return p.Q().stream();
+    })();
+    const bytes = pdfAssemble([stream], COPY.calTitle);
+    const d = new Date();
+    const pad = (n) => (n < 10 ? '0' : '') + n;
+    downloadBlob(new Blob([bytes], { type: 'application/pdf' }),
+      'calendar-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '.pdf');
+  } catch (e) {
+    showNotice(COPY.exportError, 'export', UNDO_MS);
+  }
+}
+
 /* ---- The menu action ---------------------------------------------------- */
 
 // A filename someone can find later: the board's own words, then the day it
@@ -3323,6 +3620,13 @@ function normalizeImportedBoard(raw) {
     notes,
     parkingLot,
     links,
+    // The calendar link (issue #145): coerced like every other field. cal must
+    // be a YYYY-MM-DD key or the link is dropped; calReq rides only when finite.
+    // An OLD build importing a NEW backup keeps these extra fields verbatim in
+    // the payload object — read-site defaulting means it simply ignores them,
+    // and a re-export carries them on (PRD §4.1's idiom, both directions).
+    cal: /^\d{4}-\d{2}-\d{2}$/.test(raw.cal) ? raw.cal : undefined,
+    calReq: Number.isFinite(raw.calReq) ? raw.calReq : undefined,
   };
 }
 
@@ -3409,6 +3713,19 @@ function fillRowContent(node, b) {
   const date = document.createElement('span'); date.className = 'row-date';
   date.textContent = COPY.lastUpdated + formatMDY(b.updatedAt || b.createdAt);
   node.appendChild(date);
+  // The calendar mark (issue #145, R5): a linked board announces its link
+  // where its name is read — far right on the card, on both surfaces the
+  // card renders (the desktop rail and the All-Boards views). Drawn, not
+  // typed (§13.3): the same mark the Calendar tab wears. State is never
+  // colour alone; this is a mark, not a state — aria-hidden because the
+  // link is identity, not an action the card offers.
+  if (b.cal) {
+    const mark = document.createElement('span');
+    mark.className = 'row-cal-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.innerHTML = GLYPH.calendar;
+    node.appendChild(mark);
+  }
 }
 
 /* The three categories (issue #58 / B42, extended to the list view by issue #74
@@ -4156,7 +4473,211 @@ async function showBoardFromList() {
   if (isDesktop) renderPane();         // a board opened from the #list-view drill lights its rail card
 }
 
-/* The back gesture drives the two levels (B9, never shadowed): {v:'cat'} is a
+/* --- 11.6 The rolling temporal calendar (issue #145) ----------------------
+   The third screen. The 7-day window is computed at render (R4) — today at
+   the top, lit; the week receding below it. Each date with events mirrors
+   into its linked To-Do board (§1.7). The top row (R1) is the screen's
+   always-visible way off: Back (history.back(), B9's route made visible),
+   All Boards (the picker, calendar shrinking to fit — R1), Export (B92's
+   choice, PDF leaf = the 7-day reference sheet). The stack never scrolls —
+   it is a bounded page like every other surface. */
+let calOpen = false;
+
+function goCalBack() {
+  history.back();                      // pop {v:'cal'} → the board (B9's route, visible)
+}
+
+function showCal() {
+  calOpen = true;
+  closeLotMenu();
+  hideListView();
+  listOpen = false; catView = null;
+  syncBoardActions();
+  // The squeeze is the desktop/tablet arrangement (R3/R6): the panel takes
+  // real width beside the board; on mobile the calendar is the full screen.
+  el.calView.classList.toggle('panel', isDesktop);
+  setCalSqueeze(isDesktop);
+  renderCal();
+}
+
+/* The popstate branch: {v:'cal'} re-shows the calendar (an OS-forward onto
+   it); leaving it lands on the board and restores the action row. */
+function hideCal() {
+  if (!calOpen) return;
+  calOpen = false;
+  el.calView.hidden = true;
+  setCalSqueeze(false);              // the squeeze lifts; the frame returns (R6)
+  syncBoardActions();
+  renderBoard();
+}
+
+function calDayName(d) {
+  return d.toLocaleDateString(undefined, { weekday: 'long' });
+}
+function calMD(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return p(d.getMonth() + 1) + '/' + p(d.getDate());
+}
+
+function makeCalDay(day, events, board) {
+  const card = document.createElement('div');
+  card.className = 'cal-day' + (day.today ? ' today' : events.length ? ' near' : ' far');
+  const dc = document.createElement('div');
+  dc.className = 'cal-date on-dark';
+  const d1 = document.createElement('div'); d1.className = 'cal-d1';
+  d1.textContent = day.today ? COPY.calToday : calDayName(day.date);
+  const d2 = document.createElement('div'); d2.className = 'cal-d2';
+  d2.textContent = calMD(day.date);
+  dc.append(d1, d2);
+  const dl = document.createElement('div');
+  dl.className = 'cal-lines on-dark';
+  dl.setAttribute('role', 'list');
+  for (const ev of events) {
+    const line = document.createElement('div');
+    line.className = 'cal-line' + (ev.state === 'complete' ? ' complete' : '');
+    line.setAttribute('role', 'listitem');
+    line.textContent = ev.text;
+    dl.appendChild(line);
+  }
+  // Capture lives on the day (PRD §6.2's grammar, calendar edition): the
+  // zone's last row is the add control — tap and type, no dialogs, no pickers
+  // (R5: adding an event is the trigger that creates the linked board, so the
+  // control carries that consequence and runs under commitAction's guard).
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'cal-add';
+  add.setAttribute('aria-label', 'Add event ' + calMD(day.date));
+  add.textContent = '+';
+  add.addEventListener('click', () => addCalEvent(day.key, dl));
+  dl.appendChild(add);
+  card.append(dc, dl);
+  return card;
+}
+
+/* Add an event to a date (R5's whole chain, one consequence):
+   1. the date's linked board is ensured (created on the first event),
+   2. the event record is written to the store,
+   3. the board's Requirements mirror is synced,
+   4. both records persist, and the line appears in the day zone at once.
+   Creating + writing are consequences (records change), so the whole step
+   runs under commitAction's drop-guard (B81) — a double-tap adds one event.
+   The line's editor opens on arrival: capture precedes structure, §1.1. */
+async function addCalEvent(dateKey, zone) {
+  commitAction(async () => {            // the guard arms synchronously (B81); the
+                                        // work itself is fire-and-forget, like every
+                                        // async consequence in this file
+
+    flushSave();
+    const all = await idbGetAll();
+    const boards = all.filter(b => b.title !== undefined);
+    const { board } = ensureLinkedBoard(boards, dateKey);
+    const ev = newCalEvent(dateKey, '');
+    if (board.calReq === undefined) {
+      // First sync for this board: the span is the events it already had.
+      board.calReq = calEventsOf(eventsOf(all), dateKey).length;
+    }
+    await idbPut(ev);
+    await idbPut(board);
+    const line = document.createElement('div');
+    line.className = 'cal-line';
+    line.setAttribute('role', 'listitem');
+    line.textContent = '';
+    const old = zone.querySelector('.cal-add');
+    zone.insertBefore(line, old);
+    startCalLineEdit(line, ev);
+  });
+}
+
+/* The event line's editor. Commit-on-blur writes the event text AND the
+   linked board's mirror line together — one edit, both surfaces, the
+   mirror's one-writer law. An empty commit discards (B8's rule: the frame
+   must earn its keep), sweeping the event record with it. */
+function startCalLineEdit(line, ev) {
+  line.setAttribute('contenteditable', CE);
+  line.focus();
+  caretToEnd(line);
+  const commit = async () => {
+    line.removeAttribute('contenteditable');
+    const text = line.textContent.trim();
+    if (!text) {                            // B8: a whitespace commit discards
+      await idbDelete(ev.id);
+      line.remove();
+      await syncDateMirror(ev.date);
+      return;
+    }
+    ev.text = text;
+    await idbPut(ev);
+    await syncDateMirror(ev.date);
+    scheduleSave();
+  };
+  line.addEventListener('blur', commit, { once: true });
+  line.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); line.blur(); }
+  });
+}
+
+/* Re-sync a date's whole mirror after any event write: the board's span is
+   rewritten from the live event list (one writer). */
+async function syncDateMirror(dateKey) {
+  const all = await idbGetAll();
+  const boards = all.filter(b => b.title !== undefined);
+  const board = calBoardOf(boards, dateKey);
+  if (!board) return;
+  if (syncMirror(board, calEventsOf(eventsOf(all), dateKey))) await idbPut(board);
+}
+
+/* Event records ride the boards store (one store, no schema bump); they are
+   the records with a `date` and no `title`. Filtered once, at the read. */
+function eventsOf(all) {
+  return all.filter(r => typeof r.date === 'string' && typeof r.text === 'string' && r.title === undefined);
+}
+
+function renderCal() {
+  el.calView.hidden = false;
+  el.calStack.textContent = '';
+  const days = calWindow();
+  flushSave();
+  idbGetAll().then((all) => {
+    const events = eventsOf(all);      // event records ride the boards store (§1.7)
+    for (const day of days) {
+      const board = calBoardOf(all, day.key);
+      const dayEvents = calEventsOf(events, day.key);
+      el.calStack.appendChild(makeCalDay(day, dayEvents, board));
+    }
+  });
+}
+
+/* The top row's three acts (R1). Back pops the pushed state. All Boards opens
+   the picker; the calendar shrinks to fit it rather than being overlaid (the
+   B74 grid draws over the lot at its current height — same reading here, the
+   calendar's stack compresses, nothing is covered). Export opens the B92
+   choice menu anchored at the pressed control — PDF's leaf is the 7-day
+   reference sheet (b8's exporter), JSON the whole-library backup. */
+el.calBack.addEventListener('click', () => {
+  goCalBack();
+});
+el.calBoards.addEventListener('click', (e) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  history.pushState({ v: 'list' }, '');
+  listOpen = true;
+  showList();
+});
+el.calExport.addEventListener('click', (e) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  buildMenu([
+    { label: COPY.exportPdf, glyph: GLYPH.export, action: () => commitAction(() => exportCalPdf()) },
+    { label: COPY.exportJson, glyph: GLYPH.boards, action: () => commitAction(exportAllJson) },
+  ], r.left, r.bottom);
+});
+
+/* The back gesture drives the three levels now (B9, never shadowed): {v:'cal'}
+   the calendar, {v:'cat'} a drilled category, {v:'list'} the picker, no state
+   the board. Popping from a drill to the picker re-opens it on the surface the
+   mode uses — the mobile grid or the desktop screen. The calendar's own branch
+   comes FIRST: it can sit beneath a list state (All Boards from the calendar),
+   so the state alone decides, not calOpen — landing on a non-cal state while
+   the calendar is open hides it (Back from the calendar, or the picker's
+   return re-entering the board).
    drilled category, {v:'list'} the picker, no state the board. Popping from a
    drill to the picker re-opens it on the surface the mode uses — the mobile
    grid or the desktop screen. */
@@ -4164,7 +4685,9 @@ window.addEventListener('popstate', () => {
   popping = false;                     // the nav returnToBoard began has landed (B83)
   closeMenu();
   const s = history.state;
-  if (s && s.v === 'cat') { showCat(s.cat); }
+  if (s && s.v === 'cal') { showCal(); }
+  else if (calOpen) { hideCal(); }     // landing anywhere else closes the calendar first
+  else if (s && s.v === 'cat') { showCat(s.cat); }
   else if (s && s.v === 'list') { catView = null; if (!isDesktop) hideListView(); showList(); }  // mobile: the drilled panel slides down as the grid returns (B82)
   else { showBoardFromList(); }
 });

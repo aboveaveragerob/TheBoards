@@ -1334,13 +1334,13 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     });
     ok('the row is drawn on desktop and the #title-menu handle is gone',
        geo.shown && geo.gone, JSON.stringify([geo.shown, geo.gone]));
-    ok('three tabs: All boards, Export, Import (issue #140, B92)',
-       geo.labels.length === 3 &&
-       /All boards/.test(geo.labels[0]) && /Export/.test(geo.labels[1]) &&
-       /Import/.test(geo.labels[2]), JSON.stringify(geo.labels));
+    ok('four tabs: All, Export, Import, Calendar (B92 re-grammared by #145 R7.2)',
+       geo.labels.length === 4 &&
+       /All/.test(geo.labels[0]) && /Export/.test(geo.labels[1]) &&
+       /Import/.test(geo.labels[2]) && /Calendar/.test(geo.labels[3]), JSON.stringify(geo.labels));
     // B23's 24px pointer floor, measured in PHYSICAL px — the collar is what
     // makes it hold at the board's renderScale (width stands on its own).
-    ok('all three tabs clear the 24px desktop floor (B23)',
+    ok('all four tabs clear the 24px desktop floor (B23)',
        geo.boards.w >= 24 && geo.exp.w >= 24 && geo.imp.w >= 24 &&
        geo.boards.h + 2 * geo.hit * geo.rs >= 24 && geo.exp.h + 2 * geo.hit * geo.rs >= 24 &&
        geo.imp.h + 2 * geo.hit * geo.rs >= 24,
@@ -1383,7 +1383,7 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(300);
     ok('back returns to the board, the row uncovered',
        await page.evaluate(() => document.querySelector('#list-view').hidden === true &&
-         /All boards/.test(document.querySelector('#action-boards .label').textContent)));
+         /^All$/.test(document.querySelector('#action-boards .label').textContent)));
 
     // Right-click on a note opens its Link menu (B91) — the ONLY menu a
     // right-click can still open on the board (B92): an anchor, the canvas, or
