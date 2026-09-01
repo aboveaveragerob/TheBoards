@@ -743,7 +743,21 @@ function caretToEnd(node) {
    the right layer: it is the one choke point every board passes through, and
    it rebuilds the frames anyway. */
 function sanitizeBoard(board) {
-  const keep = r => (r.text || '').trim().length > 0;
+  /* The sweep must not eat what an open editor is still writing (issue #145
+     baseline prerequisite; review-2026-08-31.md finding #1). renderBoard runs
+     on flows that can land inside the 300ms save debounce — a board swap, a
+     rail re-read, a visibility flip — and a record whose text still lives only
+     in its DOM node reads as a whitespace husk from stale `current`. Skip the
+     record whose editor is open this render; the sweep is per-render, so the
+     husk (if it survives blur) is swept on the next one. Same id for notes and
+     lot rows: both records carry `id`. */
+  const editingId = (() => {
+    const ed = document.activeElement;
+    if (!isEditing(ed)) return null;
+    const host = ed.closest('.note, .lot-item');
+    return host && host.dataset.id ? host.dataset.id : null;
+  })();
+  const keep = r => (r.text || '').trim().length > 0 || r.id === editingId;
   const n = board.notes.length, l = board.parkingLot.length;
   board.notes = board.notes.filter(keep);
   board.parkingLot = board.parkingLot.filter(keep);
