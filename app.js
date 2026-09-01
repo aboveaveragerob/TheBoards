@@ -230,6 +230,15 @@ function applyMode() {
   pointers.clear();
   if (isDesktop && listOpen) returnToBoard();  // pop the whole list nav → board (B9 intact;
                                                // a drill is two levels deep, B74)
+  // The calendar across the flip (issue #145): the panel arrangement belongs
+  // to the desktop grammar, so a flip while it is open closes it and pops its
+  // history entry (nothing typed is lost — calendar lines live in linked
+  // boards, not in the view). A flip TO desktop re-enters via the tab.
+  if (calOpen) {
+    calOpen = false;
+    el.calView.hidden = true;
+    if (history.state && history.state.v === 'cal') history.back();
+  }
   applyLayout();
   if (isDesktop) renderPane();
 }
@@ -3553,6 +3562,13 @@ function normalizeImportedBoard(raw) {
     notes,
     parkingLot,
     links,
+    // The calendar link (issue #145): coerced like every other field. cal must
+    // be a YYYY-MM-DD key or the link is dropped; calReq rides only when finite.
+    // An OLD build importing a NEW backup keeps these extra fields verbatim in
+    // the payload object — read-site defaulting means it simply ignores them,
+    // and a re-export carries them on (PRD §4.1's idiom, both directions).
+    cal: /^\d{4}-\d{2}-\d{2}$/.test(raw.cal) ? raw.cal : undefined,
+    calReq: Number.isFinite(raw.calReq) ? raw.calReq : undefined,
   };
 }
 
@@ -3639,6 +3655,19 @@ function fillRowContent(node, b) {
   const date = document.createElement('span'); date.className = 'row-date';
   date.textContent = COPY.lastUpdated + formatMDY(b.updatedAt || b.createdAt);
   node.appendChild(date);
+  // The calendar mark (issue #145, R5): a linked board announces its link
+  // where its name is read — far right on the card, on both surfaces the
+  // card renders (the desktop rail and the All-Boards views). Drawn, not
+  // typed (§13.3): the same mark the Calendar tab wears. State is never
+  // colour alone; this is a mark, not a state — aria-hidden because the
+  // link is identity, not an action the card offers.
+  if (b.cal) {
+    const mark = document.createElement('span');
+    mark.className = 'row-cal-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.innerHTML = GLYPH.calendar;
+    node.appendChild(mark);
+  }
 }
 
 /* The three categories (issue #58 / B42, extended to the list view by issue #74
@@ -4452,8 +4481,97 @@ function makeCalDay(day, events, board) {
     line.textContent = ev.text;
     dl.appendChild(line);
   }
+  // Capture lives on the day (PRD §6.2's grammar, calendar edition): the
+  // zone's last row is the add control — tap and type, no dialogs, no pickers
+  // (R5: adding an event is the trigger that creates the linked board, so the
+  // control carries that consequence and runs under commitAction's guard).
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'cal-add';
+  add.setAttribute('aria-label', 'Add event ' + calMD(day.date));
+  add.textContent = '+';
+  add.addEventListener('click', () => addCalEvent(day.key, dl));
+  dl.appendChild(add);
   card.append(dc, dl);
   return card;
+}
+
+/* Add an event to a date (R5's whole chain, one consequence):
+   1. the date's linked board is ensured (created on the first event),
+   2. the event record is written to the store,
+   3. the board's Requirements mirror is synced,
+   4. both records persist, and the line appears in the day zone at once.
+   Creating + writing are consequences (records change), so the whole step
+   runs under commitAction's drop-guard (B81) — a double-tap adds one event.
+   The line's editor opens on arrival: capture precedes structure, §1.1. */
+async function addCalEvent(dateKey, zone) {
+  commitAction(async () => {            // the guard arms synchronously (B81); the
+                                        // work itself is fire-and-forget, like every
+                                        // async consequence in this file
+
+    flushSave();
+    const all = await idbGetAll();
+    const boards = all.filter(b => b.title !== undefined);
+    const { board } = ensureLinkedBoard(boards, dateKey);
+    const ev = newCalEvent(dateKey, '');
+    if (board.calReq === undefined) {
+      // First sync for this board: the span is the events it already had.
+      board.calReq = calEventsOf(eventsOf(all), dateKey).length;
+    }
+    await idbPut(ev);
+    await idbPut(board);
+    const line = document.createElement('div');
+    line.className = 'cal-line';
+    line.setAttribute('role', 'listitem');
+    line.textContent = '';
+    const old = zone.querySelector('.cal-add');
+    zone.insertBefore(line, old);
+    startCalLineEdit(line, ev);
+  });
+}
+
+/* The event line's editor. Commit-on-blur writes the event text AND the
+   linked board's mirror line together — one edit, both surfaces, the
+   mirror's one-writer law. An empty commit discards (B8's rule: the frame
+   must earn its keep), sweeping the event record with it. */
+function startCalLineEdit(line, ev) {
+  line.setAttribute('contenteditable', CE);
+  line.focus();
+  caretToEnd(line);
+  const commit = async () => {
+    line.removeAttribute('contenteditable');
+    const text = line.textContent.trim();
+    if (!text) {                            // B8: a whitespace commit discards
+      await idbDelete(ev.id);
+      line.remove();
+      await syncDateMirror(ev.date);
+      return;
+    }
+    ev.text = text;
+    await idbPut(ev);
+    await syncDateMirror(ev.date);
+    scheduleSave();
+  };
+  line.addEventListener('blur', commit, { once: true });
+  line.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); line.blur(); }
+  });
+}
+
+/* Re-sync a date's whole mirror after any event write: the board's span is
+   rewritten from the live event list (one writer). */
+async function syncDateMirror(dateKey) {
+  const all = await idbGetAll();
+  const boards = all.filter(b => b.title !== undefined);
+  const board = calBoardOf(boards, dateKey);
+  if (!board) return;
+  if (syncMirror(board, calEventsOf(eventsOf(all), dateKey))) await idbPut(board);
+}
+
+/* Event records ride the boards store (one store, no schema bump); they are
+   the records with a `date` and no `title`. Filtered once, at the read. */
+function eventsOf(all) {
+  return all.filter(r => typeof r.date === 'string' && typeof r.text === 'string' && r.title === undefined);
 }
 
 function renderCal() {
@@ -4462,7 +4580,7 @@ function renderCal() {
   const days = calWindow();
   flushSave();
   idbGetAll().then((all) => {
-    const events = all.filter(r => r.date && r.text !== undefined && !r.title);  // event records ride the same store
+    const events = eventsOf(all);      // event records ride the boards store (§1.7)
     for (const day of days) {
       const board = calBoardOf(all, day.key);
       const dayEvents = calEventsOf(events, day.key);
