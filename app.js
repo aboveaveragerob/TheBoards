@@ -145,6 +145,16 @@ const COPY = {
   catNew: 'New board',
   pageFirst: 'First page', pagePrev: 'Previous page',
   pageNext: 'Next page', pageLast: 'Last page',
+  // The calendar (issue #145). The re-grammared tab label (R7.2 — "All", the
+  // short form, is what lets four tabs fit a phone: measured 346px of 390/360).
+  // The tab's toggle face mirrors B83's grammar: on the board it offers the
+  // calendar; while the calendar is showing, the day-stack's Back states the
+  // return, and the tab is not visible there.
+  calBoardTab: 'All', calendar: 'Calendar',
+  calToday: 'Today', calBack: 'Back', calAllBoards: 'All Boards', calExport: 'Export',
+  // A day card's header: "Today" then the long date; the future days read
+  // weekday + MM/DD (the mockups' own voice).
+  calTitle: 'Calendar Board',
 };
 /* The marks are drawn, not typed (UIUX §13.3, B50): inline SVG in
    currentColor, at the note's own stroke weight and corner radius, so the
@@ -185,6 +195,11 @@ const GLYPH = {
   pagePrev:  MARK(14, '<path d="M10 2.5L4.5 8 10 13.5"/>'),
   pageNext:  MARK(14, '<path d="M6 2.5L11.5 8 6 13.5"/>'),
   pageLast:  MARK(14, '<path d="M3.5 2.5L9 8l-5.5 5.5"/><path d="M8 2.5L13.5 8 8 13.5"/>'),
+  // The calendar (issue #145): the mockup's own mark — a framed page with a
+  // hanging rail — drawn in the app's hand. Back reads as the mirrored page
+  // pair (a page turn back), the same "page" semantics as the pager's marks.
+  calendar:  MARK(16, '<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5V4M10.5 1.5V4"/>'),
+  calBack:   MARK(16, '<path d="M9.5 3.5L5 8l4.5 4.5"/><path d="M5 8h6.5"/>'),
 };
 
 // contenteditable mode: prefer plaintext-only (Chromium/Samsung Internet — the
@@ -492,6 +507,13 @@ const el = {
   actionExport: document.getElementById('action-export'),   // Export this board (PDF · JSON, B92)
   actionImport: document.getElementById('action-import'),   // Import a JSON backup (issue #140, B92)
   importFile: document.getElementById('import-file'),       // the import tab's file dialog
+  calView: document.getElementById('cal-view'),             // calendar screen (issue #145)
+  calStack: document.getElementById('cal-stack'),
+  calTop: document.getElementById('cal-top'),
+  calBack: document.getElementById('cal-back'),
+  calBoards: document.getElementById('cal-boards'),
+  calExport: document.getElementById('cal-export'),
+  actionCalendar: document.getElementById('action-calendar'), // 4th board-action tab (R7.2)
 };
 const anchorEls = {
   title: document.getElementById('anchor-title'),
@@ -2530,20 +2552,23 @@ function fillBoardAction(btn, glyph, label) {
   const l = document.createElement('span'); l.className = 'label'; l.textContent = label;
   btn.append(g, l);
 }
-fillBoardAction(el.actionBoards, GLYPH.boards, COPY.boards);
+fillBoardAction(el.actionBoards, GLYPH.boards, COPY.calBoardTab);
 fillBoardAction(el.actionExport, GLYPH.export, COPY.export);
 fillBoardAction(el.actionImport, GLYPH.import, COPY.import);
+fillBoardAction(el.actionCalendar, GLYPH.calendar, COPY.calendar);
 
 /* The toggle wears the act it will perform (B43/B71's grammar, not a fixed
    noun): on the board it offers All boards; while the All-Boards surface is up
    — the desktop list overlay, or the mobile lot-grid — it offers the way back
    to this one. One mark (GLYPH.boards, the boards domain), the label alone
    flips, so state is never colour (UIUX §1). Called from renderBoard and every
-   list-state transition. */
+   list-state transition. R7.2's re-grammar shortens the resting label to "All"
+   (the four-tab row's fit); the toggle's other face keeps the full "This
+   board" — the one word that states the return, unchanged from B83. */
 function syncBoardActions() {
   const away = listOpen || lotMenuOpen;
   const l = el.actionBoards.querySelector('.label');
-  if (l) l.textContent = away ? COPY.thisBoard : COPY.boards;
+  if (l) l.textContent = away ? COPY.thisBoard : COPY.calBoardTab;
 }
 
 /* All Boards is pure navigation: it commits nothing a stray tap could
@@ -2586,6 +2611,16 @@ el.importFile.addEventListener('change', () => {
   if (file) importBoardsJson(file);
 });
 
+/* Calendar (issue #145): the fourth board-level tab. Navigation, like All
+   boards — it commits nothing a stray tap could duplicate (B81), so it runs
+   raw. The calendar view is a third screen, so it pushes its own history
+   state { v: 'cal' }: the OS back gesture returns from it (B9, unshadowed),
+   and its OWN Back button is the always-visible route (R1). */
+el.actionCalendar.addEventListener('click', () => {
+  if (calOpen) return;
+  history.pushState({ v: 'cal' }, '');
+  showCal();
+});
 /* The tabs are focusable things inside #board, and the desktop keyboard grammar
    (Enter edits the selection, Delete destroys it) listens on document and keys
    off `selected` alone, not focus — so a tab focused over a selected note would
@@ -4308,7 +4343,117 @@ async function showBoardFromList() {
   if (isDesktop) renderPane();         // a board opened from the #list-view drill lights its rail card
 }
 
-/* The back gesture drives the two levels (B9, never shadowed): {v:'cat'} is a
+/* --- 11.6 The rolling temporal calendar (issue #145) ----------------------
+   The third screen. The 7-day window is computed at render (R4) — today at
+   the top, lit; the week receding below it. Each date with events mirrors
+   into its linked To-Do board (§1.7). The top row (R1) is the screen's
+   always-visible way off: Back (history.back(), B9's route made visible),
+   All Boards (the picker, calendar shrinking to fit — R1), Export (B92's
+   choice, PDF leaf = the 7-day reference sheet). The stack never scrolls —
+   it is a bounded page like every other surface. */
+let calOpen = false;
+
+function goCalBack() {
+  history.back();                      // pop {v:'cal'} → the board (B9's route, visible)
+}
+
+function showCal() {
+  calOpen = true;
+  closeLotMenu();
+  hideListView();
+  listOpen = false; catView = null;
+  syncBoardActions();
+  renderCal();
+}
+
+/* The popstate branch: {v:'cal'} re-shows the calendar (an OS-forward onto
+   it); leaving it lands on the board and restores the action row. */
+function hideCal() {
+  if (!calOpen) return;
+  calOpen = false;
+  el.calView.hidden = true;
+  syncBoardActions();
+  renderBoard();
+}
+
+function calDayName(d) {
+  return d.toLocaleDateString(undefined, { weekday: 'long' });
+}
+function calMD(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return p(d.getMonth() + 1) + '/' + p(d.getDate());
+}
+
+function makeCalDay(day, events, board) {
+  const card = document.createElement('div');
+  card.className = 'cal-day' + (day.today ? ' today' : events.length ? ' near' : ' far');
+  const dc = document.createElement('div');
+  dc.className = 'cal-date on-dark';
+  const d1 = document.createElement('div'); d1.className = 'cal-d1';
+  d1.textContent = day.today ? COPY.calToday : calDayName(day.date);
+  const d2 = document.createElement('div'); d2.className = 'cal-d2';
+  d2.textContent = calMD(day.date);
+  dc.append(d1, d2);
+  const dl = document.createElement('div');
+  dl.className = 'cal-lines on-dark';
+  dl.setAttribute('role', 'list');
+  for (const ev of events) {
+    const line = document.createElement('div');
+    line.className = 'cal-line' + (ev.state === 'complete' ? ' complete' : '');
+    line.setAttribute('role', 'listitem');
+    line.textContent = ev.text;
+    dl.appendChild(line);
+  }
+  card.append(dc, dl);
+  return card;
+}
+
+function renderCal() {
+  el.calView.hidden = false;
+  el.calStack.textContent = '';
+  const days = calWindow();
+  flushSave();
+  idbGetAll().then((all) => {
+    const events = all.filter(r => r.date && r.text !== undefined && !r.title);  // event records ride the same store
+    for (const day of days) {
+      const board = calBoardOf(all, day.key);
+      const dayEvents = calEventsOf(events, day.key);
+      el.calStack.appendChild(makeCalDay(day, dayEvents, board));
+    }
+  });
+}
+
+/* The top row's three acts (R1). Back pops the pushed state. All Boards opens
+   the picker; the calendar shrinks to fit it rather than being overlaid (the
+   B74 grid draws over the lot at its current height — same reading here, the
+   calendar's stack compresses, nothing is covered). Export opens the B92
+   choice menu anchored at the pressed control — PDF's leaf is the 7-day
+   reference sheet (b8's exporter), JSON the whole-library backup. */
+el.calBack.addEventListener('click', () => {
+  goCalBack();
+});
+el.calBoards.addEventListener('click', (e) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  history.pushState({ v: 'list' }, '');
+  listOpen = true;
+  showList();
+});
+el.calExport.addEventListener('click', (e) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  buildMenu([
+    { label: COPY.exportPdf, glyph: GLYPH.export, action: () => commitAction(() => exportCalPdf()) },
+    { label: COPY.exportJson, glyph: GLYPH.boards, action: () => commitAction(exportAllJson) },
+  ], r.left, r.bottom);
+});
+
+/* The back gesture drives the three levels now (B9, never shadowed): {v:'cal'}
+   the calendar, {v:'cat'} a drilled category, {v:'list'} the picker, no state
+   the board. Popping from a drill to the picker re-opens it on the surface the
+   mode uses — the mobile grid or the desktop screen. The calendar's own branch
+   comes FIRST: it can sit beneath a list state (All Boards from the calendar),
+   so the state alone decides, not calOpen — landing on a non-cal state while
+   the calendar is open hides it (Back from the calendar, or the picker's
+   return re-entering the board).
    drilled category, {v:'list'} the picker, no state the board. Popping from a
    drill to the picker re-opens it on the surface the mode uses — the mobile
    grid or the desktop screen. */
@@ -4316,7 +4461,9 @@ window.addEventListener('popstate', () => {
   popping = false;                     // the nav returnToBoard began has landed (B83)
   closeMenu();
   const s = history.state;
-  if (s && s.v === 'cat') { showCat(s.cat); }
+  if (s && s.v === 'cal') { showCal(); }
+  else if (calOpen) { hideCal(); }     // landing anywhere else closes the calendar first
+  else if (s && s.v === 'cat') { showCat(s.cat); }
   else if (s && s.v === 'list') { catView = null; if (!isDesktop) hideListView(); showList(); }  // mobile: the drilled panel slides down as the grid returns (B82)
   else { showBoardFromList(); }
 });
