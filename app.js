@@ -590,9 +590,16 @@ function applyLayout() {
     // Min-anchored scale — neither logical dimension ever drops below the
     // 900×1000 reference, so mobile-placed notes always fit and the top
     // furniture (~880 units) never collides, at any window shape.
-    renderScale = Math.min(vh / 1000, (vw - PANE_W) / 900);
+    // The calendar squeeze (R6): while the calendar panel is open the panel's
+    // width is removed here, exactly as the left rail's is — the frame narrows,
+    // the arrangement maps as a figure (B64), nothing is written.
+    const calW = calSqueeze ? CAL_PANEL_W : 0;
+    renderScale = Math.min(vh / 1000, (vw - PANE_W - calW) / 900);
     LOGICAL_H = vh / renderScale;
-    LOGICAL_W = (vw - PANE_W) / renderScale;
+    LOGICAL_W = (vw - PANE_W - calW) / renderScale;
+    LOGICAL_W_TRUE = calSqueeze
+      ? (vw - PANE_W) / renderScale    // the frame the board returns to on close
+      : null;
     offX = PANE_W;
     offY = 0;
     LEGACY_H = LOGICAL_H;            // desktop geometry is unchanged by B32
@@ -700,10 +707,42 @@ function onViewportResize() {
 }
 
 /* --- 5. Coordinate + caret helpers --------------------------------------- */
-const toLogical = (clientX, clientY) => ({
-  x: (clientX - offX) / renderScale,
-  y: (clientY - offY) / renderScale,
-});
+const toLogical = (clientX, clientY) => {
+  const x = (clientX - offX) / renderScale;
+  const y = (clientY - offY) / renderScale;
+  // The calendar squeeze (R6 clause 1): while the panel is open the frame is
+  // narrowed, so a raw read would write squeezed-frame coordinates that shift
+  // when the squeeze lifts. Un-map proportionally into the TRUE frame —
+  // the frame the board returns to on close — so a grab's rebaseNote (the one
+  // licensed write, B21) stamps where the user sees the note land in the room
+  // it returns to. y is untouched (the squeeze is horizontal).
+  return { x: LOGICAL_W_TRUE ? x * (LOGICAL_W_TRUE / LOGICAL_W) : x, y };
+};
+
+/* The calendar squeeze (R6): when the calendar panel is open on desktop or
+   tablet, the sheet is laid out with the panel's width removed from the
+   viewport — the SAME mechanism B20 already uses for the left rail, on the
+   right edge now. Every note's k changes with the frame, so the whole
+   arrangement renders smaller and further left, exactly as B64's similarity
+   law maps a frame change; nothing is written (P3 — the squeeze is a frame,
+   not an edit). The TRUE frame is kept in LOGICAL_W_TRUE while squeezed, and
+   toLogical un-maps a drag's client point into it proportionally, so a
+   grabbed note's rebaseNote writes TRUE-frame coordinates stamped rw/rh =
+   the true frame (the inverse-transform write, R6's first clause) — the note
+   lands permanently where the user sees it land, in the room the board
+   returns to when the panel closes. On close the squeeze lifts and the
+   board renders exactly where it was. Export ignores the squeeze entirely
+   (exportX/exportY read storage; R6's second clause). Overlap during the
+   squeeze is accepted (R6, the owner's word) — no auto-untangling. */
+let calSqueeze = false;
+let LOGICAL_W_TRUE = null;           // set only while squeezed
+const CAL_PANEL_W = 320;             // unscaled CSS px the panel takes (mockup 6's ~⅓)
+
+function setCalSqueeze(on) {
+  if (calSqueeze === on) return;
+  calSqueeze = on;
+  if (current) applyLayout();
+}
 
 /* The similarity transform (issues #65/#75, B64; supersedes B40's anisotropic
    mapping and B21's width-only multiplier). note.rw/note.rh record the
@@ -751,7 +790,11 @@ function rebaseNote(note) {
   note.x = renderX(note);
   note.y = renderY(note);
   note.scale = (note.scale || 1) * m;  // ‖1 mirrors effScale: never fold NaN into storage
-  note.rw = LOGICAL_W;
+  // The calendar squeeze (R6 clause 1): while the panel is open, stamp the
+  // grab against the TRUE frame — the one the board returns to on close —
+  // so the note lands permanently where the user sees it land. (toLogical
+  // has already un-mapped the drag's client point into true coordinates.)
+  note.rw = LOGICAL_W_TRUE || LOGICAL_W;
   note.rh = LOGICAL_H;
   // The wrap cap is NOT silent here, and that is deliberate (B64): under
   // min-k, rw = LOGICAL_W can exceed the old rw·k whenever the height ratio
@@ -4363,6 +4406,10 @@ function showCal() {
   hideListView();
   listOpen = false; catView = null;
   syncBoardActions();
+  // The squeeze is the desktop/tablet arrangement (R3/R6): the panel takes
+  // real width beside the board; on mobile the calendar is the full screen.
+  el.calView.classList.toggle('panel', isDesktop);
+  setCalSqueeze(isDesktop);
   renderCal();
 }
 
@@ -4372,6 +4419,7 @@ function hideCal() {
   if (!calOpen) return;
   calOpen = false;
   el.calView.hidden = true;
+  setCalSqueeze(false);              // the squeeze lifts; the frame returns (R6)
   syncBoardActions();
   renderBoard();
 }

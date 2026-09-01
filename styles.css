@@ -1660,6 +1660,17 @@ html.desktop #board { transition: opacity 260ms cubic-bezier(0.22, 0.61, 0.36, 1
 .cal-day.far .cal-date { background: #030813; }
 .cal-day.far .cal-line { color: rgb(244 245 241 / .62); }
 
+/* Desktop/tablet (R3/R6): the calendar docks to the right edge as a real
+   column — the board reflows beside it, nothing is covered. The board's own
+   container (html.desktop #board-view) narrows via its layout in JS. */
+#cal-view.panel {
+  left: auto;
+  width: 320px;                        /* CAL_PANEL_W, the JS squeeze's partner */
+  border-left: 2px solid var(--frame);
+  padding: 12px;
+}
+html.desktop #board.swapping { transition: opacity 260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
+
 /* Mandatory global kill-switch (UIUX §8). */
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
