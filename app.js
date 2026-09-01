@@ -227,6 +227,144 @@ const uuid = () =>
         return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
       }));
 
+/* --- 1.7 The rolling temporal calendar (RTCB, issue #145) -----------------
+
+   The calendar is not a record of its own — it is a VIEW over the To-Do
+   boards (R5). Each date that carries at least one event is linked to an
+   ordinary To-Do board, created on the date's first event, titled
+   "MM/DD To Do" (the MM/DD of the date it serves), and the mirror is
+   bidirectional into that board's Requirements section: one line per event,
+   reading exactly as written in the calendar. The link is recorded on the
+   DATE, not on the board: `cal` (the date key) lives on the board record,
+   added at the read site (B21's idiom — no DB version bump; PRD §4.1).
+
+   Line identity (the ruling's mechanics): a Requirements line corresponds
+   to an event iff it was written by the mirror. Identity is positional in
+   the mirror's own order — the mirror knows the events for a date and
+   rewrites its lines wholesale on any change, so a hand-typed line is any
+   line outside the mirror's count. Hand lines are ordinary Requirements
+   text: they render, save, and are invisible to the mirror. Reordering is
+   presentation-only (the calendar reads events by identity, not position).
+   Deleting the linked board unlinks its date — the events survive as
+   calendar data (they live on the event records below) and the next event
+   added to that date re-creates a board. No blocking, no orphan.
+
+   The 7-day window is COMPUTED at render from today's date (R4): no stored
+   rolling array, no midnight write, no skip-forward problem, no undo
+   question — and the DB stays at version 1. An event is stored on its date
+   record: { id, date: 'YYYY-MM-DD', text, state } — plain strings, the
+   §4.1 shape. */
+
+const CAL_TITLE_SUFFIX = ' To Do';
+/* Date keys are local-time YYYY-MM-DD. formatMDY stays the card stamp's
+   formatter (§10); these two are the calendar's own — key for storage and
+   linking, long form for a day card's header. */
+function calKey(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function calKeyOf(dateKey) { return dateKey; }   // identity — reads clear at call sites
+
+/* The 7 rolling days: today + 6 future, today first (R7.4 — no past cards;
+   mockup 6's "yesterday deepest" line is dead). Each entry is
+   { key, date: Date, today: bool }. */
+function calWindow() {
+  const days = [];
+  const now = new Date();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    days.push({ key: calKey(d), date: d, today: i === 0 });
+  }
+  return days;
+}
+
+/* One event record. Plain strings + a state, the §4.1 shape; `date` is the
+   calendar link (calKey form) and `createdAt` the mirror's order key — the
+   positional identity the Requirements mirror rewrites around. */
+function newCalEvent(dateKey, text) {
+  return { id: uuid(), date: dateKey, text: text || '', state: 'active',
+           createdAt: Date.now() };
+}
+
+/* The linked board for a date, if it exists. The link is the board's `cal`
+   field (added at the read site — B21's idiom), so finding it is a scan of
+   the snapshot the caller already holds. `current` is authoritative for
+   itself (renderPane's stance). */
+function calBoardOf(all, dateKey) {
+  for (const b of all) {
+    const rec = (current && b.id === current.id) ? current : b;
+    if (rec.cal === dateKey) return rec;
+  }
+  return null;
+}
+
+/* The date's events, oldest first (creation order = the mirror's line order). */
+function calEventsOf(events, dateKey) {
+  return events.filter(e => e.date === dateKey)
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || (a.id < b.id ? -1 : 1));
+}
+
+/* Ensure a date's linked To-Do board exists; create it on the date's first
+   event (R5). Returns the board record (existing or new, already in `all`).
+   The new board writes category + calStamp explicitly (B63/B69) and lands
+   first in its section, like a drop. Creating a board is a consequence
+   (records are written), so every caller wraps this in commitAction. */
+function ensureLinkedBoard(all, dateKey) {
+  let board = calBoardOf(all, dateKey);
+  if (board) return { board, created: false };
+  board = newBoardRecord();
+  // "MM/DD To Do" (R5): MM and DD straight from the date key, 2-digit year's
+  // last pair follows formatMDY's reading. Zero-padded like the card stamp.
+  const p = dateKey.split('-');                       // [YYYY, MM, DD]
+  board.title = p[1] + '/' + p[2] + '/' + dateKey.slice(2, 4) + CAL_TITLE_SUFFIX;
+  board.cal = dateKey;
+  all.push(board);
+  return { board, created: true };
+}
+
+/* The Requirements mirror (R5): rewrite the linked board's Requirements so
+   the mirror's lines read exactly as the calendar's events do, preserving
+   every hand-typed line. The mirror's span is SELF-RECORDED: `calReq` on the
+   board (read-site defaulted, B21's idiom) counts the lines the mirror last
+   wrote, so a deletion shrinks the events but not the span — an old mirror
+   line can never be demoted to a "hand" line by an event's removal. The
+   span's lines are rewritten wholesale in event order; everything after
+   them is the reader's own and is carried through untouched. Editing either
+   side lands here — one writer, so the two surfaces can never disagree.
+
+   Requirements is one plain string (PRD §4.1): lines are \n-separated. */
+function syncMirror(board, events) {
+  const lines = (board.requirements || '').length
+    ? board.requirements.split('\n') : [];
+  const span = typeof board.calReq === 'number'
+    ? board.calReq
+    : Math.min(lines.length, events.length);   // first sync on a legacy pair
+  const hand = lines.slice(span);              // lines the reader wrote
+  const mirrored = events.map(e => e.text);
+  const next = mirrored.concat(hand).join('\n');
+  board.calReq = mirrored.length;              // the span moves to the new write
+  if (next !== (board.requirements || '')) {
+    board.requirements = next;
+    return true;
+  }
+  return false;
+}
+
+/* Read the mirror back: the events a board's Requirements implies, by
+   position (the first lines are the mirror's). Used when the READER edits a
+   line — the edit writes through to the event record it mirrors. */
+function mirrorEventsOf(board, events) {
+  const lines = (board.requirements || '').length
+    ? board.requirements.split('\n') : [];
+  if (!board.cal) return [];
+  const mine = calEventsOf(events, board.cal);
+  const span = typeof board.calReq === 'number'
+    ? Math.min(board.calReq, lines.length) : mine.length;
+  return lines.slice(0, span)
+    .map((text, i) => ({ event: mine[i], text }))     // event may be undefined
+    .filter(m => m.event);
+}
+
 /* --- 2. IndexedDB persistence -------------------------------------------- */
 const DB_NAME = 'boards-db', STORE = 'boards';
 
