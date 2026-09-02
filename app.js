@@ -4558,6 +4558,25 @@ function makeCalDay(day, events, board) {
     line.className = 'cal-line' + (ev.state === 'complete' ? ' complete' : '');
     line.setAttribute('role', 'listitem');
     line.textContent = ev.text;
+    // Existing events are editable in place (issue #152): the line IS the
+    // control — a tap opens its existing editor, focused with the caret at
+    // the end, inside the tap gesture. No new surface, no mode (B95 intact).
+    // The native click's caret placement fires with the mouseup — on desktop
+    // AFTER the click handler (caretToEnd wins); on touch the placement is
+    // coalesced BEFORE the click dispatch (caretToEnd loses), and the caret
+    // sits at the tap point — so the first typed characters splice mid-word
+    // instead of appending (the bug class this issue reports). The deferred
+    // re-assert runs after both orders and lands the caret at the end either
+    // way. The guard keeps a second tap while editing from re-arming the
+    // editor and double-committing (B81's concern). Edit-entry is navigation,
+    // so it runs raw — the commit is the blur, which writes and re-syncs
+    // itself.
+    line.addEventListener('click', (e) => {
+      if (line.hasAttribute('contenteditable')) return;
+      e.preventDefault();
+      startCalLineEdit(line, ev);
+      setTimeout(() => caretToEnd(line), 0);
+    });
     dl.appendChild(line);
   }
   // Capture lives on the day (PRD §6.2's grammar, calendar edition): the

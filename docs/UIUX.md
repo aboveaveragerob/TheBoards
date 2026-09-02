@@ -798,7 +798,7 @@ two-tone ring on focus. State is never colour (§1) — the **All boards ⇄ Thi
 board** toggle states its act in its label (B43/B71's grammar), so no
 `aria-pressed` rides alongside.
 
-### §3.4 The calendar view (B95, issue #145; tier shipped by B96, issue #155)
+### §3.4 The calendar view (B95, issue #145; tier shipped by B96, issue #155; events editable by B97, issue #152)
 
 The third screen. Full-screen on mobile (`html:not(.wide)`); on any wide
 screen — desktop or tablet (`html.wide`) — a panel docked to the right edge
@@ -823,7 +823,11 @@ luminance, never icons.
 **Capture.** Each day's zone closes with the `+` row — the calendar edition
 of §6.2: tap and type, the caret arrives with the tap. Commit-on-blur writes
 the event and its linked board's mirror line together; an empty commit
-discards (B8). Completed events strike through at .55.
+discards (B8). Completed events strike through at .55. An **existing** event
+line is editable in place (B97): its own tap opens the same editor — focused,
+caret always at the end of the text, inside the tap gesture; a second tap
+while editing does nothing (B81's re-arm guard); the commit touches text
+only, so a completed event keeps its strike through an edit.
 
 ---
 

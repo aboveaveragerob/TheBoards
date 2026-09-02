@@ -3648,3 +3648,36 @@ present, `--offx` at 300, calendar docking as the 320px panel under
 `squeeze`. `test/desktop.js` untouched (the desktop grammar and its MQ are
 byte-identical). `UIUX §3.4`'s calendar note now states the mobile path as
 `html:not(.wide)`.
+## AF. Editable calendar events (issue #152)
+
+### B97. An existing calendar event is editable in place: the line's own tap opens its existing editor — focused, caret always at the end of the text — inside the tap gesture; commit-on-blur writes the event and re-syncs the mirror; an empty commit discards; a second tap while editing cannot re-arm the editor (issue #152; keeps B95's calendar grammar untouched — no new surface, no mode, no control beyond the line itself; keeps B8's discard rule, B81's commit discipline via the re-arm guard, the mirror's one-writer law — and waives nothing)
+
+**The bug was wiring, not the editor.** `makeCalDay` rendered existing events
+as plain text — only the add flow ever opened the editor, on the line it had
+just created. The editor itself already did everything the issue expects:
+`focus()` inside the tap gesture (the keyboard opens), `caretToEnd` (the
+cursor lands at the end of the text). The fix is one listener on each
+rendered line that calls `startCalLineEdit(line, ev)`.
+
+**Edit-entry runs raw; the commit is the blur.** Like note edit-entry, opening
+the editor commits nothing a stray tap could duplicate, so it does not run
+under `commitAction` — the blur is the committing consequence, and it already
+writes the event record and re-syncs the linked board's mirror through
+`syncDateMirror` (one writer, span-safe).
+
+**The re-arm guard.** A tap on a line that is already editing returns early.
+Without it, a second tap while editing would re-arm `startCalLineEdit` and
+stack a second blur listener — a double commit. This is B81's concern in the
+calendar's idiom.
+
+**State is not text.** Editing a completed event touches text only: the
+`complete` state and its strike survive the edit and the commit. Text and
+state are independent fields on the event record.
+
+**The record.** `sw.js`'s `CACHE` bumps to **v42**; `test/tokens.js` re-pins
+it and gains the wiring contract asserts (tap opens the existing editor,
+caret to end, re-arm guard). `test/mobile.js` [25] and `test/desktop.js`
+[D24] prove the behavior through their real grammars: open → focused → caret
+at end → edit → persist → mirror re-synced; [25] additionally pins the empty
+commit's discard and the completed event's surviving strike.
+`UIUX §3.4`'s Capture note now covers the existing line's editing contract.
