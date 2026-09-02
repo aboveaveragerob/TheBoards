@@ -612,7 +612,7 @@ async function openCat(page, cat) {
   // the rule must land at the same 48 at every sheet height.
   console.log('\n[11b] Free canvas survives a short sheet (B37)');
   {
-    for (const [w, h, floor] of [[1000, 715, 0.65], [800, 600, 0.60]]) {
+    for (const [w, h, floor] of [[980, 715, 0.65], [800, 600, 0.60]]) {
       const { ctx, page, errors } = await newMobilePage(browser, { width: w, height: h });
       const g = await page.evaluate(() => {
         const b = document.querySelector('#board').getBoundingClientRect();
@@ -640,6 +640,38 @@ async function openCat(page, cat) {
       ok(`${tag} no page errors`, errors.length === 0, errors.join(' | '));
       await ctx.close();
     }
+  }
+
+  // ---- 11c. The tablet tier (B96, issue #155) -------------------------------
+  // The unfolded Z Fold 7 (984 CSS px, coarse pointer) takes the wide
+  // ARRANGEMENT — rail + calendar panel — under the touch GRAMMAR. Width
+  // alone must not flip the grammar (B19's capability law stands): the
+  // session is NOT desktop here, and the rail renders scaled, not at 1:1.
+  console.log('\n[11b2] Tablet tier: wide arrangement, touch grammar (B96)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser, { width: 984, height: 1450 });
+    const g = await page.evaluate(() => ({
+      tablet: document.documentElement.classList.contains('tablet'),
+      wide: document.documentElement.classList.contains('wide'),
+      desktop: document.documentElement.classList.contains('desktop'),
+      paneW: document.getElementById('pane').getBoundingClientRect().width,
+      offx: getComputedStyle(document.getElementById('board')).getPropertyValue('--offx').trim(),
+    }));
+    ok('984x1450 is tablet (html.tablet + html.wide, NOT html.desktop)',
+      g.tablet && g.wide && !g.desktop, JSON.stringify(g));
+    ok('the rail renders beside the sheet (wide arrangement)', g.paneW > 100, String(g.paneW));
+    ok('the sheet origin sits at the rail width (B20 offX)', g.offx === '300px', g.offx);
+    await page.evaluate(() => document.getElementById('action-calendar').click());
+    await page.waitForTimeout(500);
+    const cal = await page.evaluate(() => ({
+      panel: document.getElementById('cal-view').classList.contains('panel'),
+      w: document.getElementById('cal-view').getBoundingClientRect().width,
+      squeeze: typeof calSqueeze !== 'undefined' && calSqueeze,
+    }));
+    ok('the calendar opens as the docked panel (the issue #155 fix)',
+      cal.panel && cal.w === 320 && cal.squeeze, JSON.stringify(cal));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
   }
 
   // ---- 11c. EXPORT_GEO still draws what the board draws (B47/B54) -----------

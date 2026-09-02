@@ -3604,3 +3604,47 @@ link coercion, squeeze state). `test/mobile.js` [21] and `test/desktop.js`
 [D21] re-read the row as four tabs. `UIUX §3.3` (tab padding), §3.4 (new:
 the calendar view), `§10` (the third screen), `PRD §4.1` (the extended
 record shape) move with it.
+## AE. The tablet tier (issue #155)
+
+### B96. Three device classes, two axes: capability keeps the grammar (B19 untouched), width gains a tablet tier — `min-width: 984px`, the unfolded Z Fold 7 — that joins a `wide` arrangement (desktop ∪ tablet: the rail, the calendar panel, the squeeze) without ever flipping the touch grammar; the tablet tier B95/R3 ruled is now shipped (issue #155; the owner's approval of the 2026-09-02 solutions comment is the ruling's substance; keeps B19's capability law, B20's wide geometry, B64's similarity mapping, B81's commit-on-release, B9's back-gesture law — and waives nothing)
+
+**The classes, evaluated in order — no viewport falls between grammars:**
+
+1. **Desktop** — B19's MQ, unchanged: `(min-width: 1024px) and (hover: hover)
+   and (pointer: fine)`. The hover/fine grammar, the rail, the calendar panel.
+2. **Tablet** — *not* desktop **and** `min-width: 984px` (the unfolded Z Fold
+   7's CSS viewport), regardless of pointer. The desktop **arrangement** (rail
+   → panel → squeeze) under the **touch grammar**: B19's own derivation
+   carries over — the desktop hover grammar would strictly reduce a
+   touch-only device, while the touch grammar costs a wide screen nothing
+   except the calendar arrangement, which this tier restores. Mouse
+   capability still overrides into desktop, whose MQ is untouched.
+3. **Mobile** — everything else. iPad portrait (768–834) stays mobile; iPad
+   landscape (≥1024, coarse) is tablet; the Fold 7 cover screen (~370) is
+   mobile; unfolded it is tablet.
+
+**Two axes, one flag pair.** Grammar is capability (B19); arrangement is
+width. The code carries `isDesktop` (grammar, unchanged) plus `isTablet`,
+composed into `isWide` — the single arrangement flag — and three classes on
+`<html>`: `desktop` (grammar, as always), `tablet` (the new tier), `wide`
+(every CSS rule that draws the rail or the picker overlay). No UA sniffing,
+no orientation branch, no device list: width for room, capability for
+grammar, nothing else. The #155 report — an unfolded Fold 7 showing the
+calendar *button* — was this tier ruled by B95/R3 but never shipped; the fix
+is the shipping.
+
+**The flip.** `applyMode` runs on either MQ's `change` and applies the same
+teardown B19 ruled: selection cleared, menu closed, a pushed list entry
+popped (B9 intact), the calendar closed with its history entry popped when
+the wide class is lost (nothing typed is lost — calendar lines live in
+boards). Folding mid-session is a frame change plus an arrangement change,
+never a data change.
+
+**The record.** `sw.js`'s `CACHE` bumps to **v41**; `test/tokens.js` re-pins
+it. `test/mobile.js` [11b]'s short-window case moves to 980px (just under
+the boundary — it exists to pin the *mobile* sheet on a short window) and a
+new [11b2] pins the tier itself: tablet classes without desktop, rail
+present, `--offx` at 300, calendar docking as the 320px panel under
+`squeeze`. `test/desktop.js` untouched (the desktop grammar and its MQ are
+byte-identical). `UIUX §3.4`'s calendar note now states the mobile path as
+`html:not(.wide)`.
