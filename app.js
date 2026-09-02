@@ -215,34 +215,53 @@ const CE = (() => {
    window is wide enough for the rail. Capability — not width, not UA — is what
    excludes tablets: iPadOS reports coarse/none even with a trackpad. One flag +
    one class are the single source of truth; CSS gates on html.desktop only. */
+/* Tablet (B96, issue #155): `min-width: 984px` — the unfolded Z Fold 7's CSS
+   viewport — regardless of pointer. It is the wide ARRANGEMENT tier: it joins
+   `wide` (desktop ∪ tablet), which drives the rail and the calendar panel,
+   while the desktop MQ alone keeps the hover/fine GRAMMAR (B19's capability
+   law, untouched). Re-evaluated live on `change`; a flip runs the same
+   teardown the desktop flip runs (applyMode). */
+const TABLET_MQ = window.matchMedia('(min-width: 984px)');
+let isTablet = TABLET_MQ.matches;    // evaluated at load, like isDesktop below
+
 const DESKTOP_MQ = window.matchMedia(
   '(min-width: 1024px) and (hover: hover) and (pointer: fine)');
 let isDesktop = DESKTOP_MQ.matches;
+let isWide = isDesktop || isTablet;   // desktop ∪ tablet — the arrangement tier
 document.documentElement.classList.toggle('desktop', isDesktop);
+document.documentElement.classList.toggle('tablet', isTablet);
+document.documentElement.classList.toggle('wide', isWide);
 
 function applyMode() {
   isDesktop = DESKTOP_MQ.matches;
+  isTablet = !isDesktop && TABLET_MQ.matches;
+  isWide = isDesktop || isTablet;
   document.documentElement.classList.toggle('desktop', isDesktop);
+  // The wide class is the CSS arrangement gate — every `html.desktop` rule
+  // that draws the rail or the picker overlay is a wide rule now (B96).
+  document.documentElement.classList.toggle('tablet', isTablet);
+  document.documentElement.classList.toggle('wide', isWide);
   // Teardown: nothing half-finished survives the flip.
   clearSelection();
   closeMenu();
   if (g) { clearTimeout(g.longPressTimer); g = null; }
   pointers.clear();
-  if (isDesktop && listOpen) returnToBoard();  // pop the whole list nav → board (B9 intact;
+  if (isWide && listOpen) returnToBoard();  // pop the whole list nav → board (B9 intact;
                                                // a drill is two levels deep, B74)
   // The calendar across the flip (issue #145): the panel arrangement belongs
-  // to the desktop grammar, so a flip while it is open closes it and pops its
+  // to the wide grammar, so a flip while it is open closes it and pops its
   // history entry (nothing typed is lost — calendar lines live in linked
-  // boards, not in the view). A flip TO desktop re-enters via the tab.
+  // boards, not in the view). A flip TO a wide class re-enters via the tab.
   if (calOpen) {
     calOpen = false;
     el.calView.hidden = true;
     if (history.state && history.state.v === 'cal') history.back();
   }
   applyLayout();
-  if (isDesktop) renderPane();
+  if (isWide) renderPane();
 }
 DESKTOP_MQ.addEventListener('change', applyMode);
+TABLET_MQ.addEventListener('change', applyMode);
 
 const uuid = () =>
   (crypto.randomUUID ? crypto.randomUUID()
@@ -594,9 +613,11 @@ function persist() {
 /* --- 4. Layout / scale-to-fit -------------------------------------------- */
 function applyLayout() {
   const vw = window.innerWidth, vh = window.innerHeight;
-  if (isDesktop) {
-    // Desktop (B20): the rail takes PANE_W unscaled; the sheet fills the rest.
-    // Min-anchored scale — neither logical dimension ever drops below the
+  if (isWide) {
+    // Wide (B20): the rail takes PANE_W unscaled; the sheet fills the rest.
+    // Desktop reached it via B19's MQ; tablet joins by width alone (B96, issue
+    // #155 — the unfolded Z Fold 7). Min-anchored scale — neither logical
+    // dimension ever drops below the
     // 900×1000 reference, so mobile-placed notes always fit and the top
     // furniture (~880 units) never collides, at any window shape.
     // The calendar squeeze (R6): while the calendar panel is open the panel's
@@ -663,7 +684,7 @@ function applyLayout() {
     // Re-paginate the surface that is showing: the open list overlay (drill or
     // desktop picker) first, else the desktop rail behind it (issue #112 review).
     if (listOpen) renderListSurface();
-    else if (isDesktop && el.paneCards) renderPane();
+    else if (isWide && el.paneCards) renderPane();
   }
   // No letterbox now: the toast sits 12px above the screen's bottom edge.
   document.documentElement.style.setProperty('--toast-bottom', '12px');
@@ -3671,7 +3692,7 @@ async function importBoardsJson(file) {
     renderBoard();
   }
   if (listOpen) await renderListSurface();
-  else if (isDesktop) renderPane();     // the rail re-reads; the sheet is already right
+  else if (isWide) renderPane();     // the rail re-reads; the sheet is already right
   showNotice(COPY.imported, 'import', UNDO_MS);
 }
 
@@ -3944,7 +3965,7 @@ async function dropBoardCard(b, cat) {
     const rec = await idbGet(b.id);
     if (rec) { rec.category = cat; rec.catStamp = Date.now(); await idbPut(rec); }
   }
-  if (isDesktop) renderPane(); else renderListSurface();
+  if (isWide) renderPane(); else renderListSurface();
 }
 
 /* Since issue #112 / B74 the All-Boards menu is a category PICKER, and the
@@ -3959,7 +3980,7 @@ async function dropBoardCard(b, cat) {
 async function renderListSurface() {
   if (!listOpen) return;
   if (catView) { await renderCat(catView); return; }
-  if (isDesktop) await renderPicker();       // mobile picker is the lot-grid; nothing to rebuild
+  if (isWide) await renderPicker();       // mobile picker is the lot-grid; nothing to rebuild
 }
 
 /* One drilled category on its own screen (issue #112 / B74): the same section
@@ -4173,7 +4194,7 @@ async function deleteBoard(id, row) {
     // rail behind a desktop drill is hidden — rendering it here would leave the
     // visible drill with the hole (issue #112 review).
     setTimeout(renderListSurface, LEAVE_MS);
-  } else if (isDesktop) {
+  } else if (isWide) {
     renderPane();
   }
   showUndo(async () => {
@@ -4182,7 +4203,7 @@ async function deleteBoard(id, row) {
     // either platform), else the desktop rail — reopening the board there if it
     // was the one showing (issue #112 review).
     if (listOpen) { renderListSurface(); return; }
-    if (isDesktop) { if (wasCurrent) swapBoard(snapshot.id); else renderPane(); }
+    if (isWide) { if (wasCurrent) swapBoard(snapshot.id); else renderPane(); }
   }, 'board');
 }
 
@@ -4282,7 +4303,7 @@ async function swapBoard(id) {
    same drag, same head/add/cards/pager grid as the mobile list (B63) — the
    rail's skin only tightens the row heights and the control's label. */
 async function renderPane() {
-  if (!isDesktop || !el.paneCards) return;
+  if (!isWide || !el.paneCards) return;   // wide: the rail exists on tablet too (B96)
   // A re-render tears the captured card out from under a live drag — pointerup
   // would never arrive, stranding the fixed ghost on screen. Cancel it first.
   if (dragCancel) dragCancel();
@@ -4386,7 +4407,7 @@ async function showList() {
   catView = null;
   syncViewTitle();                    // the picker names itself (issue #148 item 2)
   syncBoardActions();                 // mobile keeps the tab visible above the grid — flip it to "This board" (B83)
-  if (!isDesktop) { openLotMenu(); return; }
+  if (!isWide) { openLotMenu(); return; }
   // Unhide FIRST: catPageCap() measures #list-rows, and a `hidden` element
   // measures 0 — rendering before the reveal would page every category to a
   // single card (issue #74).
@@ -4458,7 +4479,7 @@ async function ensureCurrentValid() {
    there is no panel to fall, and its own tests expect an instant hide. */
 function hideListView() {
   el.listView.classList.remove('show');
-  if (isDesktop) { el.listView.hidden = true; return; }
+  if (isWide) { el.listView.hidden = true; return; }
   setTimeout(() => {
     if (!el.listView.classList.contains('show')) el.listView.hidden = true;
   }, LEAVE_MS);
@@ -4470,7 +4491,7 @@ async function showBoardFromList() {
   hideListView();                      // slide the drilled panel down, then hide (B82)
   if (!current) { await ensureCurrentValid(); }
   else { renderBoard(); }
-  if (isDesktop) renderPane();         // a board opened from the #list-view drill lights its rail card
+  if (isWide) renderPane();         // a board opened from the #list-view drill lights its rail card
 }
 
 /* --- 11.6 The rolling temporal calendar (issue #145) ----------------------
@@ -4495,8 +4516,8 @@ function showCal() {
   syncBoardActions();
   // The squeeze is the desktop/tablet arrangement (R3/R6): the panel takes
   // real width beside the board; on mobile the calendar is the full screen.
-  el.calView.classList.toggle('panel', isDesktop);
-  setCalSqueeze(isDesktop);
+  el.calView.classList.toggle('panel', isWide);
+  setCalSqueeze(isWide);
   renderCal();
 }
 
@@ -4717,7 +4738,7 @@ async function boot() {
   if (!all.length) { board = newBoardRecord(); await idbPut(board); }
   else { board = all.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a)); }  // launch → most recent
   openBoardObj(board);
-  if (isDesktop) renderPane();
+  if (isWide) renderPane();
 }
 boot();
 

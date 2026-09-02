@@ -798,11 +798,13 @@ two-tone ring on focus. State is never colour (§1) — the **All boards ⇄ Thi
 board** toggle states its act in its label (B43/B71's grammar), so no
 `aria-pressed` rides alongside.
 
-### §3.4 The calendar view (B95, issue #145)
+### §3.4 The calendar view (B95, issue #145; tier shipped by B96, issue #155)
 
-The third screen. Full-screen on mobile; on desktop and tablet a panel
-docked to the right edge (320 unscaled px, `--frame` border) beside the
-board, which reflows — never covered. The room's own ground (`--chrome`).
+The third screen. Full-screen on mobile (`html:not(.wide)`); on any wide
+screen — desktop or tablet (`html.wide`) — a panel docked to the right edge
+(320 unscaled px, `--frame` border) beside the board, which reflows — never
+covered. The room's own ground (`--chrome`). The tablet tier renders this
+same panel arrangement under the touch grammar (B96).
 
 **The R1 top row.** Three `--frame` flat tabs in the row-control species,
 anchored left / center / right: **Back** (the board-action glyph mirrored —
