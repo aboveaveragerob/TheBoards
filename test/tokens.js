@@ -586,8 +586,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v41 — the bump that ships the tablet tier (issue #155)',
-    /const CACHE = 'todo-boards-v41';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v42 — the bump that ships editable calendar events (issue #152)',
+    /const CACHE = 'todo-boards-v42';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   // --- Issue #140 / B92: import/export and the retired anchor menu ---
   ok('the board-action row carries the third tab (import)', /id="action-import"/.test(html) &&
     /actionImport: document\.getElementById\('action-import'\)/.test(app));
@@ -636,6 +636,13 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
   ok('the squeeze is render-time state: true frame kept, nothing stored (R6)',
     /let calSqueeze = false/.test(app) && /LOGICAL_W_TRUE/.test(app) &&
     /note\.rw = LOGICAL_W_TRUE \|\| LOGICAL_W/.test(app));
+  // --- Issue #152 / B97: existing events are editable in place ---
+  ok('an existing event line opens its existing editor on tap, with the caret re-asserted to the end after the native placement (issue #152, B97)',
+    /line\.addEventListener\('click', \(e\) => \{\s*\n\s*if \(line\.hasAttribute\('contenteditable'\)\) return;\s*\n\s*e\.preventDefault\(\);\s*\n\s*startCalLineEdit\(line, ev\);\s*\n\s*setTimeout\(\(\) => caretToEnd\(line\), 0\);\s*\n\s*\}\)/.test(app));
+  ok('the editor always lands the caret at the end of the text (the issue expected behavior)',
+    /function startCalLineEdit[\s\S]*?line\.focus\(\);\s*\n\s*caretToEnd\(line\);/.test(app));
+  ok('the second tap while editing cannot re-arm a second editor (B81)',
+    /if \(line\.hasAttribute\('contenteditable'\)\) return;/.test(app));
   const external = /https?:\/\//;
   ok('no CDN URL in styles.css', !external.test(css.replace(/http:\/\/www\.w3\.org/g, '')));
   ok('no CDN URL in index.html', !external.test(html));

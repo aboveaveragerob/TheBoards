@@ -1855,6 +1855,74 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
+  // ---- D24. an existing calendar event is editable in place (issue #152) ---
+  // The desktop twin of [25]: click the line, editor opens focused with the
+  // caret at the end; Enter commits; the mirror re-syncs (B97).
+  console.log('\n[D24] Calendar: click an existing event edits it in place (issue #152, B97)');
+  {
+    const { ctx, page, errors } = await newDesktopPage(browser);
+    const seeded = await page.evaluate(async () => {
+      const key = calKey(new Date());
+      const b = newBoardRecord();
+      b.title = '09/02/26 To Do'; b.cal = key; b.calReq = 1;
+      b.requirements = 'desktop event line';
+      const ev = newCalEvent(key, 'desktop event line');
+      await idbPut(b); await idbPut(ev);
+      return ev.id;
+    });
+    await page.evaluate(() => document.getElementById('action-calendar').click());
+    await page.waitForTimeout(400);
+    ok('calendar opened with the seeded event rendered',
+      await page.evaluate(() =>
+        [...document.querySelectorAll('.cal-line')].some(l => l.textContent === 'desktop event line')));
+
+    // Click through the real mouse grammar.
+    const box = await page.evaluate(() => {
+      const l = [...document.querySelectorAll('.cal-line')]
+        .find(l => l.textContent === 'desktop event line');
+      const r = l.getBoundingClientRect();
+      return { x: r.x + Math.min(20, r.width / 2), y: r.y + r.height / 2 };
+    });
+    await page.mouse.click(box.x, box.y);
+    await page.waitForTimeout(80);
+    const editing = await page.evaluate(() => {
+      const l = [...document.querySelectorAll('.cal-line')]
+        .find(l => l.hasAttribute('contenteditable'));
+      if (!l) return null;
+      return { focused: document.activeElement === l };
+    });
+    ok('the click opens the existing editor, focused', !!editing && editing.focused,
+      JSON.stringify(editing));
+    // Caret-at-end, proven the B90 way: a typed marker appends.
+    await page.keyboard.type('!');
+    await page.waitForTimeout(80);
+    ok('the caret sits at the end of the text (typing appends, B90 pattern)',
+      await page.evaluate(() =>
+        [...document.querySelectorAll('.cal-line')]
+          .find(l => l.hasAttribute('contenteditable')).textContent === 'desktop event line!'));
+
+    // Enter commits (keydown blurs; blur writes).
+    await page.keyboard.type(' VIA ENTER');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(400);
+    const after = await page.evaluate(async (id) => {
+      const all = await idbGetAll();
+      const ev = all.find(r => r.id === id);
+      const board = all.find(r => r.cal === calKey(new Date()));
+      return { evText: ev && ev.text,
+               mirrorFirst: (board.requirements || '').split('\n')[0] };
+    }, seeded);
+    ok('Enter commits: event persisted and mirror re-synced',
+      after.evText === 'desktop event line! VIA ENTER' &&
+      after.mirrorFirst === 'desktop event line! VIA ENTER', JSON.stringify(after));
+    ok('the line left edit mode after the commit',
+      await page.evaluate(() =>
+        ![...document.querySelectorAll('.cal-line')].some(l => l.hasAttribute('contenteditable'))));
+
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== desktop: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);

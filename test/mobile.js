@@ -2061,6 +2061,175 @@ async function openCat(page, cat) {
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
+  // ---- 25. an existing calendar event is editable in place (issue #152) ----
+  // The bug: makeCalDay rendered existing events as inert text — only the add
+  // flow ever opened the editor. The fix wires the line's own tap to its
+  // existing editor (B97): tap an event -> contenteditable, focused, caret at
+  // the END of the text (the issue's expected behavior), inside the tap
+  // gesture. Commit-on-blur persists the event and re-syncs the mirror; an
+  // empty commit discards (B8); a completed event stays completed.
+  // Flows are separated because two taps inside the double-tap window make
+  // Chromium word-select the now-editable line — native text behavior, not
+  // the app's — so each flow opens its editor fresh.
+  console.log('\n[25] Calendar: tap an existing event edits it in place (issue #152, B97)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    // Seed today's date with an event + its linked board, as R5 leaves them.
+    const seeded = await page.evaluate(async () => {
+      const key = calKey(new Date());
+      const b = newBoardRecord();
+      b.title = '09/02/26 To Do'; b.cal = key; b.calReq = 1;
+      b.requirements = 'existing event line';
+      const ev = newCalEvent(key, 'existing event line');
+      await idbPut(b); await idbPut(ev);
+      return { key, evId: ev.id };
+    });
+    await page.evaluate(() => document.getElementById('action-calendar').click());
+    await page.waitForTimeout(400);
+    const open = await page.evaluate(() => !document.getElementById('cal-view').hidden);
+    ok('calendar opened with the seeded event rendered', open &&
+      (await page.evaluate(() =>
+        [...document.querySelectorAll('.cal-line')].some(l => l.textContent === 'existing event line'))));
+
+    const calBlur = async () => tap(page, 200, 700);  // clear of today's card (flex 1.6, y 36..195)
+    const tapLine = async (text) => {
+      const p = await page.evaluate((t) => {
+        const l = [...document.querySelectorAll('.cal-line')].find(l => l.textContent === t);
+        const r = l.getBoundingClientRect();
+        return { x: r.x + Math.min(20, r.width / 2), y: r.y + r.height / 2 };
+      }, text);
+      await tap(page, p.x, p.y);
+    };
+    const editLine = () => page.evaluate(() => {
+      const l = [...document.querySelectorAll('.cal-line')]
+        .find(l => l.hasAttribute('contenteditable'));
+      return l ? { text: l.textContent, complete: l.classList.contains('complete') } : null;
+    });
+
+    // Flow 1: open, focus, caret at the END (the issue's expected behavior).
+    await tapLine('existing event line');
+    await page.waitForTimeout(80);
+    const editing = await page.evaluate(() => {
+      const l = [...document.querySelectorAll('.cal-line')]
+        .find(l => l.hasAttribute('contenteditable'));
+      if (!l) return null;
+      return { isLine: l.textContent === 'existing event line',
+               focused: document.activeElement === l };
+    });
+    ok('the tap opens the existing editor on the line', !!editing, 'none found');
+    ok('the line has focus (keyboard opens, inside the gesture)',
+      editing && editing.focused);
+    // The caret-at-end contract is proven behaviorally (the B90 pattern):
+    // typing a marker must append — an end-placed caret means the marker
+    // lands after the existing text, never inside it.
+    await page.keyboard.type('!');
+    await page.waitForTimeout(80);
+    ok('the caret sits at the end of the text (issue #152 expected behavior — typing appends)',
+      (await editLine()).text === 'existing event line!');
+    await calBlur();
+    await page.waitForTimeout(400);
+
+    // Flow 2: the re-arm guard. startCalLineEdit arms the blur commit, so a
+    // second editor on the same line would DOUBLE-COMMIT the same event.
+    // The guard must prevent that. Instrumented: count editors armed across
+    // a second tap on the line WHILE it is editing.
+    await page.evaluate(() => {
+      window._armed = 0;
+      const orig = startCalLineEdit;
+      window.startCalLineEdit = function (line, ev) {
+        window._armed++;
+        return orig(line, ev);
+      };
+    });
+    await tapLine('existing event line!');       // opens the editor (arm 1)
+    await page.waitForTimeout(80);
+    const armed1 = await page.evaluate(() => window._armed);
+    await tapLine('existing event line!');       // the second tap while editing
+    await page.waitForTimeout(120);
+    const armed2 = await page.evaluate(() => window._armed);
+    ok('a second tap while editing does not re-arm the editor (exactly one editor open)',
+      armed1 === 1 && armed2 === 1, 'armed=' + armed1 + '->' + armed2);
+    await calBlur();                             // close flow 2's editor
+    await page.waitForTimeout(400);
+
+    // Flow 3: type the edit, blur, read back what persisted (record + mirror).
+    await tapLine('existing event line!');
+    await page.waitForTimeout(80);
+    await page.keyboard.type(' EDITED');
+    await calBlur();
+    await page.waitForTimeout(400);              // commit + debounced save
+    const after = await page.evaluate(async (id) => {
+      const all = await idbGetAll();
+      const ev = all.find(r => r.id === id);
+      const board = all.find(r => r.cal === calKey(new Date()));
+      const lines = (board && board.requirements || '').split('\n');
+      return { evText: ev && ev.text, state: ev && ev.state,
+               mirrorFirst: lines[0], calReq: board && board.calReq };
+    }, seeded.evId);
+    ok('the edit persisted to the event record',
+      after.evText === 'existing event line! EDITED', JSON.stringify(after));
+    ok('the linked board mirror re-synced with the edit (one writer)',
+      after.mirrorFirst === 'existing event line! EDITED' && after.calReq === 1,
+      JSON.stringify(after));
+
+    // Flow 4: empty commit discards (B8) — seed a second event, clear it, blur.
+    const ev2 = await page.evaluate(async () => {
+      const e = newCalEvent(calKey(new Date()), 'doomed');
+      await idbPut(e);
+      await syncDateMirror(calKey(new Date()));
+      renderCal();
+      await new Promise(r => setTimeout(r, 300));
+      return e.id;
+    });
+    await page.waitForTimeout(200);
+    await tapLine('doomed');
+    await page.waitForTimeout(80);
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Backspace');
+    await calBlur();
+    await page.waitForTimeout(400);
+    const gone = await page.evaluate(async (id) => {
+      const all = await idbGetAll();
+      return { record: all.some(r => r.id === id),
+               line: [...document.querySelectorAll('.cal-line')]
+                 .some(l => l.textContent === 'doomed') };
+    }, ev2);
+    ok('an empty commit discards the event record and its line (B8)',
+      !gone.record && !gone.line, JSON.stringify(gone));
+
+    // Flow 5: a completed event stays completed through an edit (state and
+    // text are independent — the strike survives editing). Flow 4's commit
+    // re-synced the mirror and re-rendered the stack, so re-locate the line
+    // after the fresh render before tapping.
+    const ev3 = await page.evaluate(async () => {
+      const e = newCalEvent(calKey(new Date()), 'struck line');
+      e.state = 'complete';
+      await idbPut(e);
+      await syncDateMirror(calKey(new Date()));
+      renderCal();
+      await new Promise(r => setTimeout(r, 300));
+      return e.id;
+    });
+    await page.waitForTimeout(200);
+    await tapLine('struck line');
+    await page.waitForTimeout(80);
+    ok('a completed event keeps its strike while editing',
+      (await editLine()).complete);
+    await page.keyboard.type(' done');
+    await calBlur();
+    await page.waitForTimeout(400);
+    const struckAfter = await page.evaluate(async (id) => {
+      const ev = (await idbGetAll()).find(r => r.id === id);
+      const l = [...document.querySelectorAll('.cal-line')]
+        .find(l => l.textContent === 'struck line done');
+      return { state: ev.state, stillStruck: l.classList.contains('complete') };
+    }, ev3);
+    ok('a completed event remains completed after its edit commits',
+      struckAfter.state === 'complete' && struckAfter.stillStruck, JSON.stringify(struckAfter));
+
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
 
   await browser.close();
   console.log('\n=== mobile: ' + pass + ' passed, ' + fail + ' failed ===');
