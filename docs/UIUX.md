@@ -731,7 +731,7 @@ canvas; content past it is clipped (`#lot-items { overflow: hidden }`). **This
 supersedes B37's whole-row budget and B47/B57's row-count ceiling** (B73),
 which sized the lot by item *count* at a fixed 44px each and cut wrapped lines.
 
-### §3.3 The board-action row (B83; three tabs since B92; four since B95, issue #145)
+### §3.3 The board-action row (B83; three tabs since B92; four since B95; two on desktop, three on tablet since B100, issue #157)
 
 The board's board-level actions — **All** (the toggle), **Export**,
 **Import**, and, since issue #145, **Calendar** — are declared as a row of
@@ -745,8 +745,13 @@ reader was already standing in front of. B95 re-grammars the labels so four
 tabs fit a phone (R7.2): side padding 12→6px and gap 8→6px — vertical
 padding and type are untouched, so B86's finger box and §6's collar-height
 math hold. B99 retires the Calendar **tab on wide** — the standing rail
-(§3.4) is the calendar's entry there — so the row is three tabs on wide
-and four on mobile: the grammar each platform speaks, nothing held in
+(§3.4) is the calendar's entry there. B100 retires the **All tab on desktop**
+(`html.desktop #action-boards { display: none }`) — the left rail (§10)
+already lists every category with every board, so the tab was a second door
+to the same room. The row is **two tabs on desktop** (Export · Import),
+**three on tablet** (All · Export · Import — the tablet keeps its tab: it is
+the tier's way into the lot-grid picker), **four on mobile** (All · Export ·
+Import · Calendar): the grammar each platform speaks, nothing held in
 reserve.
 
 **Placement.** `#board-actions` is `left: 0; right: 0`, a **left-anchored** flex
@@ -817,15 +822,20 @@ entered from the rail; the panel's **Back** is the collapse arrow, and on
 collapse the board renders exactly where it was. The rail commits
 nothing and pushes no history (B81: navigation runs raw). The Calendar
 tab retires on wide (`html.wide #action-calendar { display: none }`) —
-the row is three tabs there; mobile keeps the four-tab row and the
-tab-driven full-screen view, unchanged. The tablet tier renders this
-same rail + panel arrangement under the touch grammar (B96).
+mobile keeps the four-tab row and the tab-driven full-screen view, unchanged.
+B100 retires desktop's **All Boards** R1 button too (`html.desktop #cal-boards
+{ display: none }`, with the handler guarding): the rail names every board,
+and the panel's row is **Back + Export**, Export taking the right anchor
+(`margin-left: auto`) — which is what mockup 6 drew. The tablet tier renders
+this same rail + panel arrangement under the touch grammar (B96), its All
+tab kept.
 
-**The R1 top row.** Three `--frame` flat tabs in the row-control species,
-anchored left / center / right: **Back** (the board-action glyph mirrored —
-a page turn back), **All Boards**, **Export**. Back pops the view's pushed
-History state; it is the always-visible exit, with the OS gesture as the
-second route, never the only one. Each tab renders its act — drawn mark
+**The R1 top row.** `--frame` flat tabs in the row-control species. On
+mobile, three, anchored left / center / right: **Back** (the board-action
+glyph mirrored — a page turn back), **All Boards**, **Export**. On desktop,
+two: **Back + Export** (B100). Back pops the view's pushed History state; it
+is the always-visible exit, with the OS gesture as the second route, never
+the only one. Each tab renders its act — drawn mark
 (22px) beside its label (`15px/600`) — in a frame that clears §6's touch
 floor **as drawn** (B98: `padding: 14px 16px`, ≈ 48px tall on touch), with
 the §6 decoupled collar (`--hit` on `#cal-top`, set at render) topping up
@@ -1132,9 +1142,10 @@ Long-press (mobile) or right-click (desktop). The anchor menu's two items —
 two flat tabs above the Parking Lot that invoke them directly, on both
 platforms. That row replaces the `Menu` handle of B65, and is why removing the
 handle costs desktop nothing — no long-press is armed there (B19/issue #4), and
-desktop `contextmenu` now opens a **note's** Link menu (B91, §4.6), so the
-board-action row — not a menu — is desktop's route to these two board actions. The
-mobile anchor long-press still opens the anchor menu below.
+desktop `contextmenu` now opens a **note's** Link menu (B91, §4.6). Since B100
+desktop's route to All boards is the **rail** (the tab is retired); Export
+stays a tab there. The mobile anchor long-press still opens the anchor menu
+below.
 
 | Menu | Items |
 |---|---|
@@ -1223,12 +1234,15 @@ state (`{v:'list'}` the picker, `{v:'cat',cat}` a drill, `{v:'cal'}` the calenda
 (B95)) specifically so the OS back gesture returns through every level
 (drill → picker → board; calendar → board). Back is never intercepted,
 shadowed or disabled — and B95's top row makes the calendar's route
-visible, so the gesture is a second way, never the only way.
+visible, so the gesture is a second way, never the only way. **The picker is
+the Parking Lot turned into the 2×2 grid wherever it exists** (B100, issue
+#157): on mobile and tablet, the two surfaces that carry the All-boards tab.
 
-**Mobile:** the picker is not a screen of its own — it is the **Parking Lot
-turned into a 2×2 grid** of the four category buttons, drawn over the lot at its
-current height (expanded with it) and dismissed back to the lot without ever
-touching the board's parking-lot data (B74). The grid reads clockwise from the
+**Mobile and tablet:** the picker is not a screen of its own — it is the
+**Parking Lot turned into a 2×2 grid** of the four category buttons, drawn over
+the lot at its current height (expanded with it) and dismissed back to the lot
+without ever touching the board's parking-lot data (B74; tablet joined by
+B100). The grid reads clockwise from the
 top-left: To Do, Notes, Learning, Ideas. A drilled category is then a **panel
 that rises from the Parking Lot to a third of the viewport** (B82, issue #125),
 most recently updated first, opening straight onto that one section — the board
@@ -1244,10 +1258,13 @@ as the transient surface it is (§2.4).
 **Desktop:** an always-visible 300px rail (B24) — **sunken, not floating** (§2.4),
 sitting outside `#board` so the recognizer never sees its events, listing all
 four categories at once. Cards are the water's upper fall on `--chrome`, compact.
-"All boards" on desktop fills `#list-view` with the same four-button picker; the
-drill stays the **full-screen overlay** there (B82 keeps the desktop overlay:
-the always-on rail already leaves the board reachable, so only the phone's drill
-becomes the third-height panel).
+**The rail IS desktop's all-boards surface** (B100, issue #157): the All-boards
+tab is retired there — `display:none` on both the board-action row and the
+calendar's R1 row, the rail already naming every category with every board —
+so `#list-view` has no entry path on desktop and never shows. The drill's
+B82 split survives as code (rising panel under `html:not(.desktop)`), simply
+unreachable on desktop; wide's board row is **two tabs** (Export · Import) and
+the calendar's R1 row is **Back + Export**.
 
 **Both surfaces order a section by last touch, newest first** (B69, superseding
 B24's immutable slot): the key is the later of `updatedAt` (written on every
@@ -1326,8 +1343,8 @@ of ground, frame and radius are all layout-free, so the measured card budget
 below is unchanged.
 
 **The All-Boards picker button wears the board's water field** (B89, issue #135).
-A category button — a tile in the mobile 2×2 grid, or in the desktop `#list-view`
-picker — grounds in its family's water gradient `linear-gradient(180deg,
+A category button — a tile in the lot-grid picker (the one picker, B100) —
+grounds in its family's water gradient `linear-gradient(180deg,
 var(--water-top), var(--water-mid))` — the same fill the board's own list cards wear
 — inside its `--frame` inset frame, the category name centred on it. Its ground was
 the section tray's near-black `--card` before, which read dull; the water lets a tile
@@ -1727,7 +1744,7 @@ Per surface, what would actually fail if the words above were violated today:
 |---|---|
 | §2 — every token, every ratio | `test/tokens.js` (`PRD §9.6`): every table here recomputed from the shipped hexes, each range at its worst extreme, plus the sync points, the accent placement rule, self-hosting and B53's pair |
 | §2.2.2 — four ladders, one axis | `test/tokens.js` [1b] parses the palette **per scope** (`:root`, `#board[data-cat="idea"]`, `#board[data-cat="unsorted"]`, `#board[data-cat="learning"]`), asserts each rung's luminance against the shared column, asserts the two spellings of the darkest stop agree (`--water-bot` / `--water-bot-a`), and asserts `--chrome`, the ink poles and the accents are *not* rebound. §2.3/§2.5/§2.7's tables are then run against all four ladders with one expected number each |
-| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines); `test/mobile.js` [21] and `test/desktop.js` [D21] pin the board-action row above the lot, prove its four tabs clear the touch/pointer floor (B95's re-grammar), open the list and export a PDF, and confirm the `#title-menu` handle is gone (B83); §3.4's calendar is pinned by `test/tokens.js`'s issue-#145 block (window computed at render, one mirror writer, link coercion, squeeze as render-time state) |
+| §3 — band and lot geometry | `test/mobile.js` [9c]/[11b]/[11c] and `test/desktop.js` [D8] — moved with B47/B54 when the band shipped, recomputing rule-y from the formula (88 floor / 107 at three lines); `test/mobile.js` [21] and `test/desktop.js` [D21] pin the board-action row above the lot, prove its live tabs clear the touch/pointer floor (B95's re-grammar; B100's desktop retirement means the row's two visible tabs), export a PDF, and confirm the `#title-menu` handle is gone (B83); §3.4's calendar is pinned by `test/tokens.js`'s issue-#145 block (window computed at render, one mirror writer, link coercion, squeeze as render-time state) |
 | §3/§7 — `EXPORT_GEO` agreement | `test/mobile.js` [11c] pins export geometry to the rendered board — the intended tripwire |
 | §4 — wrap, similarity render, centred text | `test/mobile.js` (B39 scenarios; [12c] pins B64's fold/rotate similarity — shape held, size uniform, storage untouched, round trip exact; [18b] computes the alignment, editing and at rest) and `test/desktop.js` [D13] (the silent cross-frame grab folds k) and [D17b] — the computed style, plus the centring inset parsed out of page 1's content stream (B62) |
 | §5 — the recognizer, both grammars | `test/mobile.js`, `test/desktop.js` |

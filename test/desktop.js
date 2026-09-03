@@ -1324,24 +1324,25 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
         .getPropertyValue('--rs')) || 1;
       const hit = parseFloat(getComputedStyle(row).getPropertyValue('--hit')) || 0;
       const collar = getComputedStyle(btns[0], '::before');
-      const boards = btns[0].getBoundingClientRect(), exp = btns[1].getBoundingClientRect();
-      const imp = btns[2].getBoundingClientRect();
+      const exp = btns[0].getBoundingClientRect();
+      const imp = btns[1].getBoundingClientRect();
       return {
         gone: document.querySelector('#title-menu') === null,
         shown: getComputedStyle(row).display !== 'none',
         labels: btns.map(b => b.querySelector('.label').textContent), rs, hit,
         collarTop: collar.top, collarBottom: collar.bottom,
-        boards: { x: boards.x + boards.width / 2, y: boards.y + boards.height / 2, w: boards.width, h: boards.height },
         exp: { x: exp.x + exp.width / 2, y: exp.y + exp.height / 2, w: exp.width, h: exp.height },
         imp: { x: imp.x + imp.width / 2, y: imp.y + imp.height / 2, w: imp.width, h: imp.height },
       };
     });
     ok('the row is drawn on desktop and the #title-menu handle is gone',
        geo.shown && geo.gone, JSON.stringify([geo.shown, geo.gone]));
-    ok('three tabs on wide (B99 retired the Calendar tab there): All, Export, Import',
-       geo.labels.length === 3 &&
-       /All/.test(geo.labels[0]) && /Export/.test(geo.labels[1]) &&
-       /Import/.test(geo.labels[2]), JSON.stringify(geo.labels));
+    ok('two tabs on desktop (B100 retired the All-boards tab; B99 retired Calendar): Export, Import',
+       geo.labels.length === 2 && /Export/.test(geo.labels[0]) &&
+       /Import/.test(geo.labels[1]), JSON.stringify(geo.labels));
+    ok('the All-boards tab is display:none on desktop — the rail is the all-boards surface (B100)',
+       await page.evaluate(() =>
+         getComputedStyle(document.getElementById('action-boards')).display === 'none'));
     ok('the standing calendar rail is wide\'s Calendar entry (B99)',
        await page.evaluate(() => {
          const r = document.getElementById('cal-rail').getBoundingClientRect();
@@ -1352,11 +1353,10 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
        }));
     // B23's 24px pointer floor, measured in PHYSICAL px — the collar is what
     // makes it hold at the board's renderScale (width stands on its own).
-    ok('all four tabs clear the 24px desktop floor (B23)',
-       geo.boards.w >= 24 && geo.exp.w >= 24 && geo.imp.w >= 24 &&
-       geo.boards.h + 2 * geo.hit * geo.rs >= 24 && geo.exp.h + 2 * geo.hit * geo.rs >= 24 &&
-       geo.imp.h + 2 * geo.hit * geo.rs >= 24,
-       JSON.stringify([geo.boards.w, geo.exp.w, geo.imp.w, geo.hit, geo.rs]));
+    ok('the remaining tabs clear the 24px desktop floor (B23)',
+       geo.exp.w >= 24 && geo.imp.w >= 24 &&
+       geo.exp.h + 2 * geo.hit * geo.rs >= 24 && geo.imp.h + 2 * geo.hit * geo.rs >= 24,
+       JSON.stringify([geo.exp.w, geo.imp.w, geo.hit, geo.rs]));
     ok('the collar reaches up, never down into the lot',
        geo.collarBottom === '0px' && parseFloat(geo.collarTop) <= 0,
        JSON.stringify([geo.collarTop, geo.collarBottom]));
@@ -1384,18 +1384,8 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('the choice menu PDF leaf produced a PDF', s.startsWith('%PDF-') && s.trimEnd().endsWith('%%EOF'));
     ok('and created no note under it', (await noteCount(page)) === before);
 
-    // All boards raises the picker overlay (the desktop All-Boards surface, B74).
-    await page.mouse.click(geo.boards.x, geo.boards.y);
-    await page.waitForTimeout(200);
-    ok('All boards opens the #list-view picker, no note',
-       await page.evaluate(() => document.querySelector('#list-view').hidden === false &&
-         document.querySelectorAll('#list-rows .cat-button').length === 4) &&
-       (await noteCount(page)) === before);
-    await page.evaluate(() => history.back());     // the overlay covers the row; back returns
-    await page.waitForTimeout(300);
-    ok('back returns to the board, the row uncovered',
-       await page.evaluate(() => document.querySelector('#list-view').hidden === true &&
-         /^All$/.test(document.querySelector('#action-boards .label').textContent)));
+    // B100: the All-boards flow is gone from desktop — no tab, no picker, no
+    // #list-view. The left rail (D20's surface) is the all-boards surface.
 
     // Right-click on a note opens its Link menu (B91) — the ONLY menu a
     // right-click can still open on the board (B92): an anchor, the canvas, or
@@ -1439,7 +1429,9 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await page.waitForTimeout(150);
     ok('a note is selected for the guard case', await page.evaluate(() => !!selected));
     const noteBefore = await noteCount(page);
-    await page.evaluate(() => document.querySelector('#action-boards').focus());
+    // B100: the All tab is retired on desktop; the Export tab is the row's
+    // live focusable — the guard's target, not the hidden one.
+    await page.evaluate(() => document.querySelector('#action-export').focus());
     await page.keyboard.press('Delete');
     await page.waitForTimeout(300);
     ok('Delete on a focused tab does not destroy the selected note underneath',
@@ -1459,9 +1451,10 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     });
     ok('the first Enter is left to activate, a held-Enter repeat is dropped (B83)',
        repeat.first === false && repeat.held === true, JSON.stringify(repeat));
-    // Enter on the tab fires its own click (goToList) but must not ALSO edit the
+    // Enter on the tab fires its own click (its act — Export's choice menu;
+    // B100 retired the All tab's goToList) but must not ALSO edit the
     // selected note through the grammar.
-    await page.evaluate(() => document.querySelector('#action-boards').focus());
+    await page.evaluate(() => document.querySelector('#action-export').focus());
     await page.keyboard.press('Enter');
     await page.waitForTimeout(200);
     ok('Enter on a focused tab does not edit the selected note underneath',
@@ -1580,11 +1573,15 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     await ctx.close();
   }
 
-  // ---- D22. the All-Boards picker and drill on desktop (issue #112, B74) ----
-  // Desktop keeps its rail, but "All boards" opens the picker overlay over it
-  // (z 500), and drilling fills #list-rows with one category. The re-render sites
-  // (pager, delete) must target the VISIBLE overlay, not the hidden rail beneath.
-  console.log('\n[D22] The All-Boards picker + drill overlay on desktop (issue #112, B74)');
+  // ---- D22. B100 on desktop: no All-boards tab, no picker, no drill ----------
+  // Desktop's All-boards tab is retired (issue #157, B100): the left rail (B24)
+  // already lists every category with every board. There is no way to push
+  // {v:'list'} or {v:'cat'} on desktop — the board-action and calendar buttons
+  // are display:none and their handlers guard — so #list-view can never show.
+  // A stray list-state landing (a restored old-build history) heals to the
+  // board. [11b2] in mobile.js pins the tablet picker, which DID move to the
+  // lot-grid; mobile [19] pins the mobile one.
+  console.log('\n[D22] B100: desktop has no All-boards surface — the rail is it (issue #157)');
   {
     const { ctx, page, errors } = await newDesktopPage(browser);
     await page.evaluate(async () => {
@@ -1598,96 +1595,36 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     });
     await page.reload();
     await page.waitForTimeout(500);
-    // Open the picker.
-    await page.evaluate(() => goToList());
-    await page.waitForTimeout(300);
-    const picker = await page.evaluate(() => {
-      const btns = [...document.querySelectorAll('#list-rows .cat-button')];
-      return {
-        shown: document.querySelector('#list-view').hidden === false,
-        role: document.querySelector('#list-rows').getAttribute('role'),
-        cats: btns.map(b => b.dataset.cat),
-        labels: btns.map(b => b.textContent),
-      };
-    });
-    ok('All boards fills #list-view with the four-button picker', picker.shown &&
-       picker.cats.join(',') === 'todo,unsorted,idea,learning', JSON.stringify(picker.cats));
-    ok('the picker host is a menu of the four categories', picker.role === 'menu' &&
-       picker.labels.join('|') === 'To Do|Notes|Ideas|Learning',
-       JSON.stringify([picker.role, picker.labels]));
-
-    // Drill into Notes.
-    await page.click('#list-rows .cat-button[data-cat="unsorted"]');
-    await page.waitForSelector('#list-rows .board-cat[data-cat="unsorted"] .board-row');
-    await page.waitForTimeout(200);            // let any follow-up re-render settle
-    const drill = await page.evaluate(() => {
-      // Scope to #list-rows: the rail (#pane-cards) also holds a
-      // .board-cat[data-cat="unsorted"], but with .pane-cards, not .board-rows.
-      const secs = [...document.querySelectorAll('#list-rows .board-cat')];
-      const un = document.querySelector('#list-rows .board-cat[data-cat="unsorted"]');
-      return {
-        role: document.querySelector('#list-rows').getAttribute('role'),
-        onlyOne: secs.length === 1 && secs[0].dataset.cat === 'unsorted',
-        pagerVisible: un && !un.querySelector('.cat-pager').hidden,
-        ind: un && un.querySelector('.cat-pages').textContent,
-        firstId: un.querySelector('.board-row').dataset.id,
-      };
-    });
-    ok('drilling shows exactly the Notes section', drill.onlyOne);
-    ok('the drilled host is a list again', drill.role === 'list');
-    ok('the drill pages its overflow', drill.pagerVisible && /^1\//.test(drill.ind), drill.ind);
-
-    // Page the VISIBLE drill (not the hidden rail): the shown page changes.
-    await page.click('#list-rows .board-cat[data-cat="unsorted"] .pager-btn[aria-label="Next page"]');
-    await page.waitForTimeout(200);
-    const paged = await page.evaluate(() => {
-      const un = document.querySelector('#list-rows .board-cat[data-cat="unsorted"]');
-      return { ind: un.querySelector('.cat-pages').textContent, firstId: un.querySelector('.board-row').dataset.id };
-    });
-    ok('paging updates the visible drill screen', /^2\//.test(paged.ind) && paged.firstId !== drill.firstId,
-       JSON.stringify([paged.ind, paged.firstId, drill.firstId]));
-
-    // A drill row carries the Export/Delete menu on desktop too (right-click).
-    const delId = paged.firstId;
-    await page.evaluate((id) => {
-      const card = document.querySelector('#list-rows .board-row[data-id="' + id + '"]');
-      card.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 200 }));
-    }, delId);
-    await page.waitForTimeout(150);
-    ok('right-click on a drill row opens the Export/Delete menu (B74)', await page.evaluate(() => {
-      const labels = [...document.querySelectorAll('#menu button')].map(b => b.textContent);
-      return document.querySelector('#menu').hidden === false &&
-        labels.some(l => /Export/.test(l)) && labels.some(l => /Delete/.test(l));
+    const gone = await page.evaluate(() => ({
+      allTab: getComputedStyle(document.getElementById('action-boards')).display === 'none',
+      calBoards: getComputedStyle(document.getElementById('cal-boards')).display === 'none',
+      listView: document.getElementById('list-view').hidden &&
+        getComputedStyle(document.getElementById('list-view')).display === 'none',
+      lotMenu: document.getElementById('lot-menu').hidden,
+      railCats: [...document.querySelectorAll('#pane-cards .board-cat')].map(c => c.dataset.cat),
+      railBoards: document.querySelectorAll('#pane-cards .pane-card').length,
+      pager: (() => { const p = document.querySelector('#pane-cards .board-cat[data-cat="unsorted"] .cat-pages');
+                      return p && /^1\//.test(p.textContent); })(),
     }));
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(100);
-    // Deleting from the drill re-paginates the VISIBLE drill (not the hidden
-    // rail behind it) — the exact re-render routing the review flagged.
-    const beforePage2 = await page.evaluate(() =>
-      [...document.querySelectorAll('#list-rows .board-cat[data-cat="unsorted"] .board-row')].map(c => c.dataset.id));
-    await page.evaluate((id) => {
-      const wrap = document.querySelector('#list-rows .board-row[data-id="' + id + '"]').closest('.board-row-wrap');
-      deleteBoard(id, wrap);
-    }, delId);
-    await page.waitForTimeout(700);
-    ok('the deleted board is gone from the visible drill', await page.evaluate((id) =>
-      !document.querySelector('#list-rows .board-row[data-id="' + id + '"]'), delId));
-    ok('the drill re-paginated: the hole was pulled up to a full page', await page.evaluate((before) => {
-      const now = [...document.querySelectorAll('#list-rows .board-cat[data-cat="unsorted"] .board-row')].map(c => c.dataset.id);
-      return now.length === before.length && now[now.length - 1] !== before[before.length - 1];
-    }, beforePage2));
+    ok('the board All tab and the calendar All button are both display:none (B100)',
+       gone.allTab && gone.calBoards, JSON.stringify([gone.allTab, gone.calBoards]));
+    ok('#list-view and the lot-grid are both closed — no All-boards surface, none summoned',
+       gone.listView && gone.lotMenu, JSON.stringify([gone.listView, gone.lotMenu]));
+    ok('the rail lists all four categories (BOARD_CATS order), cards shown, the 40 seeded Notes paging — desktop\'s all-boards surface',
+       gone.railCats.join(',') === 'todo,unsorted,learning,idea' && gone.railBoards > 0 &&
+       gone.pager, JSON.stringify([gone.railCats, gone.railBoards, gone.pager]));
 
-    // Back returns picker <- drill, then board <- picker.
+    // The drill is unreachable on desktop: a stray {v:'cat'} landing (the only
+    // way a drill could appear — old-build history) heals to the board.
+    await page.evaluate(() => history.pushState({ v: 'cat', cat: 'unsorted' }, ''));
     await page.evaluate(() => history.back());
-    await page.waitForSelector('#list-rows .cat-button');
-    ok('back returns to the picker', await page.evaluate(() =>
-      document.querySelector('#list-rows').getAttribute('role') === 'menu' &&
-      document.querySelectorAll('#list-rows .cat-button').length === 4));
-    await page.evaluate(() => history.back());
-    await page.waitForTimeout(250);
-    ok('back again returns to the board (list hidden, rail intact)', await page.evaluate(() =>
-      document.querySelector('#list-view').hidden === true &&
-      document.querySelectorAll('#pane-cards .board-cat').length === 4));
+    await page.waitForTimeout(400);
+    ok('a stray drilled-category landing heals to the board, #list-view never shows',
+       await page.evaluate(() =>
+         document.getElementById('list-view').hidden &&
+         getComputedStyle(document.getElementById('list-view')).display === 'none' &&
+         document.getElementById('lot-menu').hidden &&
+         !listOpen && catView === null));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }
