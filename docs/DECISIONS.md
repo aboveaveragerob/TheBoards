@@ -3710,3 +3710,50 @@ carries glyph + label, each clears the floor as drawn, the mark is legible
 at rest, `--hit` is set, and a tap in the collar above the frame fires Back.
 `test/tokens.js` pins the fill, the frame values, the collar, and the state
 trio in the shipped bytes.
+
+## AG. The standing calendar rail (issue #158)
+
+### B99. On wide screens the calendar is standing furniture, not a tab: a 40px rail pinned to the viewport's right edge — "Calendar Board" reading vertically, today's date, a lit dot — reserves its width from the frame at all times, one tap expands it into the R6 panel (320px, the board reflowing beside it), and the panel's Back collapses it; the Calendar tab retires on wide and the action row is three tabs there (issue #158; mockup 6 (`docs/mockups/rtcb-6-desktop-rail.html`) is the ruling's substance — the owner's three corrections of 2026-09-03: the button was the mobile species, wide always meant a rail, and opening it DOES reflow the board; keeps B95/R6's squeeze machinery untouched, B95/R7.2's mobile row, B9's back-gesture law as mobile's pushed route, B81's commit-on-release, B97's in-place editing, B98's R1 row — and waives nothing)
+
+**The furniture law.** B95 recorded the calendar's wide entry as the action
+row's fourth tab docking a panel — the R1–R7 prose — while mockup 6 drew the
+wide species the owner always meant: a slim always-visible rail, the room's
+third column (boards, board, calendar), that *expands*. The prose shipped;
+the drawing didn't. The same failure shape as B96's unshipped tablet tier,
+and the lesson generalizes: **a mockup committed beside a ruling is part of
+the ruling** — diff the drawn geometry against the shipped DOM when planning
+from either.
+
+**The states are two, and the state flag is split.** Collapsed: the 40px rail
+(`#cal-view.rail-open`, `#cal-rail` the face), `CAL_RAIL_W` reserved in
+`applyLayout` whether or not the panel is ever opened — furniture takes its
+width like the left rail does (B20's mechanism on the other edge), so the
+frame reads `viewport − 300 − 40` from boot. Expanded: the panel swaps in
+(`.panel`), `CAL_PANEL_W` replaces the 40, and B95/R6's squeeze machinery
+runs exactly as built — `LOGICAL_W_TRUE` holds the rail-era frame,
+`toLogical` un-maps a grab into it, `rebaseNote` stamps it, on collapse the
+board renders where it was. The panel's **Back** is the collapse arrow (R1's
+act re-homed, no new control); the rail commits nothing and pushes no
+history — B9's route and `{v:'cal'}` belong to mobile's pushed full-screen
+view alone. `calOpen` (the mobile screen) and `calExpanded` (the wide panel)
+are separate flags: the rail must never enter the screen-grammar branches
+(popstate's close-on-land, `applyMode`'s teardown) — a flag mistake there
+swallows every back-landing into `hideCal` and breaks list navigation (found
+by the suites, not by reading).
+
+**The tab retires on wide only.** `html.wide #action-calendar { display:
+none }` — the row is three tabs (All · Export · Import) where the rail stands,
+four on mobile where the tab is the calendar's only door. B97's in-place
+editing and R1's Export live in the expanded panel unchanged; B98's R1 row
+and floor are untouched.
+
+**The record.** `sw.js`'s `CACHE` bumps to **v44**; `test/tokens.js` re-pins
+it and gains the B99 block (rail face in the shipped HTML, boot rendering,
+mockup-6 species, the 40px reservation, expand/collapse around the squeeze,
+the wide tab's retirement, the raw navigation, the flag split).
+`test/desktop.js` [D21] reads the row as wide's three tabs and pins the rail
+at ≥24px; [D13]'s frame math takes the rail's 40 (1222.22 at 1440×900); [D24]
+enters through the rail. `test/mobile.js` [11b2] proves the tablet path: tab
+gone, rail present, tap expands to the 320px docked panel under the squeeze,
+Back collapses to the 40px rail with the squeeze lifted. `UIUX §3.3` (the
+three/four-tab grammar) and §3.4 (the rail) move with it.

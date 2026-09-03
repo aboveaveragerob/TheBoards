@@ -552,9 +552,10 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     ok('visual width unchanged across the grab (<1px)',
       Math.abs(after - before.w) < 1, before.w + ' -> ' + after);
     // rebaseNote folded the similarity ratio (B64): scale becomes old·k,
-    // rw/rh the current frame. At 1440x900, LOGICAL_W = (1440-300)/0.9 =
-    // 1266.67 and LOGICAL_H = 1000, so k = min(lw/384, 1000/846) ≈ 1.182.
-    const lw = (1440 - 300) / 0.9;
+    // rw/rh the current frame. At 1440x900 with B99's standing calendar rail,
+    // LOGICAL_W = (1440-300-40)/0.9 = 1222.22 and LOGICAL_H = 1000, so
+    // k = min(lw/384, 1000/846) ≈ 1.182 (unchanged — the height still binds).
+    const lw = (1440 - 300 - 40) / 0.9;   // B99: the 40px rail is reserved from the frame
     const k = Math.min(lw / 384, 1000 / 846);
     const stored = await page.evaluate(() => new Promise(res => {
       const rq = indexedDB.open('boards-db');
@@ -1315,7 +1316,10 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     const { ctx, page, errors } = await newDesktopPage(browser);
     const geo = await page.evaluate(() => {
       const row = document.querySelector('#board-actions');
-      const btns = [...row.querySelectorAll('.board-action')];
+      // B99: the Calendar tab is display:none on wide — the standing rail is
+      // the entry. The row's live tabs are the displayed ones.
+      const btns = [...row.querySelectorAll('.board-action')]
+        .filter(b => getComputedStyle(b).display !== 'none');
       const rs = parseFloat(getComputedStyle(document.querySelector('#board'))
         .getPropertyValue('--rs')) || 1;
       const hit = parseFloat(getComputedStyle(row).getPropertyValue('--hit')) || 0;
@@ -1334,10 +1338,18 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
     });
     ok('the row is drawn on desktop and the #title-menu handle is gone',
        geo.shown && geo.gone, JSON.stringify([geo.shown, geo.gone]));
-    ok('four tabs: All, Export, Import, Calendar (B92 re-grammared by #145 R7.2)',
-       geo.labels.length === 4 &&
+    ok('three tabs on wide (B99 retired the Calendar tab there): All, Export, Import',
+       geo.labels.length === 3 &&
        /All/.test(geo.labels[0]) && /Export/.test(geo.labels[1]) &&
-       /Import/.test(geo.labels[2]) && /Calendar/.test(geo.labels[3]), JSON.stringify(geo.labels));
+       /Import/.test(geo.labels[2]), JSON.stringify(geo.labels));
+    ok('the standing calendar rail is wide\'s Calendar entry (B99)',
+       await page.evaluate(() => {
+         const r = document.getElementById('cal-rail').getBoundingClientRect();
+         return document.getElementById('action-calendar').hidden ||
+                getComputedStyle(document.getElementById('action-calendar')).display === 'none'
+           ? r.width >= 24 && getComputedStyle(document.getElementById('cal-view')).display !== 'none'
+           : false;
+       }));
     // B23's 24px pointer floor, measured in PHYSICAL px — the collar is what
     // makes it hold at the board's renderScale (width stands on its own).
     ok('all four tabs clear the 24px desktop floor (B23)',
@@ -1870,7 +1882,9 @@ const noteCount = page => page.evaluate(() => document.querySelectorAll('.note')
       await idbPut(b); await idbPut(ev);
       return ev.id;
     });
-    await page.evaluate(() => document.getElementById('action-calendar').click());
+    // B99: wide enters the calendar through the standing rail now — expand it
+    // so the day stack (and the seeded event) is on screen.
+    await page.evaluate(() => { document.getElementById('cal-rail').click(); });
     await page.waitForTimeout(400);
     ok('calendar opened with the seeded event rendered',
       await page.evaluate(() =>
