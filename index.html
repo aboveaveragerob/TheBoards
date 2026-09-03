@@ -70,10 +70,12 @@
            role="textbox" aria-multiline="true" aria-label="Title"></div>
 
       <!-- The board's own actions, declared where a gesture used to hide them
-           (issue #126, B83; three tabs since issue #140, B92): a flat-tab row
+           (issue #126, B83; three tabs since issue #140, B92 — two on desktop
+           since issue #157, B100, where "All Boards" retires: the left rail
+           already lists every category with every board). A flat-tab row
            hovering just above the Parking Lot — the mirror, at the sheet's
-           other end, of the band's header tabs. "All Boards" toggles the list /
-           mobile lot-grid; "Export" opens the PDF · JSON choice; "Import"
+           other end, of the band's header tabs. "All Boards" toggles the list
+           / lot-grid; "Export" opens the PDF · JSON choice; "Import"
            opens the file picker for a JSON backup. Native buttons with their
            own clicks: the recognizer ignores #board-actions through the
            onPointerDown passthrough (the #lot-menu precedent), so it earns no
@@ -99,11 +101,12 @@
         <div id="lot-rule" aria-hidden="true"></div>
         <div id="lot-header" aria-hidden="true">Parking Lot</div>
         <div id="lot-items"></div>
-        <!-- Mobile only (issue #112 / B74): the "All Boards" menu takes over the
-             Parking Lot region as a 2x2 category grid, at the lot's current
-             height. A transient nav surface drawn OVER the lot — it never
-             replaces the board's own parking-lot data (#lot-items), which
-             returns intact when the menu is dismissed. -->
+        <!-- The All-Boards picker (issue #112 / B74; every picker surface since
+             issue #157 / B100): the "All Boards" tab takes over the Parking Lot
+             region as a 2x2 category grid, at the lot's current height. A
+             transient nav surface drawn OVER the lot — it never replaces the
+             board's own parking-lot data (#lot-items), which returns intact
+             when the menu is dismissed. -->
         <div id="lot-menu" class="on-dark" role="menu" aria-label="All boards" hidden></div>
       </div>
 

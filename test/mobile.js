@@ -691,6 +691,46 @@ async function openCat(page, cat) {
     }));
     ok('Back collapses to the standing rail, squeeze lifted (B99)',
       back.railOpen && back.w === 40 && !back.squeeze, JSON.stringify(back));
+    // B100 (issue #157): tablet's picker is the lot-grid — mobile's species.
+    // The tab STAYS on tablet (the owner's ruling: tablet keeps its way into
+    // the grid) and tapping it turns the Parking Lot into the 2x2 grid;
+    // #list-view never shows here. The drill (level 2) is still the rising
+    // panel — html:not(.desktop) — untouched by B100.
+    await page.evaluate(() => document.getElementById('action-boards').click());
+    await page.waitForTimeout(300);
+    const pick = await page.evaluate(() => {
+      const menu = document.getElementById('lot-menu');
+      const btns = [...menu.querySelectorAll('.cat-button')];
+      const mr = menu.getBoundingClientRect();
+      return {
+        open: !menu.hidden && document.getElementById('lot').classList.contains('menu-open'),
+        cats: btns.map(b => b.dataset.cat),
+        gw: mr.width, gh: mr.height,
+        listView: document.getElementById('list-view').hidden,
+      };
+    });
+    ok('the All tab opens the lot-grid picker on tablet (B100) — #list-view stays dark',
+       pick.open && pick.cats.join(',') === 'todo,unsorted,idea,learning' &&
+       pick.gw > 0 && pick.gh > 0 && pick.listView, JSON.stringify(pick));
+    await page.evaluate(() => {
+      const t = [...document.querySelectorAll('#lot-menu .cat-button')].find(x => x.dataset.cat === 'todo');
+      t.click();
+    });
+    await page.waitForTimeout(400);
+    const drill = await page.evaluate(() => ({
+      grid: document.getElementById('lot-menu').hidden,
+      rows: !document.getElementById('list-rows').hidden ||
+        document.querySelectorAll('#list-rows .board-cat').length > 0,
+      oneCat: (() => { const s = [...document.querySelectorAll('#list-rows .board-cat')];
+                       return s.length === 1 && s[0].dataset.cat === 'todo'; })(),
+    }));
+    ok('drilling steps the grid aside and rises the one-category panel (B82 species)',
+       drill.grid && drill.rows && drill.oneCat, JSON.stringify(drill));
+    await page.evaluate(() => history.go(-2));
+    await page.waitForTimeout(400);
+    ok('back pops the whole nav stack: the real lot returns (B9)',
+       await page.evaluate(() => document.getElementById('lot-menu').hidden &&
+         !document.getElementById('lot').classList.contains('menu-open')));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

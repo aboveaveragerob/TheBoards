@@ -4010,14 +4010,16 @@ async function dropBoardCard(b, cat) {
    picker button. renderListSurface() draws whatever #list-rows is currently
    showing (the picker's four category buttons, or one drilled category's
    boards) — the single site the re-render callers (a delete, a page turn, a
-   capacity change) go through, so they don't each have to know the level. On
-   mobile the level-1 picker is not #list-rows at all: it is the Parking Lot
-   turned into the grid (openLotMenu), which is static furniture with no board
-   data to rebuild, so renderListSurface has nothing to do there. */
+   capacity change) go through, so they don't each have to know the level.
+   The level-1 picker is not #list-rows at all on any surface (B100): it is
+   the Parking Lot turned into the grid (openLotMenu), which is static
+   furniture with no board data to rebuild, so renderListSurface has nothing
+   to do there. */
 async function renderListSurface() {
   if (!listOpen) return;
   if (catView) { await renderCat(catView); return; }
-  if (isWide) await renderPicker();       // mobile picker is the lot-grid; nothing to rebuild
+  // Level 1 is the lot-grid (B100): static furniture with no board data to
+  // rebuild, so renderListSurface has nothing to do there — on any surface.
 }
 
 /* One drilled category on its own screen (issue #112 / B74): the same section
@@ -4041,25 +4043,16 @@ async function renderCat(cat) {
   refocusCatAdd(el.listRows, focusCat);
 }
 
-/* The All-Boards picker (issue #112 / B74): four category buttons, one per
-   bucket, each a framed tinted tray in its own family (B72's idiom, now the
-   whole button). On desktop it fills #list-view; on mobile the same buttons
-   fill the Parking Lot (buildCatButtons, GRID_ORDER). A picker button navigates
-   — inert, like the pager and selection (B22) — so it drills without B18's
-   window. */
-async function renderPicker() {
-  el.listView.classList.add('picker');
-  el.listRows.setAttribute('role', 'menu');   // its children are the four category menuitems, not list rows
-  el.listRows.textContent = '';
-  buildCatButtons(el.listRows);
-}
+/* The drilled category's rows are built by makeCatSection/makeListRow below.
+   (The level-1 picker's own fill was buildCatButtons into #list-rows until
+   B100 retired it — the lot-grid's fill is the same buildCatButtons.) */
 
-/* The four category buttons, in the 2x2 clockwise order (GRID_ORDER). Shared by
-   the desktop picker (#list-view) and the mobile lot-grid, so the two read as
-   one menu in one nomenclature — each button names its section exactly as the
-   section head does ("To-Do Boards", "Note Boards", "Learning Boards", "Idea
-   Boards"). data-cat carries the family so the tray wears the board type's hue
-   (B72/B67). */
+/* The four category buttons, in the 2x2 clockwise order (GRID_ORDER). Fill the
+   mobile/tablet lot-grid (B100: the one picker), so every picker surface reads
+   as one menu in one nomenclature — each button names its section exactly as
+   the section head does ("To-Do Boards", "Note Boards", "Learning Boards",
+   "Idea Boards"). data-cat carries the family so the tray wears the board
+   type's hue (B72/B67). */
 function buildCatButtons(host) {
   for (const cat of GRID_ORDER) {
     const b = document.createElement('button');
@@ -4425,31 +4418,25 @@ function updateActiveCardTitle() {
 
 function goToList() {
   if (listOpen) return;
-  // On desktop the list is a full overlay (z 500) over the board, so leaving
-  // focus on the "All boards" tab it now occludes would strand a keyboard/AT
-  // user behind the page they navigated away from (B83, keeping B65's care). On
-  // mobile the grid opens over the lot and the tab stays visible above it,
-  // flipping to "This board" — its focus is not stranded, so it is kept.
-  if (isDesktop && el.boardActions.contains(document.activeElement))
-    document.activeElement.blur();
+  // B100 (issue #157): the picker is the lot-grid on every surface that has
+  // the tab (mobile and tablet — desktop's tab is retired, the rail is its
+  // all-boards surface). The grid opens over the lot without occluding the
+  // tab, so its focus is not stranded and is kept.
   history.pushState({ v: 'list' }, '');
   showList();
 }
-/* Level 1 — the All-Boards picker (issue #112 / B74). On desktop it fills the
-   #list-view overlay; on mobile it is the Parking Lot turned into the 2x2 grid,
-   drawn over the lot at its current height (openLotMenu), leaving the board and
-   its parking-lot data untouched beneath. */
-async function showList() {
+/* Level 1 — the All-Boards picker (issue #112 / B74; issue #157 / B100): the
+   Parking Lot turned into the 2x2 grid on mobile AND tablet, drawn over the
+   lot at its current height (openLotMenu), leaving the board and its
+   parking-lot data untouched beneath. Desktop has no picker and no #list-view
+   at level 1: its All-boards tab is retired (B100) — the left rail (B24)
+   already lists every category with every board. */
+function showList() {
   listOpen = true;
   catView = null;
   syncViewTitle();                    // the picker names itself (issue #148 item 2)
-  syncBoardActions();                 // mobile keeps the tab visible above the grid — flip it to "This board" (B83)
-  if (!isWide) { openLotMenu(); return; }
-  // Unhide FIRST: catPageCap() measures #list-rows, and a `hidden` element
-  // measures 0 — rendering before the reveal would page every category to a
-  // single card (issue #74).
-  el.listView.hidden = false;
-  await renderPicker();
+  syncBoardActions();                 // the tab stays visible above the grid — flip it to "This board" (B83)
+  openLotMenu();
 }
 /* Drilling a picker button opens that category's own screen — level 2. It is a
    navigation, inert like the pager (B22), so no B18 window. The mobile grid is
@@ -4463,7 +4450,7 @@ async function showCat(cat) {
   listOpen = true;
   catView = cat;
   syncViewTitle();                    // the drill names itself (issue #148 item 2)
-  if (!isDesktop) closeLotMenu();     // the drill is a screen; the grid steps aside
+  closeLotMenu();                     // B100: the drill is a screen; the grid steps aside, on every surface
   el.listView.classList.remove('show'); // mobile: start below the fold; inert on desktop
   el.listView.hidden = false;
   await renderCat(cat);                // measures the panel's real height BEFORE the rise
@@ -4820,6 +4807,7 @@ el.calRail.addEventListener('click', () => {
   expandCalRail();
 });
 el.calBoards.addEventListener('click', (e) => {
+  if (isDesktop) return;               // B100: no All-Boards on desktop — the rail is the all-boards surface
   const r = e.currentTarget.getBoundingClientRect();
   history.pushState({ v: 'list' }, '');
   listOpen = true;
@@ -4854,8 +4842,14 @@ window.addEventListener('popstate', () => {
   // mobile keeps its full-screen view.
   if (s && s.v === 'cal') { showCal(); }
   else if (calOpen || calExpanded) { hideCal(); }     // landing anywhere else closes the calendar first
-  else if (s && s.v === 'cat') { showCat(s.cat); }
-  else if (s && s.v === 'list') { catView = null; if (!isDesktop) hideListView(); showList(); }  // mobile: the drilled panel slides down as the grid returns (B82)
+  else if (s && s.v === 'cat') {
+    if (isDesktop) { showBoardFromList(); }   // B100: desktop has no drill either — a stray landing (old-build history) heals to the board
+    else { showCat(s.cat); }
+  }
+  else if (s && s.v === 'list') {
+    if (isDesktop) { showBoardFromList(); }   // B100: desktop pushes no {v:'list'} — a stray landing (old-build history) heals to the board
+    else { catView = null; hideListView(); showList(); }  // the drill's panel slides down as the grid returns (B82)
+  }
   else { showBoardFromList(); }
 });
 

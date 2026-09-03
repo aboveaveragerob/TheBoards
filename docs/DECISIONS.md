@@ -3757,3 +3757,65 @@ enters through the rail. `test/mobile.js` [11b2] proves the tablet path: tab
 gone, rail present, tap expands to the 320px docked panel under the squeeze,
 Back collapses to the 40px rail with the squeeze lifted. `UIUX §3.3` (the
 three/four-tab grammar) and §3.4 (the rail) move with it.
+
+## AH. One picker, the Parking Lot — and desktop's All-boards tab retires (issue #157)
+
+### B100. The All-boards picker is the Parking Lot turned into the 2×2 grid on every surface that has the tab — mobile and tablet; desktop's All-boards tab retires entirely, from the board's action row and from the calendar's R1 row alike, because the left rail (B24) already lists every category with every board; `#list-view`'s full-screen overlay face retires with them (issue #157; supersedes B74 Part 3's desktop clause, B83's wide All tab, B95/R1's wide calendar row, B82's desktop-overlay half, and B99's three-tab count; keeps B24's rail, B82's rising panel, B96's tiers, B9's back stack, B74's grid mechanics, B81's commit-on-release — and waives nothing)
+
+**The owner's ruling, quoted and applied.** "All of them should be the
+same. The boards category opens up the categories in the parking lot — not
+the entire screen. Desktop mode should not have an 'all Boards' button at
+all. They're already visible in the left rail." Three clauses, one stroke:
+
+1. **One picker species.** `showList()` always raises the lot-grid
+   (`openLotMenu()`); the `isWide` branch that gave desktop and tablet the
+   full-screen `#list-view` picker is gone. Tablet — which the issue expected
+   already worked, and which in fact had the bug — now gets the grid its
+   issue text promised. `renderPicker()` is deleted; its four-button fill was
+   always `buildCatButtons`, which the grid shares. `renderListSurface()`
+   keeps only the drill rebuild: level 1 is static furniture with no board
+   data, on every surface.
+2. **Desktop has no All-boards control at all.** `html.desktop
+   #action-boards` and `html.desktop #cal-boards` are `display:none` — the
+   exact mechanism B99 used to retire the Calendar tab on wide. The left rail
+   is desktop's all-boards surface: it already renders all four categories
+   with every board (`renderPane`), paging overflow; a second door to the
+   same room is not simplicity, it is a second thing to learn. The handlers
+   guard too (`calBoards`' click returns on desktop) — a hidden control's
+   handler must not act if reached. Wide's board row is **two tabs**
+   (Export · Import); the calendar R1 row is **Back + Export** — which is
+   what mockup 6 drew all along, so this clause also reconciles the build
+   with its own drawing (`#cal-export` takes the right anchor
+   `margin-left:auto` once the centred button is gone).
+3. **The overlay retires on desktop only.** `#list-view` survives as the
+   B82 mobile/tablet rising panel for drilled categories — B82's species
+   split is untouched — but desktop can never show it: no tab pushes
+   `{v:'list'}`, `applyMode` already tears list nav down on any flip to
+   wide, and a stray list-state landing (restored old-build history) heals
+   to the board in popstate rather than resurrecting a retired surface.
+   `goToList()`'s desktop blur branch died with the overlay: the grid never
+   occludes the tab, so focus is never stranded (B65/B83's care is
+   moot at level 1 and the drill never opens on desktop).
+
+**The back stack is unchanged** (B9): drill → picker → board, two pushed
+levels, `returnToBoard`'s depth pop — all of it surface-agnostic already.
+The recognizer's `#lot-menu` passthrough and `syncBoardActions`' toggle
+already read `listOpen || lotMenuOpen`, so mobile's grammar carried to
+tablet with zero new wiring — the fix was un-guarding, not building.
+
+**Flags the owner settled on the record:** tablet KEEPS its All tab (its way
+into the grid; the owner ruled the rail-and-tab redundancy a desktop-only
+correction); Export KEEPS its place in wide's calendar row (mockup 6 drew
+neither All nor Export; the owner named only All Boards).
+
+**The record.** `sw.js`'s `CACHE` bumps to **v45**; `test/tokens.js` re-pins
+it. `test/desktop.js` [D21] reads wide's row as **two** tabs (Export ·
+Import) with the All tab asserted `display:none`; its Delete/Enter focus
+guards moved to the Export tab (the hidden tab cannot take focus);
+[D22] is rewritten to the retirement contract: both buttons `display:none`,
+`#list-view` and the grid closed, the rail listing all four categories with
+the seeded 40 paging, and a stray `{v:'cat'}` landing healing to the
+board. `test/mobile.js` [11b2] gains the tablet picker: the tab opens the
+lot-grid, drilling rises the one-category panel, `history.go(-2)` returns
+the real lot. `UIUX §3.3`'s picker sentence and §10's overlay inventory
+state the retirement.
