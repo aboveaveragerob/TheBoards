@@ -586,8 +586,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v43 — the bump that ships the filled, floor-clearing R1 top row (issue #156)',
-    /const CACHE = 'todo-boards-v43';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v44 — the bump that ships the standing calendar rail (issue #158, B99)',
+    /const CACHE = 'todo-boards-v44';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   // --- Issue #140 / B92: import/export and the retired anchor menu ---
   ok('the board-action row carries the third tab (import)', /id="action-import"/.test(html) &&
     /actionImport: document\.getElementById\('action-import'\)/.test(app));
@@ -619,6 +619,29 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
   ok('the calendar view is a real element with the R1 top row',
     /id="cal-view"/.test(html) && /id="cal-back"/.test(html) &&
     /id="cal-boards"/.test(html) && /id="cal-export"/.test(html));
+  // --- Issue #158 / B99: the standing calendar rail (wide) ---
+  ok('the calendar view carries the standing rail face (B99, mockup 6)',
+    /id="cal-rail"/.test(html) && /calRail: document\.getElementById\('cal-rail'\)/.test(app));
+  ok('the rail renders at boot on wide — furniture, no press (B99)',
+    /if \(isWide\) \{\s*\n\s*document\.documentElement\.classList\.add\('has-cal-rail'\);\s*\n\s*showCalRail\(\);/.test(app));
+  ok('the rail is the mockup-6 species: vertical label, date, lit dot',
+    /writing-mode: vertical-rl/.test(css) && /#cal-rail \.vlabel/.test(css) &&
+    /#cal-rail \.cdot/.test(css) && /#cal-rail \.cdate/.test(css) &&
+    /\.cdot\.lit/.test(css));
+  ok('the collapsed rail reserves 40px from the frame at all times on wide (B99)',
+    /const CAL_RAIL_W = 40;/.test(app) &&
+    /const calW = calSqueeze \? CAL_PANEL_W : CAL_RAIL_W;/.test(app));
+  ok('expand re-enters the R6 squeeze; collapse lifts it — the board reflows beside the panel',
+    /function expandCalRail[\s\S]*?setCalSqueeze\(true\)/.test(app) &&
+    /function collapseCalRail[\s\S]*?setCalSqueeze\(false\)/.test(app));
+  ok('the Calendar tab retires on wide; the row is three tabs there (B99)',
+    /html\.wide #action-calendar \{ display: none; \}/.test(css));
+  ok('the rail\'s expand/collapse commits nothing and pushes no history (B81: navigation runs raw)',
+    /el\.calRail\.addEventListener\('click'[\s\S]*?expandCalRail\(\);/.test(app) &&
+    !/calRail[\s\S]{0,200}pushState/.test(app));
+  ok('rail-up is not "open": the screen grammar rides calExpanded, not the furniture',
+    /let calExpanded = false;/.test(app) &&
+    /if \(isWide && calExpanded\) \{ collapseCalRail\(\); return; \}/.test(app));
   // --- Issue #156 / B98: the R1 top row is filled and meets the touch floor ---
   ok('the R1 row is filled at boot: each button gets its glyph + label (issue #156, B98)',
     /fillBoardAction\(el\.calBack, GLYPH\.calBack, COPY\.calBack\)/.test(app) &&

@@ -252,13 +252,26 @@ function applyMode() {
   // to the wide grammar, so a flip while it is open closes it and pops its
   // history entry (nothing typed is lost — calendar lines live in linked
   // boards, not in the view). A flip TO a wide class re-enters via the tab.
-  if (calOpen) {
+  // B99 (issue #158): on wide the calendar is FURNITURE — the rail survives
+  // every flip; only the mobile screen state and the wide EXPANDED panel
+  // tear down (the expanded panel's squeeze must lift so the frame re-reads
+  // the rail's 40px). Mobile, closed, hides the view outright as before.
+  if (calOpen || calExpanded) {
     calOpen = false;
+    calExpanded = false;
     el.calView.hidden = true;
+    el.calView.classList.remove('rail-open', 'panel');
+    el.calRail.hidden = true;
+    setCalSqueeze(false);
     if (history.state && history.state.v === 'cal') history.back();
   }
   applyLayout();
-  if (isWide) renderPane();
+  if (isWide) {
+    renderPane();
+    showCalRail();                   // the rail re-renders on every flip to wide (B99)
+  } else {
+    document.documentElement.classList.remove('has-cal-rail');
+  }
 }
 DESKTOP_MQ.addEventListener('change', applyMode);
 TABLET_MQ.addEventListener('change', applyMode);
@@ -536,6 +549,7 @@ const el = {
   actionImport: document.getElementById('action-import'),   // Import a JSON backup (issue #140, B92)
   importFile: document.getElementById('import-file'),       // the import tab's file dialog
   calView: document.getElementById('cal-view'),             // calendar screen (issue #145)
+  calRail: document.getElementById('cal-rail'),             // the standing rail face (issue #158, B99)
   calStack: document.getElementById('cal-stack'),
   calTop: document.getElementById('cal-top'),
   calBack: document.getElementById('cal-back'),
@@ -611,6 +625,13 @@ function persist() {
 }
 
 /* --- 4. Layout / scale-to-fit -------------------------------------------- */
+/* CAL_RAIL_W (issue #158, B99): the collapsed calendar rail's unscaled width,
+   reserved from the frame on wide at ALL times — the rail is standing
+   furniture (mockup 6), the room's third column, so its width is removed
+   exactly as the left rail's is, before any squeeze math. While the panel is
+   expanded (calSqueeze) CAL_PANEL_W takes the rail's place — the panel
+   expands FROM the rail, it doesn't add to it. */
+const CAL_RAIL_W = 40;               // the collapsed rail (mockup 6: 40px, right edge)
 function applyLayout() {
   const vw = window.innerWidth, vh = window.innerHeight;
   if (isWide) {
@@ -622,13 +643,16 @@ function applyLayout() {
     // furniture (~880 units) never collides, at any window shape.
     // The calendar squeeze (R6): while the calendar panel is open the panel's
     // width is removed here, exactly as the left rail's is — the frame narrows,
-    // the arrangement maps as a figure (B64), nothing is written.
-    const calW = calSqueeze ? CAL_PANEL_W : 0;
+    // the arrangement maps as a figure (B64), nothing is written. B99 (issue
+    // #158): the collapsed rail's 40px is reserved whether or not the panel
+    // is open — the standing rail IS the reservation; expanded, the panel
+    // takes the rail's place and its full width replaces the 40.
+    const calW = calSqueeze ? CAL_PANEL_W : CAL_RAIL_W;
     renderScale = Math.min(vh / 1000, (vw - PANE_W - calW) / 900);
     LOGICAL_H = vh / renderScale;
     LOGICAL_W = (vw - PANE_W - calW) / renderScale;
     LOGICAL_W_TRUE = calSqueeze
-      ? (vw - PANE_W) / renderScale    // the frame the board returns to on close
+      ? (vw - PANE_W - CAL_RAIL_W) / renderScale   // the frame the board returns to on collapse
       : null;
     offX = PANE_W;
     offY = 0;
@@ -2700,6 +2724,10 @@ el.importFile.addEventListener('change', () => {
    and its OWN Back button is the always-visible route (R1). */
 el.actionCalendar.addEventListener('click', () => {
   if (calOpen) return;
+  // The rail is wide's entry (B99); the tab is mobile's and pushes its own
+  // history state { v: 'cal' }: the OS back gesture returns from it (B9,
+  // unshadowed), and its OWN Back button is the always-visible route (R1).
+  if (isWide) { showCal(); return; }
   history.pushState({ v: 'cal' }, '');
   showCal();
 });
@@ -4511,13 +4539,77 @@ async function showBoardFromList() {
    All Boards (the picker, calendar shrinking to fit — R1), Export (B92's
    choice, PDF leaf = the 7-day reference sheet). The stack never scrolls —
    it is a bounded page like every other surface. */
-let calOpen = false;
+let calOpen = false;                 // the MOBILE full-screen calendar (B95's third screen)
+let calExpanded = false;             // wide's expanded panel (B99) — rail-up is not "open":
+                                     // the rail is furniture, so it must never enter the
+                                     // screen-grammar branches (popstate's calOpen swallow,
+                                     // applyMode's close, hideCal) that a pushed screen owns.
 
 function goCalBack() {
   history.back();                      // pop {v:'cal'} → the board (B9's route, visible)
 }
 
+/* --- The standing rail (issue #158, B99) ----------------------------------
+   Wide's calendar is FURNITURE, not navigation: the 40px rail renders at
+   boot (and on every flip to wide), reading "Calendar Board" vertically with
+   today's date and a lit dot when today carries events (the mockup's
+   aperture). Tapping it expands the panel — the R6 squeeze, entered from the
+   rail — and the panel's own Back (R1's first act, reused as the collapse
+   arrow) returns the rail. The rail commits nothing (B81: navigation runs
+   raw); no history is pushed on wide, the rail is never "off". */
+function renderCalRail() {
+  if (!isWide) return;
+  el.calView.hidden = false;          // the rail is standing furniture: never hidden on wide
+  const today = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  el.calRail.querySelector('.cdate').textContent =
+    calDayName(today).slice(0, 3) + ' ' + p(today.getMonth() + 1) + '/' + p(today.getDate());
+  // The dot is the aperture (mockup 6): lit iff today carries events.
+  flushSave();
+  idbGetAll().then((all) => {
+    const lit = calEventsOf(eventsOf(all), calKey(today)).length > 0;
+    el.calRail.querySelector('.cdot').classList.toggle('lit', lit);
+  });
+}
+
+function showCalRail() {
+  closeLotMenu();
+  hideListView();
+  listOpen = false; catView = null;
+  syncBoardActions();
+  el.calView.hidden = false;
+  el.calView.classList.add('rail-open');
+  el.calView.classList.remove('panel');
+  setCalSqueeze(false);               // collapsed: the 40px reservation only
+  el.calRail.hidden = false;
+  el.calRail.setAttribute('aria-expanded', 'false');
+  renderCalRail();
+}
+
+function expandCalRail() {
+  el.calView.classList.remove('rail-open');
+  el.calView.classList.add('panel');
+  el.calRail.hidden = true;
+  el.calRail.setAttribute('aria-expanded', 'true');
+  calExpanded = true;                 // the screen-grammar state rides the PANEL, not the rail
+  setCalSqueeze(true);                // the board reflows beside the panel (R6)
+  renderCal();                        // the expanded face: the 7-day stack
+}
+
+function collapseCalRail() {
+  el.calView.classList.add('rail-open');
+  el.calView.classList.remove('panel');
+  el.calRail.hidden = false;
+  el.calRail.setAttribute('aria-expanded', 'false');
+  calExpanded = false;
+  setCalSqueeze(false);               // the squeeze lifts; the board returns (R6)
+  renderCalRail();
+}
+
 function showCal() {
+  // Wide enters through the standing rail (B99); mobile keeps the pushed
+  // full-screen view (B95's mobile path, unchanged).
+  if (isWide) { showCalRail(); return; }
   calOpen = true;
   closeLotMenu();
   hideListView();
@@ -4533,12 +4625,17 @@ function showCal() {
 /* The popstate branch: {v:'cal'} re-shows the calendar (an OS-forward onto
    it); leaving it lands on the board and restores the action row. */
 function hideCal() {
-  if (!calOpen) return;
+  if (!calOpen && !calExpanded) return;
   calOpen = false;
-  el.calView.hidden = true;
+  calExpanded = false;
+  el.calView.hidden = !isWide;       // wide: the rail face remains (furniture, B99)
+  el.calView.classList.remove('panel');   // the expanded face lifts
+  el.calView.classList.toggle('rail-open', isWide);
+  el.calRail.hidden = !isWide;
   setCalSqueeze(false);              // the squeeze lifts; the frame returns (R6)
   syncBoardActions();
-  renderBoard();
+  if (!isWide) renderBoard();
+  else renderCalRail();
 }
 
 function calDayName(d) {
@@ -4711,7 +4808,16 @@ function renderCal() {
    choice menu anchored at the pressed control — PDF's leaf is the 7-day
    reference sheet (b8's exporter), JSON the whole-library backup. */
 el.calBack.addEventListener('click', () => {
+  // On wide, Back IS the collapse arrow (B99): the panel returns to the rail,
+  // the squeeze lifts — no history to pop (the rail pushed none). On mobile,
+  // Back pops the pushed {v:'cal'} state (B9's route, visible — R1).
+  if (isWide && calExpanded) { collapseCalRail(); return; }
   goCalBack();
+});
+el.calRail.addEventListener('click', () => {
+  // Furniture's one act: expand (B99). Pure navigation, no commit (B81).
+  if (!isWide || calExpanded) return;
+  expandCalRail();
 });
 el.calBoards.addEventListener('click', (e) => {
   const r = e.currentTarget.getBoundingClientRect();
@@ -4742,8 +4848,12 @@ window.addEventListener('popstate', () => {
   popping = false;                     // the nav returnToBoard began has landed (B83)
   closeMenu();
   const s = history.state;
+  // B99: on wide the calendar is furniture — the rail never enters this
+  // grammar (calOpen is mobile's screen flag). A stray {v:'cal'} landing on
+  // wide collapses the panel (the mobile-era entry has no wide meaning);
+  // mobile keeps its full-screen view.
   if (s && s.v === 'cal') { showCal(); }
-  else if (calOpen) { hideCal(); }     // landing anywhere else closes the calendar first
+  else if (calOpen || calExpanded) { hideCal(); }     // landing anywhere else closes the calendar first
   else if (s && s.v === 'cat') { showCat(s.cat); }
   else if (s && s.v === 'list') { catView = null; if (!isDesktop) hideListView(); showList(); }  // mobile: the drilled panel slides down as the grid returns (B82)
   else { showBoardFromList(); }
@@ -4775,6 +4885,14 @@ async function boot() {
   else { board = all.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a)); }  // launch → most recent
   openBoardObj(board);
   if (isWide) renderPane();
+  // The standing calendar rail (issue #158, B99): furniture renders at boot on
+  // wide, no press required. The has-cal-rail class gates its CSS (the
+  // section must not render as a 40px sliver where the feature isn't armed).
+  // Mobile never sees it (its calendar stays the tab-driven full-screen view).
+  if (isWide) {
+    document.documentElement.classList.add('has-cal-rail');
+    showCalRail();
+  }
 }
 boot();
 

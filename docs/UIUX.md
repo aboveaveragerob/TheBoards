@@ -744,7 +744,10 @@ board-level route is a visible tab, and the hidden menu duplicated doors the
 reader was already standing in front of. B95 re-grammars the labels so four
 tabs fit a phone (R7.2): side padding 12→6px and gap 8→6px — vertical
 padding and type are untouched, so B86's finger box and §6's collar-height
-math hold.
+math hold. B99 retires the Calendar **tab on wide** — the standing rail
+(§3.4) is the calendar's entry there — so the row is three tabs on wide
+and four on mobile: the grammar each platform speaks, nothing held in
+reserve.
 
 **Placement.** `#board-actions` is `left: 0; right: 0`, a **left-anchored** flex
 cluster (`gap: 8px`, `justify-content: flex-start`, B88) at `bottom: var(--lot-h)`
@@ -798,13 +801,25 @@ two-tone ring on focus. State is never colour (§1) — the **All boards ⇄ Thi
 board** toggle states its act in its label (B43/B71's grammar), so no
 `aria-pressed` rides alongside.
 
-### §3.4 The calendar view (B95, issue #145; tier shipped by B96, issue #155; events editable by B97, issue #152)
+### §3.4 The calendar view (B95, issue #145; tier shipped by B96, issue #155; events editable by B97, issue #152; standing rail by B99, issue #158)
 
-The third screen. Full-screen on mobile (`html:not(.wide)`); on any wide
-screen — desktop or tablet (`html.wide`) — a panel docked to the right edge
-(320 unscaled px, `--frame` border) beside the board, which reflows — never
-covered. The room's own ground (`--chrome`). The tablet tier renders this
-same panel arrangement under the touch grammar (B96).
+The third screen. Full-screen on mobile (`html:not(.wide)`). On any wide
+screen — desktop or tablet (`html.wide`) — the calendar is **standing
+furniture** (B99, issue #158): a 40px rail pinned to the viewport's right
+edge, always visible, its label **Calendar Board** reading vertically
+(`vertical-rl`, 12px/600, .18em caps) over today's date (9px/600) and a
+6px **lit dot** — the aperture: lit iff today carries events. The rail
+reserves its 40px from the frame at all times (`CAL_RAIL_W`; the room is
+three columns: boards, board, calendar). One tap expands the rail
+leftward into the panel docked at the right edge (320 unscaled px,
+`--frame` border) and the board reflows beside it — the R6 squeeze,
+entered from the rail; the panel's **Back** is the collapse arrow, and on
+collapse the board renders exactly where it was. The rail commits
+nothing and pushes no history (B81: navigation runs raw). The Calendar
+tab retires on wide (`html.wide #action-calendar { display: none }`) —
+the row is three tabs there; mobile keeps the four-tab row and the
+tab-driven full-screen view, unchanged. The tablet tier renders this
+same rail + panel arrangement under the touch grammar (B96).
 
 **The R1 top row.** Three `--frame` flat tabs in the row-control species,
 anchored left / center / right: **Back** (the board-action glyph mirrored —

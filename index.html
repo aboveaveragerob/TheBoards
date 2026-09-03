@@ -123,8 +123,21 @@
        The owner's top row (R1) is its visible way off — Back / All Boards /
        Export, anchored left / center / right — so no surface of this app is
        ever exited by an OS gesture alone. The stack renders one day card per
-       rolling date, today first (R4 computes the window; nothing stored). -->
+       rolling date, today first (R4 computes the window; nothing stored).
+       Wide (issue #158, B99): the calendar is the mockup-6 standing RAIL —
+       always visible at the viewport's right edge, its label reading
+       vertically; tapping it expands the panel (the squeeze, R6). The rail
+       chrome lives inside #cal-view so one element carries both states:
+       #cal-rail is the collapsed face, #cal-top+#cal-stack the expanded
+       panel's; on mobile both rail chrome pieces are inert (display:none)
+       and the section behaves exactly as before. -->
   <section id="cal-view" class="on-dark" hidden aria-label="Calendar">
+    <button type="button" id="cal-rail" aria-label="Calendar Board" aria-expanded="false"
+            hidden>
+      <span class="cdot" aria-hidden="true"></span>
+      <span class="vlabel" aria-hidden="true">Calendar Board</span>
+      <span class="cdate" aria-hidden="true"></span>
+    </button>
     <div id="cal-top" role="group" aria-label="Calendar actions">
       <button type="button" class="cal-act on-light" id="cal-back"></button>
       <button type="button" class="cal-act on-light" id="cal-boards"></button>

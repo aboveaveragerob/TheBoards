@@ -663,13 +663,34 @@ async function openCat(page, cat) {
     ok('the sheet origin sits at the rail width (B20 offX)', g.offx === '300px', g.offx);
     await page.evaluate(() => document.getElementById('action-calendar').click());
     await page.waitForTimeout(500);
+    // B99: the tab is hidden on wide; the standing rail is the entry. On a
+    // tablet the tab click is a no-op guard — drive the rail itself.
+    const tabGone = await page.evaluate(() =>
+      getComputedStyle(document.getElementById('action-calendar')).display === 'none');
+    const railThere = await page.evaluate(() => {
+      const r = document.getElementById('cal-rail').getBoundingClientRect();
+      return r.width >= 24 && r.x > 800;
+    });
+    ok('the tab is retired and the standing rail is wide\'s entry (B99)',
+      tabGone && railThere, JSON.stringify({ tabGone, railThere }));
+    await page.evaluate(() => document.getElementById('cal-rail').click());
+    await page.waitForTimeout(500);
     const cal = await page.evaluate(() => ({
       panel: document.getElementById('cal-view').classList.contains('panel'),
       w: document.getElementById('cal-view').getBoundingClientRect().width,
       squeeze: typeof calSqueeze !== 'undefined' && calSqueeze,
     }));
-    ok('the calendar opens as the docked panel (the issue #155 fix)',
+    ok('the rail expands into the docked panel (B99 + the issue #155 arrangement)',
       cal.panel && cal.w === 320 && cal.squeeze, JSON.stringify(cal));
+    await page.evaluate(() => document.getElementById('cal-back').click());
+    await page.waitForTimeout(500);
+    const back = await page.evaluate(() => ({
+      railOpen: document.getElementById('cal-view').classList.contains('rail-open'),
+      w: document.getElementById('cal-view').getBoundingClientRect().width,
+      squeeze: typeof calSqueeze !== 'undefined' && calSqueeze,
+    }));
+    ok('Back collapses to the standing rail, squeeze lifted (B99)',
+      back.railOpen && back.w === 40 && !back.squeeze, JSON.stringify(back));
     ok('no page errors', errors.length === 0, errors.join(' | '));
     await ctx.close();
   }

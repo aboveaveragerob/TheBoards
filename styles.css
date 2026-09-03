@@ -1707,6 +1707,74 @@ html.desktop #board { transition: opacity 260ms cubic-bezier(0.22, 0.61, 0.36, 1
   border-left: 2px solid var(--frame);
   padding: 12px;
 }
+
+/* --- The standing calendar rail (issue #158, B99) -------------------------
+   The mockup (rtcb-6-desktop-rail.html) drew the wide-species entry: a slim
+   rail pinned to the viewport's right edge, ALWAYS visible on wide screens,
+   reading "Calendar Board" vertically with today's date and a lit dot. One
+   tap expands it leftward into the panel (~a third of the viewport) and the
+   board reflows beside it — the R6 squeeze, entered from the rail instead of
+   the action row (whose Calendar tab retires on wide). Collapsed face =
+   #cal-rail; expanded face = #cal-top + #cal-stack. The rail is furniture:
+   it renders at boot on wide without any press, its expand/collapse is
+   in-room navigation (raw, B81), and on collapse the board renders exactly
+   where it was. Mobile is untouched: both rail faces are display:none there
+   and the full-screen tab-driven view is the calendar, as B95 ruled it. */
+#cal-view.rail-open {
+  left: auto;
+  width: var(--cal-rail-w, 40px);
+  border-left: 2px solid var(--frame);
+  padding: 0;
+  justify-content: center;
+  background: var(--card);             /* the collapsed rail's own paper (mockup 6) */
+  box-shadow: none;
+}
+#cal-view.rail-open.panel { width: auto; }   /* expanded wins over the collapsed width */
+#cal-view.rail-open #cal-top,
+#cal-view.rail-open #cal-stack { display: none; }   /* collapsed shows only the rail face */
+#cal-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 12px 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-light);
+  font: inherit;
+  cursor: pointer;
+}
+#cal-rail .vlabel {
+  writing-mode: vertical-rl;
+  font-size: 12px; font-weight: 600;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-light);
+}
+#cal-rail .cdot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--highlight);        /* the aperture: today is lit in the rail too */
+  opacity: .35;                        /* dim by default; lit when today has events */
+}
+#cal-rail .cdot.lit { opacity: 1; }
+#cal-rail .cdate {
+  writing-mode: vertical-rl;
+  font-size: 9px; font-weight: 600;
+  letter-spacing: .1em;
+  color: var(--ink-light);
+  opacity: .55;
+}
+#cal-rail:hover { filter: brightness(1.1); }
+#cal-rail:focus-visible {
+  outline: 2px solid var(--ink-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--ink-dark);
+}
+html.wide #action-calendar { display: none; }   /* the rail replaces the tab (B99) */
+html.wide:not(.has-cal-rail) #cal-view { display: none; }
 html.wide #board.swapping { transition: opacity 260ms cubic-bezier(0.22, 0.61, 0.36, 1); }
 
 .row-cal-mark { display: flex; }
