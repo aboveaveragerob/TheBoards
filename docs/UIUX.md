@@ -810,7 +810,13 @@ same panel arrangement under the touch grammar (B96).
 anchored left / center / right: **Back** (the board-action glyph mirrored —
 a page turn back), **All Boards**, **Export**. Back pops the view's pushed
 History state; it is the always-visible exit, with the OS gesture as the
-second route, never the only one.
+second route, never the only one. Each tab renders its act — drawn mark
+(22px) beside its label (`15px/600`) — in a frame that clears §6's touch
+floor **as drawn** (B98: `padding: 14px 16px`, ≈ 48px tall on touch), with
+the §6 decoupled collar (`--hit` on `#cal-top`, set at render) topping up
+the width where the row is tight; the collar is spent upward, into the
+row's chrome margin. Hover, press, and keyboard focus state themselves
+(brightness 1.1 / 0.92, §2.7's two-tone ring) — state is never colour.
 
 **The 7-day stack.** `#cal-stack` is a column of seven `#cal-day` cards,
 today first — computed at render (R4), never stored. A day card is a
