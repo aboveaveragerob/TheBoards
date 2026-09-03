@@ -586,8 +586,8 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
     /font-family:\s*['"]Montserrat Alternates['"],\s*system-ui/.test(css));
   ok('the icon generator defaults to the deep — the note on the canvas (B60)',
     /--ground=deep/.test(iconScript));
-  ok('CACHE is todo-boards-v42 — the bump that ships editable calendar events (issue #152)',
-    /const CACHE = 'todo-boards-v42';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
+  ok('CACHE is todo-boards-v43 — the bump that ships the filled, floor-clearing R1 top row (issue #156)',
+    /const CACHE = 'todo-boards-v43';/.test(sw), (sw.match(/todo-boards-v\d+/) || [])[0]);
   // --- Issue #140 / B92: import/export and the retired anchor menu ---
   ok('the board-action row carries the third tab (import)', /id="action-import"/.test(html) &&
     /actionImport: document\.getElementById\('action-import'\)/.test(app));
@@ -619,6 +619,20 @@ console.log('\n[10] Self-hosted type, drawn icon, shipped cache (UIUX §13, B36,
   ok('the calendar view is a real element with the R1 top row',
     /id="cal-view"/.test(html) && /id="cal-back"/.test(html) &&
     /id="cal-boards"/.test(html) && /id="cal-export"/.test(html));
+  // --- Issue #156 / B98: the R1 top row is filled and meets the touch floor ---
+  ok('the R1 row is filled at boot: each button gets its glyph + label (issue #156, B98)',
+    /fillBoardAction\(el\.calBack, GLYPH\.calBack, COPY\.calBack\)/.test(app) &&
+    /fillBoardAction\(el\.calBoards, GLYPH\.boards, COPY\.calAllBoards\)/.test(app) &&
+    /fillBoardAction\(el\.calExport, GLYPH\.export, COPY\.calExport\)/.test(app));
+  ok('the R1 row\'s visual frame clears the touch floor as drawn (§6/B86 via B98)',
+    /padding:\s*14px 16px/.test(css) && /\.cal-act \.glyph svg \{ display: block; width: 22px; height: 22px; \}/.test(css));
+  ok('the R1 row carries the §6 decoupled collar, spent upward',
+    /\.cal-act::before/.test(css) && /top: calc\(-2 \* var\(--hit, 0px\)\)/.test(css) &&
+    /el\.calTop\.style\.setProperty\('--hit', \(hitInset\(el\.calTop, 1\) \+ 0\.5\) \+ 'px'\)/.test(app));
+  ok('the R1 row states hover, press, and focus (state never colour-only, §2.7/§8)',
+    /@media \(hover: hover\) \{\s*\n\s*\.cal-act:hover \{ filter: brightness\(1\.1\); \}/.test(css) &&
+    /\.cal-act:active \{ filter: brightness\(0\.92\); \}/.test(css) &&
+    /\.cal-act:focus-visible/.test(css));
   ok('Back is the visible exit and pops the pushed state (R1: never gesture-only)',
     /el\.calBack\.addEventListener\('click'[\s\S]*?goCalBack/.test(app) &&
     /function goCalBack[\s\S]*?history\.back\(\)/.test(app));

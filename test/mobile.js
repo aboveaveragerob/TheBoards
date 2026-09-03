@@ -2231,6 +2231,55 @@ async function openCat(page, cat) {
     await ctx.close();
   }
 
+  // ---- 26. the calendar's R1 top row is filled and meets the floor (issue #156, B98) ----
+  // The bug: the three #cal-top buttons shipped as EMPTY elements — fillBoardAction
+  // was never run for them, so they rendered as 12x16 blank squares (the issue's
+  // "untappable / icons invisible"). The fix fills them (glyph + label, the board
+  // row's idiom), grows the visual frame to clear §6's 44px floor AS DRAWN, and
+  // adds the §6 decoupled collar for width where the row is tight.
+  console.log('\n[26] Calendar top row: filled, floor-clearing controls (issue #156, B98)');
+  {
+    const { ctx, page, errors } = await newMobilePage(browser);
+    await page.evaluate(() => document.getElementById('action-calendar').click());
+    await page.waitForTimeout(400);
+    const geo = await page.evaluate(() => {
+      const ids = ['cal-back', 'cal-boards', 'cal-export'];
+      return ids.map((id) => {
+        const b = document.getElementById(id);
+        const r = b.getBoundingClientRect();
+        return { id, w: r.width, h: r.height,
+                 hasSvg: !!b.querySelector('svg'),
+                 label: (b.querySelector('.label') || {}).textContent || '',
+                 glyphW: b.querySelector('svg') ? b.querySelector('svg').getBoundingClientRect().width : 0 };
+      });
+    });
+    for (const g of geo) {
+      ok(`${g.id} renders a glyph and its label (the row states its acts)`,
+        g.hasSvg && g.label.length > 0, JSON.stringify(g));
+      ok(`${g.id} clears the 44px touch floor AS DRAWN (§6, B98)`,
+        g.h >= 44 && g.w >= 44, `${g.w}x${g.h}`);
+      ok(`${g.id}'s mark is legible at rest (22px glyph)`, g.glyphW >= 20, String(g.glyphW));
+    }
+    // The collar: --hit set on #cal-top; a tap ABOVE the visual box (inside the
+    // collar, clear of the stack) still fires Back.
+    const hit = await page.evaluate(() =>
+      parseFloat(getComputedStyle(document.getElementById('cal-top')).getPropertyValue('--hit')) || 0);
+    ok('the R1 row carries its §6 hit collar (--hit set)', hit > 0, String(hit));
+    const fired = await page.evaluate(() => {
+      let n = 0;
+      document.getElementById('cal-back').addEventListener('click', () => n++);
+      const b = document.getElementById('cal-back');
+      const r = b.getBoundingClientRect();
+      const e = new MouseEvent('click', { bubbles: true,
+        clientX: r.x + r.width / 2, clientY: r.y - 10 });   // 10px above the frame — collar territory
+      b.dispatchEvent(e);
+      return n;
+    });
+    ok('a tap in the collar above the visual frame fires Back', fired === 1, String(fired));
+    ok('no page errors', errors.length === 0, errors.join(' | '));
+    await ctx.close();
+  }
+
   await browser.close();
   console.log('\n=== mobile: ' + pass + ' passed, ' + fail + ' failed ===');
   process.exit(fail ? 1 : 0);

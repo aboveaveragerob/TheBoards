@@ -2629,6 +2629,15 @@ fillBoardAction(el.actionBoards, GLYPH.boards, COPY.calBoardTab);
 fillBoardAction(el.actionExport, GLYPH.export, COPY.export);
 fillBoardAction(el.actionImport, GLYPH.import, COPY.import);
 fillBoardAction(el.actionCalendar, GLYPH.calendar, COPY.calendar);
+/* The calendar's R1 top row (issue #156, B98): the same fill, the same family.
+   Back wears its own page-turn mark (GLYPH.calBack — drawn for B95's R1 and
+   wired here for the first time); All Boards and Export wear the same marks
+   as their board-row siblings, because they are the same acts. Filling at
+   boot is what makes the row controls at all — the issue's "untappable /
+   invisible" report was three empty <button>s rendering as blank squares. */
+fillBoardAction(el.calBack, GLYPH.calBack, COPY.calBack);
+fillBoardAction(el.calBoards, GLYPH.boards, COPY.calAllBoards);
+fillBoardAction(el.calExport, GLYPH.export, COPY.calExport);
 
 /* The toggle wears the act it will perform (B43/B71's grammar, not a fixed
    noun): on the board it offers All boards; while the All-Boards surface is up
@@ -4675,6 +4684,14 @@ function eventsOf(all) {
 function renderCal() {
   el.calView.hidden = false;
   el.calStack.textContent = '';
+  // §6/B7's collar on the R1 top row (issue #156, B98): the row's tabs draw
+  // at the floor as visible frames now, and the collar tops up the width
+  // where geometry is tight. The calendar is an unscaled surface, so the
+  // draw scale k is 1 — the same arithmetic, one caller shape fewer than the
+  // board row (no renderScale term). isDesktop inside hitInset picks the
+  // 44px touch floor vs the 24px pointer floor, so B96's tablet tier
+  // inherits the right one. Half-pixel headroom, per the board row's note.
+  el.calTop.style.setProperty('--hit', (hitInset(el.calTop, 1) + 0.5) + 'px');
   const days = calWindow();
   flushSave();
   idbGetAll().then((all) => {

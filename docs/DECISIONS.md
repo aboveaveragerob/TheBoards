@@ -3681,3 +3681,32 @@ caret to end, re-arm guard). `test/mobile.js` [25] and `test/desktop.js`
 at end → edit → persist → mirror re-synced; [25] additionally pins the empty
 commit's discard and the completed event's surviving strike.
 `UIUX §3.4`'s Capture note now covers the existing line's editing contract.
+
+### B98. The calendar's R1 top row renders its acts and meets the touch floor: each button is filled — drawn mark + label, the row-control species' whole self — its visual frame clears the 44px floor as drawn, the §6 decoupled collar tops up the width where the row is tight, and hover, press, and keyboard focus are each stated (issue #156; keeps B95/R1's acts and anchors untouched — no new control, no grammar change; keeps §6/B7's collar law, B86's finger-size logic applied to the frame itself, §2.7/§8's closed motion and state set — and waives nothing)
+
+**The defect was a row that never got dressed.** `index.html` declared the
+three `#cal-top` buttons empty and the boot step that fills the board-action
+row (`fillBoardAction`) was never run for them: they rendered as 12×16 blank
+squares — the issue's "untappable, icons invisible" was one shipping defect
+with three faces (unfilled, floor-less, stateless). Measured live before the
+fix; `GLYPH.calBack` and its COPY strings had been drawn for B95/R1 and
+shipped unused.
+
+**The frame is the floor.** The owner's direction is explicit: the visual
+button grows, not only the hit area. `.cal-act` now draws at
+`padding: 14px 16px`, label 15px, mark 22px — ≈ 48px tall on touch, over
+§6's floor as a *rendered* box, with the collar (JS `--hit` on `#cal-top`
+from `renderCal()`, `k = 1` — the calendar is an unscaled surface) topping
+up width where a 390px row is tight, spent upward into the row's own chrome
+margin because downward is the day stack's furniture. Interaction states are
+the board-action row's trio verbatim: hover brightness 1.1 (hover-capable
+pointers only), active 0.92, §2.7's two-tone ring on `:focus-visible`. The
+marks are the family's own: `GLYPH.calBack` (the page turn, wired at last),
+`GLYPH.boards` and `GLYPH.export` shared with their board-row siblings —
+same act, same mark, so the two rows read as one hand.
+
+`test/mobile.js` [26] proves the row through the touch grammar: each button
+carries glyph + label, each clears the floor as drawn, the mark is legible
+at rest, `--hit` is set, and a tap in the collar above the frame fires Back.
+`test/tokens.js` pins the fill, the frame values, the collar, and the state
+trio in the shipped bytes.
